@@ -1,7 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { SoporteService, BackupJobDto, BackupConfigDto } from '../../../../core/services/soporte.service';
+import { SoporteService, BackupJobDto, BackupConfigDto, BackupConfigEdit } from '../../../../core/services/soporte.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
 
@@ -26,17 +26,57 @@ export class BackupsComponent implements OnInit, OnDestroy {
   config: BackupConfigDto | null = null;
   configAbierta = false;
 
+  // Formulario de programación (se llena desde el GET, se guarda con PUT)
+  form: BackupConfigEdit = {
+    bdAuto: true, bdFrecuencia: 'diario', bdHora: '23:30',
+    bdDiaSemana: 6, bdCorreo: true, archivosAuto: true,
+  };
+  guardandoConfig = false;
+  readonly diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
   // ── Backup manual ──
   alcance: 'bd' | 'completo' = 'bd';
   generando = false;
   jobEnProceso: BackupJobDto | null = null;
+  cancelando = false;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
 
   descargandoId: string | null = null;
 
   ngOnInit(): void {
     this.cargar();
-    this.svc.getBackupConfig().subscribe({ next: c => (this.config = c), error: () => {} });
+    this.cargarConfig();
+  }
+
+  private cargarConfig(): void {
+    this.svc.getBackupConfig().subscribe({
+      next: c => { this.config = c; this.aplicarConfigAlForm(c); },
+      error: () => {},
+    });
+  }
+
+  private aplicarConfigAlForm(c: BackupConfigDto): void {
+    this.form = {
+      bdAuto: c.bdAuto, bdFrecuencia: c.bdFrecuencia, bdHora: c.bdHora,
+      bdDiaSemana: c.bdDiaSemana, bdCorreo: c.bdCorreo, archivosAuto: c.archivosAuto,
+    };
+  }
+
+  guardarConfig(): void {
+    if (this.guardandoConfig) return;
+    this.guardandoConfig = true;
+    this.svc.actualizarBackupConfig(this.form).subscribe({
+      next: c => {
+        this.guardandoConfig = false;
+        this.config = c;
+        this.aplicarConfigAlForm(c);
+        this.toast.mostrar('Programación guardada. Aplica desde el próximo minuto.', 'success');
+      },
+      error: err => {
+        this.guardandoConfig = false;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo guardar la programación.', 'error');
+      },
+    });
   }
 
   ngOnDestroy(): void { this.detenerPolling(); }
@@ -88,15 +128,18 @@ export class BackupsComponent implements OnInit, OnDestroy {
       this.svc.getBackup(jobId).subscribe({
         next: job => {
           this.jobEnProceso = job;
-          if (job.estado === 'completado' || job.estado === 'fallido') {
+          if (job.estado === 'completado' || job.estado === 'fallido' || job.estado === 'cancelado') {
             this.detenerPolling();
             this.generando = false;
+            this.cancelando = false;
             this.jobEnProceso = null;
-            this.toast.mostrar(
-              job.estado === 'completado'
-                ? `Backup listo — ${this.fmtBytes(job.tamanoBytes)}. Ya puedes descargarlo.`
-                : `Backup fallido: ${job.errorDetalle ?? 'error desconocido'}`,
-              job.estado === 'completado' ? 'success' : 'error');
+            if (job.estado === 'completado') {
+              this.toast.mostrar(`Backup listo — ${this.fmtBytes(job.tamanoBytes)}. Ya puedes descargarlo.`, 'success');
+            } else if (job.estado === 'fallido') {
+              this.toast.mostrar(`Backup fallido: ${job.errorDetalle ?? 'error desconocido'}`, 'error');
+            } else {
+              this.toast.mostrar('Backup cancelado.', 'info');
+            }
             this.cargar();
           }
         },
@@ -109,6 +152,32 @@ export class BackupsComponent implements OnInit, OnDestroy {
     if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
   }
 
+  // ── Cancelar ──
+  cancelar(b: BackupJobDto): void {
+    if (this.cancelando) return;
+    this.cancelando = true;
+    this.svc.cancelarBackup(b.id).subscribe({
+      next: job => {
+        // Si quedó cancelado de inmediato (estaba pendiente), cerrar aquí;
+        // si sigue en_proceso, el polling detecta el estado final.
+        if (job.estado === 'cancelado') {
+          this.cancelando = false;
+          this.generando = false;
+          this.detenerPolling();
+          this.jobEnProceso = null;
+          this.toast.mostrar('Backup cancelado.', 'info');
+          this.cargar();
+        } else {
+          this.toast.mostrar('Cancelando backup…', 'info');
+        }
+      },
+      error: err => {
+        this.cancelando = false;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo cancelar.', 'error');
+      },
+    });
+  }
+
   // ── Descargar ──
   descargar(b: BackupJobDto): void {
     if (this.descargandoId) return;
@@ -116,8 +185,11 @@ export class BackupsComponent implements OnInit, OnDestroy {
     this.svc.descargarBackup(b.id).subscribe({
       next: blob => {
         this.descargandoId = null;
-        const nombre = `ezyro_backup_${b.nivel}_${(b.fechaInicio || '').slice(0, 10)}_${b.id.slice(0, 8)}` +
-                       (b.contenido === 'bd' ? '.dump' : '.tar.gz');
+        // Nombre real del artefacto (extensión correcta, incl. .dump antiguos);
+        // fallback: .sql para solo-BD, .tar.gz para paquetes
+        const nombre = b.nombreArchivo ??
+          `ezyro_backup_${b.nivel}_${(b.fechaInicio || '').slice(0, 10)}_${b.id.slice(0, 8)}` +
+          (b.contenido === 'bd' ? '.sql' : '.tar.gz');
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url; a.download = nombre; a.click();
@@ -158,7 +230,7 @@ export class BackupsComponent implements OnInit, OnDestroy {
 
   nivelLabel(n: string): string {
     const m: Record<string, string> = {
-      bd_horario: 'BD · horario', bd_diario: 'BD · diario',
+      bd_horario: 'BD · horario', bd_diario: 'BD · diario', bd_semanal: 'BD · semanal',
       archivos_incremental: 'Archivos · incremental', archivos_full: 'Archivos · completo',
       reconciliacion: 'Reconciliación',
     };
@@ -174,7 +246,7 @@ export class BackupsComponent implements OnInit, OnDestroy {
   estadoLabel(e: string): string {
     const m: Record<string, string> = {
       pendiente: 'Pendiente', en_proceso: 'En proceso',
-      completado: 'Completado', fallido: 'Fallido',
+      completado: 'Completado', fallido: 'Fallido', cancelado: 'Cancelado',
     };
     return m[e] ?? e;
   }

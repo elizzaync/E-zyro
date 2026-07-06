@@ -249,6 +249,14 @@ export class SoporteService {
     return this.http.get<BackupConfigDto>(`${this.base}/backups/config`);
   }
 
+  actualizarBackupConfig(cfg: BackupConfigEdit): Observable<BackupConfigDto> {
+    return this.http.put<BackupConfigDto>(`${this.base}/backups/config`, cfg);
+  }
+
+  cancelarBackup(id: string): Observable<BackupJobDto> {
+    return this.http.post<BackupJobDto>(`${this.base}/backups/${id}/cancelar`, {});
+  }
+
   descargarBackup(id: string): Observable<Blob> {
     return this.http.get(`${this.base}/backups/${id}/descargar`, { responseType: 'blob' });
   }
@@ -263,7 +271,7 @@ export interface BackupJobDto {
   disparadoPorNombre: string | null;
   fechaInicio: string;
   fechaFin: string | null;
-  estado: 'pendiente' | 'en_proceso' | 'completado' | 'fallido';
+  estado: 'pendiente' | 'en_proceso' | 'completado' | 'fallido' | 'cancelado';
   contenido: string;               // csv: bd,pdfs,cloudinary
   tamanoBytes: number | null;
   hashSha256: string | null;
@@ -272,6 +280,7 @@ export interface BackupJobDto {
   expiraEn: string | null;
   descargable: boolean;
   duracionSegundos: number | null;
+  nombreArchivo: string | null;    // nombre real del artefacto (.sql / .tar.gz)
 }
 
 export interface BackupsListDto {
@@ -281,8 +290,18 @@ export interface BackupsListDto {
   pageSize: number;
 }
 
-export interface BackupConfigDto {
-  config: Record<string, string>;
+// Programación editable de los backups automáticos (PUT /backups/config)
+export interface BackupConfigEdit {
+  bdAuto: boolean;
+  bdFrecuencia: 'cada_hora' | 'diario' | 'semanal';
+  bdHora: string;                  // "HH:MM" hora local
+  bdDiaSemana: number;             // 0=lunes … 6=domingo (solo semanal)
+  bdCorreo: boolean;
+  archivosAuto: boolean;
+}
+
+export interface BackupConfigDto extends BackupConfigEdit {
+  resumen: Record<string, string>;
   backupDir: string;
   retencionDias: Record<string, number>;
 }

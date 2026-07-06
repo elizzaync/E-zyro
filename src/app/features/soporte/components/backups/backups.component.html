@@ -22,17 +22,70 @@
     </button>
   </header>
 
-  <!-- ═══════ CONFIGURACIÓN (colapsable) ═══════ -->
+  <!-- ═══════ CONFIGURACIÓN (colapsable, editable) ═══════ -->
   @if (configAbierta && config) {
   <section class="bk-config-card">
-    <h3 class="bk-config-title">Frecuencia y retención automática</h3>
+    <h3 class="bk-config-title">Programación de backups automáticos</h3>
+
+    <div class="bk-form">
+      <label class="bk-check">
+        <input type="checkbox" [(ngModel)]="form.bdAuto" [disabled]="guardandoConfig">
+        <span><strong>Backup automático de base de datos</strong></span>
+      </label>
+
+      @if (form.bdAuto) {
+        <div class="bk-form-fila">
+          <label class="bk-form-campo">
+            <span>Frecuencia</span>
+            <select class="bk-select" [(ngModel)]="form.bdFrecuencia" [disabled]="guardandoConfig">
+              <option value="cada_hora">Cada hora (+ consolidado diario)</option>
+              <option value="diario">Diario</option>
+              <option value="semanal">Semanal</option>
+            </select>
+          </label>
+          @if (form.bdFrecuencia === 'semanal') {
+            <label class="bk-form-campo">
+              <span>Día</span>
+              <select class="bk-select" [(ngModel)]="form.bdDiaSemana" [disabled]="guardandoConfig">
+                @for (d of diasSemana; track $index) {
+                  <option [ngValue]="$index">{{ d }}</option>
+                }
+              </select>
+            </label>
+          }
+          <label class="bk-form-campo">
+            <span>Hora</span>
+            <input class="bk-select" type="time" [(ngModel)]="form.bdHora" [disabled]="guardandoConfig">
+          </label>
+        </div>
+        <label class="bk-check">
+          <input type="checkbox" [(ngModel)]="form.bdCorreo" [disabled]="guardandoConfig">
+          <span>Enviar el respaldo por correo a Soporte (adjunto .zip con el .sql)</span>
+        </label>
+      }
+
+      <label class="bk-check">
+        <input type="checkbox" [(ngModel)]="form.archivosAuto" [disabled]="guardandoConfig">
+        <span><strong>Backup automático de archivos Cloudinary</strong> · incremental cada hora + completo domingo 22:00</span>
+      </label>
+
+      <div class="bk-form-acciones">
+        <button class="bk-btn-generar bk-btn-guardar" (click)="guardarConfig()" [disabled]="guardandoConfig">
+          @if (guardandoConfig) { <app-spinner [size]="14" theme="light"></app-spinner> }
+          Guardar programación
+        </button>
+        <span class="bk-form-hint">El cambio aplica desde el próximo minuto, sin reiniciar el servidor.</span>
+      </div>
+    </div>
+
+    <h4 class="bk-config-title bk-config-sub">Vigente ahora</h4>
     <ul class="bk-config-list">
-      @for (item of config.config | keyvalue; track item.key) {
+      @for (item of config.resumen | keyvalue; track item.key) {
         <li><strong>{{ item.key }}:</strong> {{ item.value }}</li>
       }
     </ul>
     <p class="bk-config-dir">Directorio de artefactos en el servidor: <code>{{ config.backupDir }}</code></p>
-    <p class="bk-config-nota">Los backups automáticos también quedan en este historial. El dump diario se envía por correo a Soporte; la copia de largo plazo es la que descargas aquí y guardas en tu disco externo.</p>
+    <p class="bk-config-nota">La BD se respalda como <strong>.sql plano</strong>: se abre con cualquier editor y se restaura con <code>psql -f archivo.sql</code>. La copia de largo plazo es la que descargas aquí y guardas en tu disco externo.</p>
   </section>
   }
 
@@ -43,7 +96,7 @@
       <div class="bk-alcance">
         <label class="bk-radio">
           <input type="radio" name="alcance" value="bd" [(ngModel)]="alcance" [disabled]="generando">
-          <span><strong>Solo base de datos</strong> · rápido (~segundos), dump completo restaurable</span>
+          <span><strong>Solo base de datos</strong> · rápido (~segundos), archivo .sql legible y restaurable</span>
         </label>
         <label class="bk-radio">
           <input type="radio" name="alcance" value="completo" [(ngModel)]="alcance" [disabled]="generando">
@@ -56,6 +109,9 @@
         <div class="bk-proceso">
           <app-spinner [size]="18"></app-spinner>
           <span>{{ jobEnProceso.estado === 'pendiente' ? 'En cola…' : 'Generando backup…' }}</span>
+          <button class="bk-btn-cancelar" (click)="cancelar(jobEnProceso)" [disabled]="cancelando">
+            {{ cancelando ? 'Cancelando…' : 'Cancelar' }}
+          </button>
         </div>
       } @else {
         <button class="bk-btn-generar" (click)="generarBackup()" [disabled]="generando">
@@ -76,6 +132,7 @@
         <option value="completado">Completados</option>
         <option value="fallido">Fallidos</option>
         <option value="en_proceso">En proceso</option>
+        <option value="cancelado">Cancelados</option>
       </select>
       <span class="bk-total"><strong>{{ total }}</strong> backups registrados</span>
     </div>
@@ -139,12 +196,16 @@
                       }
                       Descargar
                     </button>
+                  } @else if (b.estado === 'pendiente' || b.estado === 'en_proceso') {
+                    <button class="bk-btn-cancelar" (click)="cancelar(b)" [disabled]="cancelando">
+                      Cancelar
+                    </button>
                   } @else if (b.estado === 'fallido') {
                     <span class="bk-muted" [title]="b.errorDetalle ?? ''">Error</span>
                   } @else if (b.estado === 'completado') {
                     <span class="bk-muted" title="Incremental sin novedades o artefacto expirado">—</span>
                   } @else {
-                    <span class="bk-muted">…</span>
+                    <span class="bk-muted">—</span>
                   }
                 </td>
               </tr>
