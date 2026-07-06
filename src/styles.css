@@ -178,6 +178,16 @@ main {
   z-index: 0;
   isolation: isolate;
 }
+/* El área de contenido SIEMPRE llena el alto visible que deja el navbar
+   (72px desktop / 60px móvil vía --nav-height). Sin esto cada vista decidía
+   su alto: las que no ponían nada dejaban un hueco enorme abajo (y el
+   dropdown del navbar sobresalía del documento), y las que ponían
+   min-height:100vh sumaban el navbar de más y creaban scroll fantasma.
+   Aplica solo cuando hay navbar (login/reset no lo tienen) y excluye el
+   portal cliente, que ya trae su propia regla en main.portal-mode. */
+app-navbar + main:not(.portal-mode) {
+  min-height: calc(100vh - var(--nav-height, 72px));
+}
 /* Cuando hay un modal abierto dentro de main, rompe el isolation y sube
    main por encima del navbar (z-index:1000) para que el backdrop cubra todo. */
 main:has(.modal-backdrop-pro) {

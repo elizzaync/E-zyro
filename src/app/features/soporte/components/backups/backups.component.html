@@ -217,9 +217,9 @@
                   } @else if (b.estado === 'fallido') {
                     <span class="bk-muted" [title]="b.errorDetalle ?? ''">Error</span>
                   } @else if (b.estado === 'completado' && !b.tamanoBytes && b.contenido.includes('cloudinary')) {
-                    <span class="bk-muted" title="No hubo archivos nuevos en Cloudinary en esta corrida: no se generó paquete (no hay nada que descargar)">Sin novedades</span>
+                    <span class="bk-muted" title="Sin cambios en este período: el incremental no encontró archivos nuevos en Cloudinary, no se generó paquete y no hay nada que descargar.">Sin novedades</span>
                   } @else if (b.estado === 'completado') {
-                    <span class="bk-muted" title="El artefacto ya no está en el servidor (expiró o hubo redeploy). Genera un backup nuevo.">Expirado</span>
+                    <span class="bk-muted" title="El artefacto fue eliminado por la política de retención y ya no puede regenerarse.">Expirado</span>
                   } @else {
                     <span class="bk-muted">—</span>
                   }

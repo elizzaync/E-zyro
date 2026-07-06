@@ -1,8 +1,12 @@
 /* ── Page ── */
 .gp-page {
   padding: 24px 28px;
-  min-height: 100vh;
-  background: var(--bg-main, #f1f5f9);
+  /* El alto lo garantiza el shell (app-navbar + main en styles.css);
+     min-height:100vh aquí sumaba el navbar de más → scroll fantasma.
+     Sin background propio: --bg-main no existe y su fallback claro
+     rompía el modo oscuro; el color lo pone el body (--bg-color). */
+  width: 100%;
+  box-sizing: border-box;
   font-family: 'Inter', sans-serif;
 }
 
