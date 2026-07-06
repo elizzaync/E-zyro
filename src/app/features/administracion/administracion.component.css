@@ -1,113 +1,12 @@
-/* ── Layout ── */
+/* ── Página (shell sin sidebar: cada sección ocupa todo el ancho) ──
+   Sin min-height ni background propios: el alto lo garantiza el shell global
+   (app-navbar + main en styles.css) y el color de fondo lo pone el body
+   (--bg-color); el antiguo var(--bg-page) no existía y su fallback claro
+   rompía el modo oscuro. */
 .adm-page {
   width: 100%;
-  min-height: 100vh;
-  background: var(--bg-page, #f4f6fb);
-  padding: 24px;
   box-sizing: border-box;
-}
-
-.adm-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.adm-header-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.adm-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--text-primary, #111827);
-  margin: 0;
-}
-
-.adm-subtitle {
-  font-size: 13px;
-  color: var(--text-secondary, #6b7280);
-  margin: 2px 0 0;
-}
-
-.adm-layout {
-  display: flex;
-  gap: 20px;
-  align-items: flex-start;
-}
-
-/* ── Sidebar ── */
-.adm-sidebar {
-  width: 210px;
-  flex-shrink: 0;
-  background: var(--card-bg, #fff);
-  border-radius: 14px;
-  border: 1px solid var(--border, #e5e7eb);
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  position: sticky;
-  top: 80px;
-}
-
-.adm-sidebar-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 12px;
-  border-radius: 9px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-  width: 100%;
-  transition: background 0.15s;
-}
-
-.adm-sidebar-item:hover {
-  background: var(--hover-bg, #f3f4f6);
-}
-
-.adm-sidebar-item.active {
-  background: #f5f5ff;
-  color: #111827;
-}
-
-.adm-sidebar-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  transition: background 0.2s;
-}
-
-.adm-sidebar-label {
-  font-size: 13px;
-  font-weight: 500;
-  color: inherit;
-  line-height: 1.3;
-}
-
-.adm-sidebar-item.active .adm-sidebar-label { color: #6366f1; font-weight: 600; }
-
-/* ── Content ── */
-.adm-content {
-  flex: 1;
-  min-width: 0;
-  background: var(--card-bg, #fff);
-  border-radius: 14px;
-  border: 1px solid var(--border, #e5e7eb);
-  overflow: hidden;
+  padding: 28px 32px;
 }
 
 /* ════════════════════════════════════════════════
@@ -189,8 +88,20 @@
 :host ::ng-deep .adm-tab:hover { color: var(--mod-color, #6366f1); background: var(--mod-hover-bg, #f5f3ff); }
 :host ::ng-deep .adm-tab.active { color: var(--mod-color, #6366f1); border-bottom-color: var(--mod-color, #6366f1); font-weight: 600; }
 
-/* Section wrapper */
-:host ::ng-deep .adm-section { padding: 0; }
+/* Planilla (PlanillasComponent de RRHH reutilizado) ya trae su propio
+   padding de página: se anula aquí para no sumarlo al de .adm-page */
+:host ::ng-deep app-planillas .plan-wrapper { padding: 0; }
+
+/* Section wrapper: ahora ES la tarjeta de página completa (antes esa tarjeta
+   era .adm-content, el panel derecho del layout con sidebar) */
+:host ::ng-deep .adm-section {
+  padding: 0;
+  background: var(--card-bg, #fff);
+  border-radius: 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  overflow: hidden;
+  display: block;
+}
 
 /* Toolbar */
 :host ::ng-deep .adm-toolbar {
@@ -576,7 +487,5 @@
 
 /* Responsive */
 @media (max-width: 768px) {
-  .adm-layout { flex-direction: column; }
-  .adm-sidebar { width: 100%; flex-direction: row; overflow-x: auto; position: static; flex-wrap: nowrap; }
-  .adm-sidebar-item { white-space: nowrap; }
+  .adm-page { padding: 16px; }
 }

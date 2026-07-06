@@ -1,33 +1,7 @@
+<!-- Shell de Administración: SIN sidebar ni header propios. Cada sección es
+     una página completa; se navega con el dropdown "Administración" del
+     navbar. Este componente existe solo para (a) colgar las rutas hijas y
+     (b) portar los estilos compartidos ::ng-deep de las 10 secciones. -->
 <div class="adm-page">
-  <!-- Header -->
-  <div class="adm-header">
-    <div class="adm-header-icon">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="28" height="28">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5M2 12l10 5 10-5"/>
-      </svg>
-    </div>
-    <div>
-      <h1 class="adm-title">Administración</h1>
-      <p class="adm-subtitle">Finanzas · Gestión · Análisis</p>
-    </div>
-  </div>
-
-  <!-- Layout: sidebar + contenido -->
-  <div class="adm-layout">
-    <aside class="adm-sidebar">
-      @for (m of modulos; track m.path) {
-        <a [routerLink]="['/administracion', m.path]"
-           routerLinkActive="active"
-           class="adm-sidebar-item">
-          <span class="adm-sidebar-dot" [style.background]="m.color"></span>
-          <span class="adm-sidebar-label">{{ m.label }}</span>
-        </a>
-      }
-    </aside>
-
-    <main class="adm-content">
-      <router-outlet></router-outlet>
-    </main>
-  </div>
+  <router-outlet></router-outlet>
 </div>
