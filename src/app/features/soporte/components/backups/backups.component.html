@@ -22,11 +22,23 @@
     </button>
   </header>
 
-  <!-- ═══════ CONFIGURACIÓN (colapsable, editable) ═══════ -->
+  <!-- ═══════ CONFIGURACIÓN (modal estándar) ═══════ -->
   @if (configAbierta && config) {
-  <section class="bk-config-card">
-    <h3 class="bk-config-title">Programación de backups automáticos</h3>
+  <app-modal
+    [open]="true"
+    title="Programación de backups"
+    subtitle="Los cambios aplican desde el próximo minuto, sin reiniciar el servidor"
+    maxWidth="640px"
+    iconBg="rgba(145,211,55,0.12)"
+    iconColor="#4d7d18"
+    (closeModal)="configAbierta = false">
 
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+    </svg>
+
+    <div class="bk-modal-body">
     <div class="bk-form">
       <label class="bk-check">
         <input type="checkbox" [(ngModel)]="form.bdAuto" [disabled]="guardandoConfig">
@@ -69,13 +81,6 @@
         <span><strong>Backup automático de archivos Cloudinary</strong> · incremental cada hora + completo domingo 22:00</span>
       </label>
 
-      <div class="bk-form-acciones">
-        <button class="bk-btn-generar bk-btn-guardar" (click)="guardarConfig()" [disabled]="guardandoConfig">
-          @if (guardandoConfig) { <app-spinner [size]="14" theme="light"></app-spinner> }
-          Guardar programación
-        </button>
-        <span class="bk-form-hint">El cambio aplica desde el próximo minuto, sin reiniciar el servidor.</span>
-      </div>
     </div>
 
     <h4 class="bk-config-title bk-config-sub">Vigente ahora</h4>
@@ -86,7 +91,16 @@
     </ul>
     <p class="bk-config-dir">Directorio de artefactos en el servidor: <code>{{ config.backupDir }}</code></p>
     <p class="bk-config-nota">La BD se respalda como <strong>.sql plano</strong>: se abre con cualquier editor y se restaura con <code>psql -f archivo.sql</code>. La copia de largo plazo es la que descargas aquí y guardas en tu disco externo.</p>
-  </section>
+
+    <div class="bk-modal-footer">
+      <button class="bk-btn-config" type="button" (click)="configAbierta = false" [disabled]="guardandoConfig">Cerrar</button>
+      <button class="bk-btn-generar bk-btn-guardar" (click)="guardarConfig()" [disabled]="guardandoConfig">
+        @if (guardandoConfig) { <app-spinner [size]="14" theme="light"></app-spinner> }
+        Guardar programación
+      </button>
+    </div>
+    </div>
+  </app-modal>
   }
 
   <!-- ═══════ GENERAR MANUAL ═══════ -->

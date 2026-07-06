@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { SoporteService, BackupJobDto, BackupConfigDto, BackupConfigEdit } from '../../../../core/services/soporte.service';
 import { ToastService } from '../../../../core/services/toast.service';
 import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 
 @Component({
   selector: 'app-backups',
   standalone: true,
-  imports: [CommonModule, FormsModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './backups.component.html',
   styleUrls: ['./backups.component.css'],
 })
@@ -70,6 +71,7 @@ export class BackupsComponent implements OnInit, OnDestroy {
         this.guardandoConfig = false;
         this.config = c;
         this.aplicarConfigAlForm(c);
+        this.configAbierta = false;
         this.toast.mostrar('Programación guardada. Aplica desde el próximo minuto.', 'success');
       },
       error: err => {
