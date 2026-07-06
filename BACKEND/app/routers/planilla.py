@@ -356,6 +356,10 @@ def listar_planillas(
 
 
 def _periodo(db: Session, empresa_id: str, periodo: str) -> PeriodoContable:
+    """Get-or-create: Planilla no debe depender de que Contabilidad haya
+    abierto el período antes (son módulos distintos operados por roles
+    distintos). Si no existe, se crea 'abierto' — Contabilidad sigue siendo
+    quien lo cierra/reabre normalmente."""
     try:
         anio, mes = (int(x) for x in periodo.split("-"))
     except Exception:
@@ -364,7 +368,10 @@ def _periodo(db: Session, empresa_id: str, periodo: str) -> PeriodoContable:
         PeriodoContable.empresa_id == empresa_id, PeriodoContable.anio == anio,
         PeriodoContable.mes == mes).first()
     if not p:
-        raise HTTPException(status_code=404, detail=f"No existe periodo {periodo}.")
+        p = PeriodoContable(empresa_id=empresa_id, anio=anio, mes=mes, estado="abierto")
+        db.add(p)
+        db.commit()
+        db.refresh(p)
     return p
 
 

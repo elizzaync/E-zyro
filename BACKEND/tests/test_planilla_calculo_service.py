@@ -52,15 +52,18 @@ def test_caso_a_dependiente_onp_general_con_extras_y_faltas():
     assert q2(d.descuento_faltas) == Decimal("142.05")          # informativo: 2500 - 2357.95
     assert d.horas_extra == Decimal(4)
     assert q2(d.pago_horas_extra) == Decimal("54.17")          # 2h@25% + 2h@35%
-    assert q2(d.asignacion_familiar) == Decimal("113.00")       # 10% RMV, régimen general
+    # Asignación familiar TAMBIÉN proporcional a la asistencia (106.58, no 113
+    # completo): mismo principio que el sueldo — remuneración computable del
+    # período, no un monto fijo ajeno a si el empleado trabajó o no.
+    assert q2(d.asignacion_familiar) == Decimal("106.58")
     assert d.es_afp is False
-    assert q2(d.base_pension) == Decimal("2525.12")
-    assert q2(d.descuento_pension) == Decimal("328.27")         # ONP 13% plano sobre la base ya proporcional
+    assert q2(d.base_pension) == Decimal("2518.70")
+    assert q2(d.descuento_pension) == Decimal("327.43")         # ONP 13% plano sobre la base ya proporcional
     assert q2(d.afp_aporte_obligatorio) == Decimal("0.00")
     assert d.renta_5ta == Decimal(0)                            # no supera las 7 UIT de deducción
-    assert q2(d.total_ingresos) == Decimal("2525.12")
-    assert q2(d.total_descuentos_legales) == Decimal("328.27")
-    assert q2(d.neto_a_pagar) == Decimal("2196.86")
+    assert q2(d.total_ingresos) == Decimal("2518.70")
+    assert q2(d.total_descuentos_legales) == Decimal("327.43")
+    assert q2(d.neto_a_pagar) == Decimal("2191.27")
     # Informativos (EsSalud/provisiones): sobre lo DEVENGADO, no el sueldo teórico completo
     assert q2(d.aporte_essalud) == Decimal("212.22")
     assert q2(d.provision_cts) == Decimal("196.50")
@@ -138,6 +141,33 @@ def test_caso_h_inasistencia_total_no_debe_pagar_nada():
     assert q2(d.aporte_essalud) == Decimal("0.00")               # tampoco se aporta EsSalud sobre nada devengado
 
 
+# ── Caso J: 100% inasistencia CON sueldo alto — renta 5ta no debe generarse
+# sobre un sueldo que nunca se pagó (bug real encontrado al probar Fase 4
+# contra producción: sin este fix, neto quedaba NEGATIVO) ──────────────────
+def test_caso_j_inasistencia_total_con_sueldo_alto_no_genera_renta_5ta_fantasma():
+    """Mismo sueldo que el Caso E (6000, con asignación familiar, régimen
+    general) que SÍ generaba renta 5ta > 0 con asistencia completa — pero acá
+    con 0% de asistencia. Antes de la corrección doble (sueldo_devengado +
+    asignación familiar proporcionales), quedaba un residuo de asignación
+    familiar fija que generaba base de pensión y renta 5ta sobre un ingreso
+    que en la práctica no correspondía — llegando incluso a un NETO NEGATIVO
+    al persistir la boleta real. Debe dar exactamente 0 en absolutamente
+    todo: sin asistencia, no hay remuneración computable del período."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(6000),
+        horas_faltantes=Decimal(176), horas_reales=Decimal(0), meta_horas=Decimal(176),
+        sistema_pension="onp", tiene_asignacion_familiar=True, regimen_empresa="general",
+    )
+    assert q2(d.sueldo_devengado) == Decimal("0.00")
+    assert q2(d.asignacion_familiar) == Decimal("0.00")  # antes: 113.00 fijo (residuo)
+    assert q2(d.base_pension) == Decimal("0.00")
+    assert q2(d.descuento_pension) == Decimal("0.00")
+    assert q2(d.renta_5ta) == Decimal("0.00")            # antes: 269.15 (fantasma)
+    assert q2(d.total_ingresos) == Decimal("0.00")
+    assert q2(d.total_descuentos_legales) == Decimal("0.00")
+    assert q2(d.neto_a_pagar) == Decimal("0.00")         # nunca negativo
+
+
 # ── Caso I: practicante con turno reducido, asistencia completa ────────────
 def test_caso_i_turno_reducido_con_asistencia_completa_cobra_el_100pct():
     """meta_horas ya viene resuelta por el TURNO específico del empleado
@@ -184,6 +214,9 @@ def test_caso_e_renta_5ta_se_activa_con_sueldo_alto():
     )
     assert q2(d.renta_5ta) == Decimal("269.15")
     assert q2(d.neto_a_pagar) == Decimal("5049.16")
+    # Asistencia completa (0 horas faltantes) -> asignación familiar íntegra,
+    # sin prorrateo (100% de la proporción de asistencia = 100% del monto).
+    assert q2(d.asignacion_familiar) == Decimal("113.00")
     # Fidelidad deliberada: la base de renta 5ta suma la asignación familiar
     # SIN verificar el régimen (a diferencia de asignacion_familiar, que sí lo
     # verifica) — inconsistencia ya presente en el TS original, se preserva.

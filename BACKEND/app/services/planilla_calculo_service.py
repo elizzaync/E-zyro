@@ -244,11 +244,21 @@ def calcular_boleta_empleado(
 
     # Asignación Familiar: 10% RMV, SOLO Régimen General, solo dependientes
     # con el flag activo (D.S. N.° 035-90-TR).
+    #
+    # CORRECCIÓN DELIBERADA (misma sesión, 2026-07-06): igual que el sueldo
+    # base, es remuneración computable del período — se prorratea por la
+    # proporción de asistencia. Sin esto, un empleado con 0% de asistencia
+    # igual "cobraba" la asignación familiar completa, y ese residuo generaba
+    # a su vez base de pensión y (en el Caso E-like) renta 5ta sobre un
+    # ingreso que en la práctica no correspondía. Es el mismo principio que
+    # motivó la corrección de sueldo_devengado: si no trabajó nada, ningún
+    # concepto ligado a la remuneración del período debería pagarse.
     if not dependiente or regimen_empresa != "general" or not insumo.tiene_asignacion_familiar:
         asignacion_familiar = CERO
     else:
         mensual = RMV_VIGENTE * ASIG_FAMILIAR_PCT
-        asignacion_familiar = mensual if es_mes else mensual / Decimal(2)
+        mensual = mensual if es_mes else mensual / Decimal(2)
+        asignacion_familiar = mensual * proporcion_asistencia
 
     # Base imponible para pensiones = remuneración computable del período
     # (ya con sueldo_devengado, que refleja la asistencia real).
@@ -303,11 +313,21 @@ def calcular_boleta_empleado(
     # NO verifica que el régimen sea 'general' antes de sumar la asignación
     # familiar a la renta anual — inconsistencia YA presente en el TS
     # original, se copia tal cual (no se corrige en esta migración).
-    if not dependiente or insumo.sueldo_base <= CERO:
+    #
+    # CORRECCIÓN DELIBERADA (misma sesión, 2026-07-06): la proyección anual
+    # se hace sobre `sueldo_devengado` (lo realmente ganado este período), NO
+    # sobre `insumo.sueldo_base` (el teórico). Con el sueldo teórico, un
+    # empleado con 0% de asistencia (sueldo_devengado=0) igual generaba una
+    # retención >0 — no se puede retener impuesto sobre un pago que nunca se
+    # hizo; eso producía un NETO NEGATIVO al persistir la boleta (la
+    # retención superaba unos ingresos de 0). Consistente además con la
+    # práctica real de SUNAT: la proyección se reajusta según la
+    # remuneración efectivamente percibida, no la contractual fija.
+    if not dependiente or sueldo_devengado <= CERO:
         renta_5ta = CERO
     else:
         asig_mensual_renta = RMV_VIGENTE * ASIG_FAMILIAR_PCT if insumo.tiene_asignacion_familiar else CERO
-        renta_anual = (insumo.sueldo_base + asig_mensual_renta) * Decimal(12)
+        renta_anual = (sueldo_devengado + asig_mensual_renta) * Decimal(12)
         deduccion = RENTA_5TA_DEDUCCION_UIT * UIT_VIGENTE
         base_imponible = max(CERO, renta_anual - deduccion)
         if base_imponible == CERO:

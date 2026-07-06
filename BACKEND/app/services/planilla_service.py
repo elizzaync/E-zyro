@@ -25,11 +25,13 @@ import calendar as _cal
 from app.models.contabilidad import CuentaContable, PeriodoContable
 from app.models.empleado import Empleado
 from app.models.empresa import Empresa
+from app.models.empleado_planilla_config import EmpleadoPlanillaConfig
 from app.models.planilla import (
     ConceptoRemunerativo, Planilla, BoletaPago, BoletaPagoDetalle, EmpleadoConcepto,
 )
 from app.services import contabilizacion_service as contab
-from app.services import planilla_asistencia_service as pa
+from app.services.planilla_asistencia_service import resumen_horas_periodo
+from app.services.planilla_calculo_service import InsumoEmpleado, calcular_boleta_empleado
 from app.services.contabilizacion_service import LineaAsiento
 
 CERO = Decimal("0.00")
@@ -62,25 +64,6 @@ CATALOGO_ESTANDAR: list[tuple[str, str, str, bool]] = [
     ("RENTA_5TA",       "Retención Renta de 5ta Categoría",        "descuento",        False),
     ("ESSALUD",         "Aporte EsSalud (empleador)",              "aporte_empleador", False),
 ]
-
-
-def _get_or_create_descuento(db: Session, empresa_id: str, codigo: str, nombre: str) -> ConceptoRemunerativo:
-    """Concepto de descuento (tipo='descuento') sin monto fijo; el importe lo
-    calcula la asistencia por boleta. Idempotente por (empresa, código)."""
-    c = (
-        db.query(ConceptoRemunerativo)
-        .filter(ConceptoRemunerativo.empresa_id == empresa_id,
-                ConceptoRemunerativo.codigo == codigo)
-        .first()
-    )
-    if c is None:
-        c = ConceptoRemunerativo(
-            empresa_id=empresa_id, codigo=codigo, nombre=nombre,
-            tipo="descuento", monto_referencial=None, activo="true", es_base="false",
-        )
-        db.add(c)
-        db.flush()
-    return c
 
 
 def _get_or_create_concepto(
@@ -151,10 +134,31 @@ def get_planilla(db: Session, empresa_id: str, planilla_id: str) -> Planilla:
     return p
 
 
+# Códigos reservados del motor legal (Fase 8): se mapean 1:1 desde el
+# DesgloseBoleta, nunca se recorren con el mecanismo genérico de
+# monto_referencial/override (evita que, p. ej., "Descuento por falta" se
+# aplique como monto fijo a todos — esos códigos quedan reservados para
+# ajustes manuales puntuales vía editar_boleta_detalle).
+_CODIGOS_MOTOR_LEGAL = frozenset({
+    COD_SUELDO_BASE, "HRS_EXTRA", "ASIG_FAMILIAR",
+    "PENSION_ONP", "AFP_APORTE", "AFP_PRIMA", "AFP_COMISION",
+    "RENTA_5TA", "ESSALUD",
+    COD_DESC_FALTA, "DESC_DOMINICAL", COD_DESC_TARDANZA,
+})
+
+
 # ── Calcular (sin contabilizar) ──────────────────────────────────────────────
 def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla:
-    """Genera la planilla del periodo en estado 'calculada' aplicando los
-    conceptos activos a cada empleado activo. No contabiliza todavía."""
+    """Genera la planilla del periodo en estado 'calculada'. El motor legal
+    (planilla_calculo_service) calcula ONP/AFP/horas extra/asignación
+    familiar/renta 5ta de cada empleado dependiente a partir de su asistencia
+    real (resumen_horas_periodo) y su sueldo base (EmpleadoConcepto
+    SUELDO_BASE); el sueldo devengado ya sale proporcional a lo asistido (ver
+    planilla_calculo_service — 0% de asistencia ⇒ 0 de sueldo). Cualquier
+    concepto ADICIONAL configurado manualmente (ajeno al motor legal, p. ej.
+    un bono) se sigue aplicando con el mecanismo genérico original
+    (monto_referencial u override por empleado). No contabiliza todavía (eso
+    es aprobar_planilla)."""
     periodo = db.query(PeriodoContable).filter(
         PeriodoContable.id == periodo_id, PeriodoContable.empresa_id == empresa_id).first()
     if periodo is None:
@@ -179,51 +183,55 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
         Planilla.periodo_id == periodo_id,
         Planilla.estado == "anulada",
     ).all()
-    for pa in anuladas:
+    for p_anulada in anuladas:
         boletas_ids = [b.id for b in db.query(BoletaPago).filter(
-            BoletaPago.planilla_id == pa.id).all()]
+            BoletaPago.planilla_id == p_anulada.id).all()]
         if boletas_ids:
             db.query(BoletaPagoDetalle).filter(
                 BoletaPagoDetalle.boleta_id.in_(boletas_ids)).delete(synchronize_session=False)
             db.query(BoletaPago).filter(
-                BoletaPago.planilla_id == pa.id).delete(synchronize_session=False)
-        db.delete(pa)
+                BoletaPago.planilla_id == p_anulada.id).delete(synchronize_session=False)
+        db.delete(p_anulada)
     db.flush()
-
-    conceptos = (
-        db.query(ConceptoRemunerativo)
-        .filter(ConceptoRemunerativo.empresa_id == empresa_id,
-                ConceptoRemunerativo.activo == "true")
-        .all()
-    )
-    if not conceptos:
-        raise HTTPException(status_code=422, detail="No hay conceptos remunerativos configurados.")
 
     empleados = db.query(Empleado).filter(
         Empleado.empresa_id == empresa_id, Empleado.activo.is_(True)).all()
     if not empleados:
         raise HTTPException(status_code=422, detail="No hay empleados activos para procesar.")
 
-    # Montos asignados por empleado (sueldos individuales). Si no hay asignación
-    # para (empleado, concepto), se usa el monto_referencial del catálogo.
+    # Catálogo estándar del motor legal, siempre presente (idempotente).
+    asegurar_catalogo_estandar(db, empresa_id)
+    conceptos = (
+        db.query(ConceptoRemunerativo)
+        .filter(ConceptoRemunerativo.empresa_id == empresa_id, ConceptoRemunerativo.activo == "true")
+        .all()
+    )
+    conceptos_por_codigo = {c.codigo: c for c in conceptos}
+    conceptos_extra = [c for c in conceptos if c.codigo not in _CODIGOS_MOTOR_LEGAL]
+
+    # Montos asignados por empleado (sueldo base + cualquier concepto extra).
     overrides = {
         (a.empleado_id, a.concepto_id): a.monto
         for a in db.query(EmpleadoConcepto).filter(
             EmpleadoConcepto.empresa_id == empresa_id).all()
     }
+    config_por_emp = {
+        str(c.empleado_id): c
+        for c in db.query(EmpleadoPlanillaConfig).filter(
+            EmpleadoPlanillaConfig.empresa_id == empresa_id).all()
+    }
 
-    # ── Asistencia → descuentos (Fase 2) ─────────────────────────────────────
-    # valor_día = monto del concepto BASE (es_base) / 30. Si no hay concepto
-    # base configurado, no se aplican descuentos automáticos por asistencia.
     empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
-    desc_tardanza_auto = bool(getattr(empresa, "descuento_tardanza_auto", True)) if empresa else True
-    base_concepto = next(
-        (c for c in conceptos if str(getattr(c, "es_base", "false")).lower() == "true"), None)
+    regimen_empresa = getattr(empresa, "regimen_laboral", None) or "micro"
+    descuento_tardanza_auto = bool(getattr(empresa, "descuento_tardanza_auto", True)) if empresa else True
+
     inicio_p = date(periodo.anio, periodo.mes, 1)
     fin_p = date(periodo.anio, periodo.mes, _cal.monthrange(periodo.anio, periodo.mes)[1])
-    asistencia = pa.resumen_asistencia_periodo(db, empresa_id, inicio_p, fin_p)
-    concepto_falta = _get_or_create_descuento(db, empresa_id, COD_DESC_FALTA, "Descuento por falta")
-    concepto_tardanza = _get_or_create_descuento(db, empresa_id, COD_DESC_TARDANZA, "Descuento por tardanza")
+    filas_asistencia = {
+        str(f["id"]): f for f in resumen_horas_periodo(db, empresa_id, inicio_p, fin_p)
+    }
+
+    concepto_sueldo_base = conceptos_por_codigo.get(COD_SUELDO_BASE)
 
     planilla = Planilla(
         empresa_id=empresa_id, periodo_id=periodo_id, fecha_proceso=date.today(),
@@ -233,61 +241,97 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
     db.add(planilla)
     db.flush()
 
-    tot_ing = tot_desc = tot_apo = CERO
     for emp in empleados:
-        b_ing = b_desc = b_apo = CERO
-        detalles = []
-        for c in conceptos:
+        emp_id = str(emp.id)
+        fila_asist = filas_asistencia.get(emp_id)
+        if fila_asist is None:
+            continue  # sin registro de asistencia para el período (p.ej. alta posterior)
+
+        cfg = config_por_emp.get(emp_id)
+        sueldo_base = CERO
+        if concepto_sueldo_base is not None:
+            monto_asignado = overrides.get((emp.id, concepto_sueldo_base.id))
+            sueldo_base = _d(
+                monto_asignado if monto_asignado is not None else concepto_sueldo_base.monto_referencial
+            )
+
+        insumo = InsumoEmpleado(
+            empleado_id=emp_id, tipo_contrato=emp.tipo, sueldo_base=sueldo_base,
+            horas_reales=Decimal(str(fila_asist["horas_reales"])),
+            horas_faltantes=Decimal(str(fila_asist["horas_faltantes"])),
+            meta_horas=Decimal(str(fila_asist["meta_horas"])),
+            sistema_pension=(cfg.sistema_pension if cfg else "onp"),
+            entidad_afp=(cfg.entidad_afp if cfg else None),
+            comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
+            tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+        )
+        desglose = calcular_boleta_empleado(
+            insumo, regimen_empresa=regimen_empresa, periodo_pago="mes",
+            descuento_tardanza_auto=descuento_tardanza_auto,
+        )
+
+        detalles: list[tuple[str, Decimal]] = []
+
+        def _agregar(codigo: str, monto) -> None:
+            monto = _d(monto)
+            if monto <= CERO:
+                return
+            concepto = conceptos_por_codigo.get(codigo)
+            if concepto is None:
+                return
+            detalles.append((concepto.id, monto))
+
+        _agregar(COD_SUELDO_BASE, desglose.sueldo_devengado)
+        _agregar("HRS_EXTRA", desglose.pago_horas_extra)
+        _agregar("ASIG_FAMILIAR", desglose.asignacion_familiar)
+        if insumo.sistema_pension == "onp":
+            _agregar("PENSION_ONP", desglose.descuento_pension)
+        else:
+            _agregar("AFP_APORTE", desglose.afp_aporte_obligatorio)
+            _agregar("AFP_PRIMA", desglose.afp_prima_seguro)
+            _agregar("AFP_COMISION", desglose.afp_comision)
+        _agregar("RENTA_5TA", desglose.renta_5ta)
+        _agregar("ESSALUD", desglose.aporte_essalud)
+
+        # Conceptos EXTRA configurados manualmente (fuera del motor legal):
+        # mismo mecanismo genérico original (override por empleado o
+        # monto_referencial del catálogo).
+        for c in conceptos_extra:
             asignado = overrides.get((emp.id, c.id))
             monto = _d(asignado if asignado is not None else c.monto_referencial)
-            if monto <= CERO:
-                continue
-            detalles.append((c.id, monto))
-            if c.tipo == "ingreso":
-                b_ing += monto
-            elif c.tipo == "descuento":
-                b_desc += monto
-            else:  # aporte_empleador
-                b_apo += monto
-
-        # ── Descuentos por asistencia (faltas/tardanzas) ─────────────────────
-        res = asistencia.get(str(emp.id))
-        if res and base_concepto is not None:
-            base_asignado = overrides.get((emp.id, base_concepto.id))
-            base_monto = _d(base_asignado if base_asignado is not None else base_concepto.monto_referencial)
-            valor_dia = (base_monto / Decimal(30)) if base_monto > CERO else CERO
-            if valor_dia > CERO:
-                if res["faltas"] > 0:
-                    m = _d(valor_dia * res["faltas"])
-                    if m > CERO:
-                        detalles.append((concepto_falta.id, m))
-                        b_desc += m
-                if (desc_tardanza_auto and res["minutos_tardanza"] > 0
-                        and res["minutos_jornada"] > 0):
-                    m = _d(valor_dia * Decimal(res["minutos_tardanza"]) / Decimal(res["minutos_jornada"]))
-                    if m > CERO:
-                        detalles.append((concepto_tardanza.id, m))
-                        b_desc += m
+            if monto > CERO:
+                detalles.append((c.id, monto))
 
         if not detalles:
             continue
-        b_neto = b_ing - b_desc
+
         boleta = BoletaPago(
-            planilla_id=planilla.id, empleado_id=emp.id, total_ingresos=b_ing,
-            total_descuentos=b_desc, total_aportes=b_apo, total_neto=b_neto,
+            planilla_id=planilla.id, empleado_id=emp.id,
+            total_ingresos=CERO, total_descuentos=CERO, total_aportes=CERO, total_neto=CERO,
+            total_cts=_d(desglose.provision_cts), total_gratificacion=_d(desglose.provision_gratificacion),
+            total_vacaciones=_d(desglose.provision_vacaciones),
         )
         db.add(boleta)
         db.flush()
         for concepto_id, monto in detalles:
             db.add(BoletaPagoDetalle(boleta_id=boleta.id, concepto_id=concepto_id, monto=monto))
-        tot_ing += b_ing
-        tot_desc += b_desc
-        tot_apo += b_apo
+        db.flush()
+        _recompute_boleta(db, boleta)
+        # IMPORTANTE: flush inmediato tras mutar boleta.total_*. `boleta` es un
+        # objeto RECIÉN CREADO cuyo PK Python es un str (default `_uuid()`),
+        # pero la columna real en Postgres es `uuid`; una consulta posterior
+        # en la MISMA transacción (p. ej. `_recompute_planilla`) recibe ese PK
+        # de vuelta como `uuid.UUID` (tipo distinto, distinto hash), por lo
+        # que el identity map de SQLAlchemy NO reconoce el objeto y construye
+        # una instancia nueva cargada desde BD — perdiendo silenciosamente
+        # cualquier atributo mutado en memoria que no se haya flusheado ya
+        # (visto y confirmado en pruebas: sin este flush, total_ingresos de
+        # toda la planilla salía en 0 aunque cada boleta individual quedara
+        # bien calculada). El flush aquí garantiza que la query posterior lea
+        # el valor correcto sin depender de la deduplicación del identity map.
+        db.flush()
 
-    planilla.total_ingresos = tot_ing
-    planilla.total_descuentos = tot_desc
-    planilla.total_aportes = tot_apo
-    planilla.total_neto = tot_ing - tot_desc
+    _recompute_planilla(db, planilla)
     db.commit()
     db.refresh(planilla)
     return planilla
@@ -314,7 +358,12 @@ def _recompute_boleta(db: Session, boleta: BoletaPago) -> None:
     boleta.total_ingresos = ing
     boleta.total_descuentos = desc
     boleta.total_aportes = apo
-    boleta.total_neto = ing - desc
+    # Piso de seguridad: el neto de una boleta NUNCA debe ser negativo, sin
+    # importar qué combinación de conceptos lo produzca (ej. una retención
+    # calculada sobre una base que luego resultó reducida a 0 por asistencia,
+    # o un descuento manual mal configurado vía editar_boleta_detalle). Un
+    # pago negativo no tiene sentido en una boleta real.
+    boleta.total_neto = max(CERO, ing - desc)
 
 
 def _recompute_planilla(db: Session, planilla: Planilla) -> None:
@@ -323,7 +372,10 @@ def _recompute_planilla(db: Session, planilla: Planilla) -> None:
     planilla.total_ingresos = sum((_d(b.total_ingresos) for b in bs), CERO)
     planilla.total_descuentos = sum((_d(b.total_descuentos) for b in bs), CERO)
     planilla.total_aportes = sum((_d(b.total_aportes) for b in bs), CERO)
-    planilla.total_neto = planilla.total_ingresos - planilla.total_descuentos
+    # Mismo piso de seguridad a nivel planilla (suma de netos ya no-negativos
+    # de boleta; se recalcula aquí también por si total_ingresos/descuentos
+    # llegaran desbalanceados desde otra vía).
+    planilla.total_neto = max(CERO, planilla.total_ingresos - planilla.total_descuentos)
 
 
 def editar_boleta_detalle(db: Session, empresa_id: str, planilla_id: str,
