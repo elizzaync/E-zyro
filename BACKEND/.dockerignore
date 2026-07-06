@@ -1,6 +1,16 @@
 .env
+.env.*
+.git
+.gitignore
 __pycache__
 **/__pycache__
 *.pyc
 *.pyo
 .python-version
+venv
+.venv
+.serena
+.vscode
+.pytest_cache
+*.md
+migrations
