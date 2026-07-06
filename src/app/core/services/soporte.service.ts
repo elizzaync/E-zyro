@@ -260,6 +260,58 @@ export class SoporteService {
   descargarBackup(id: string): Observable<Blob> {
     return this.http.get(`${this.base}/backups/${id}/descargar`, { responseType: 'blob' });
   }
+
+  // ── Seguridad TIC (monitoreo de eventos y alertas) ───────────────────────
+
+  private paramsEventosSeguridad(f: FiltrosEventosSeguridad): HttpParams {
+    let p = new HttpParams();
+    if (f.accion && f.accion !== 'todas') p = p.set('accion', f.accion);
+    if (f.usuarioNombre) p = p.set('usuarioNombre', f.usuarioNombre);
+    if (f.ip) p = p.set('ip', f.ip);
+    if (f.desde) p = p.set('desde', f.desde);
+    if (f.hasta) p = p.set('hasta', f.hasta);
+    if (f.resultado && f.resultado !== 'todos') p = p.set('resultado', f.resultado);
+    p = p.set('page', (f.page ?? 1).toString()).set('page_size', (f.page_size ?? 25).toString());
+    return p;
+  }
+
+  getSeguridadMetricas(): Observable<MetricasSeguridadDto> {
+    return this.http.get<MetricasSeguridadDto>(`${this.base}/seguridad-tic/metricas`);
+  }
+
+  getSeguridadEventos(f: FiltrosEventosSeguridad): Observable<EventosSeguridadListDto> {
+    return this.http.get<EventosSeguridadListDto>(`${this.base}/seguridad-tic/eventos`, { params: this.paramsEventosSeguridad(f) });
+  }
+
+  getSeguridadAlertas(estado: 'abierta' | 'revisada' | 'todas' = 'abierta'): Observable<AlertasSeguridadListDto> {
+    const p = new HttpParams().set('estado', estado);
+    return this.http.get<AlertasSeguridadListDto>(`${this.base}/seguridad-tic/alertas`, { params: p });
+  }
+
+  revisarAlerta(id: string): Observable<AlertaSeguridadDto> {
+    return this.http.post<AlertaSeguridadDto>(`${this.base}/seguridad-tic/alertas/${id}/revisar`, {});
+  }
+
+  // ── Auditoría de eventos de acceso (audit-log) ───────────────────────────
+
+  getAuditLog(f: FiltrosEventosSeguridad): Observable<EventosSeguridadListDto> {
+    return this.http.get<EventosSeguridadListDto>(`${this.base}/audit-log`, { params: this.paramsEventosSeguridad(f) });
+  }
+
+  exportAuditLog(f: FiltrosEventosSeguridad): Observable<Blob> {
+    return this.http.get(`${this.base}/audit-log/export`, { params: this.paramsEventosSeguridad(f), responseType: 'blob' });
+  }
+
+  // ── Documentos generados por el sistema ──────────────────────────────────
+
+  getDocumentos(f: FiltrosDocumentos): Observable<DocumentosListDto> {
+    let p = new HttpParams();
+    if (f.tipo && f.tipo !== 'todos') p = p.set('tipo', f.tipo);
+    if (f.modulo) p = p.set('modulo', f.modulo);
+    if (f.q) p = p.set('q', f.q);
+    p = p.set('page', (f.page ?? 1).toString()).set('page_size', (f.page_size ?? 25).toString());
+    return this.http.get<DocumentosListDto>(`${this.base}/documentos`, { params: p });
+  }
 }
 
 // ── DTOs de Backups ──────────────────────────────────────────────────────────
@@ -304,4 +356,106 @@ export interface BackupConfigDto extends BackupConfigEdit {
   resumen: Record<string, string>;
   backupDir: string;
   retencionDias: Record<string, number>;
+}
+
+// ── DTOs de Seguridad TIC / Auditoría de eventos ─────────────────────────────
+
+export interface MetricasSeguridadDto {
+  loginsFallidos24h: number;
+  permisosDenegados24h: number;
+  sesionesActivas: number;
+  alertasAbiertas: number;
+  descargas24h: number;
+  loginsExitosos24h: number;
+}
+
+export type AccionEventoSeguridad =
+  'LOGIN' | 'LOGIN_FALLIDO' | 'LOGOUT' | 'DOWNLOAD' | 'EXPORT' |
+  'PERMISSION_DENIED' | 'RATE_LIMITED' | 'BACKUP' | 'SECURITY' | 'VIEW_SENSITIVE';
+
+export interface EventoSeguridadDto {
+  id: string;
+  fecha: string;                    // ISO
+  accion: AccionEventoSeguridad | string;
+  usuarioNombre: string | null;
+  rol: string | null;
+  ip: string | null;
+  ruta: string | null;
+  metodoHttp: string | null;
+  resultado: 'exito' | 'fallo' | 'denegado';
+  entidad: string | null;
+  entidadId: string | null;
+  detalle: any | null;
+  userAgent: string | null;
+}
+
+export interface EventosSeguridadListDto {
+  items: EventoSeguridadDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+// Filtros comunes de /seguridad-tic/eventos y /audit-log
+export interface FiltrosEventosSeguridad {
+  accion?: string;                  // 'todas' u omitido = sin filtro
+  usuarioNombre?: string;
+  ip?: string;
+  desde?: string;                   // 'YYYY-MM-DD'
+  hasta?: string;                   // 'YYYY-MM-DD'
+  resultado?: string;               // 'todos' u omitido = sin filtro
+  page?: number;
+  page_size?: number;
+}
+
+export interface AlertaSeguridadDto {
+  id: string;
+  tipo: 'fuerza_bruta' | 'denegados_repetidos' | 'descarga_masiva' | 'logins_fallidos_usuario';
+  severidad: 'baja' | 'media' | 'alta';
+  titulo: string;
+  detalle: any;
+  ip: string | null;
+  usuarioNombre: string | null;
+  fecha: string;                    // ISO
+  estado: 'abierta' | 'revisada';
+  revisadaPorNombre: string | null;
+  fechaRevision: string | null;
+}
+
+export interface AlertasSeguridadListDto {
+  items: AlertaSeguridadDto[];
+  total: number;
+}
+
+// ── DTOs de Documentos ───────────────────────────────────────────────────────
+
+export interface DocumentoArchivoDto {
+  id: string;
+  nombre: string;
+  tipo: 'pdf' | 'excel' | 'csv' | 'export' | 'otro';
+  moduloOrigen: string | null;
+  entidadTipo: string | null;
+  generadoPorNombre: string | null;
+  fechaCreacion: string;            // ISO
+  fechaActualizacion: string | null;
+  tamanoBytes: number | null;
+  hashSha256: string | null;
+  cloudinaryUrl: string | null;
+  version: number;
+  descargas: number;
+}
+
+export interface DocumentosListDto {
+  items: DocumentoArchivoDto[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface FiltrosDocumentos {
+  tipo?: string;                    // 'todos' u omitido = sin filtro
+  modulo?: string;
+  q?: string;
+  page?: number;
+  page_size?: number;
 }

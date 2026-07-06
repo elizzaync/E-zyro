@@ -39,6 +39,9 @@ import { SeguridadComponent } from './features/soporte/components/seguridad/segu
 import { CrearCuentasComponent } from './features/soporte/components/crear-cuentas/crear-cuentas.component';
 import { GestionPermisosComponent } from './features/soporte/components/gestion-permisos/gestion-permisos.component';
 import { BackupsComponent } from './features/soporte/components/backups/backups.component';
+import { SeguridadMonitoreoComponent } from './features/soporte/components/seguridad-monitoreo/seguridad-monitoreo.component';
+import { AuditoriaEventosComponent } from './features/soporte/components/auditoria-eventos/auditoria-eventos.component';
+import { DocumentosComponent } from './features/soporte/components/documentos/documentos.component';
 import { AdministracionComponent } from './features/administracion/administracion.component';
 import { ContabilidadComponent } from './features/administracion/components/contabilidad/contabilidad.component';
 import { CxcComponent } from './features/administracion/components/cxc/cxc.component';
@@ -326,6 +329,27 @@ export const routes: Routes = [
     path: 'soporte/backups',
     component: BackupsComponent,
     title: 'Backups | e-zyro TIC',
+    canActivate: [authGuard, rolesGuard(['Soporte', 'TI'])]
+  },
+  {
+    // Lista BLANCA: monitoreo de seguridad — solo Soporte/TI.
+    path: 'soporte/seguridad-monitoreo',
+    component: SeguridadMonitoreoComponent,
+    title: 'Monitoreo de Seguridad | e-zyro TIC',
+    canActivate: [authGuard, rolesGuard(['Soporte', 'TI'])]
+  },
+  {
+    // Lista BLANCA: registro de eventos de acceso y seguridad — solo Soporte/TI.
+    path: 'soporte/auditoria-eventos',
+    component: AuditoriaEventosComponent,
+    title: 'Auditoría de Eventos | e-zyro TIC',
+    canActivate: [authGuard, rolesGuard(['Soporte', 'TI'])]
+  },
+  {
+    // Lista BLANCA: documentos generados por el sistema — solo Soporte/TI.
+    path: 'soporte/documentos',
+    component: DocumentosComponent,
+    title: 'Documentos | e-zyro TIC',
     canActivate: [authGuard, rolesGuard(['Soporte', 'TI'])]
   },
 

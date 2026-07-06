@@ -1,0 +1,109 @@
+<div class="dc-layout fade-in">
+
+  <!-- ═══════ CABECERA ═══════ -->
+  <header class="dc-header">
+    <div class="dc-header-main">
+      <div class="dc-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="dc-title">Documentos</h1>
+        <p class="dc-subtitle">Archivos generados por el sistema · PDFs, exportaciones y reportes</p>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════ FILTROS ═══════ -->
+  <section class="dc-tabla-seccion">
+    <div class="dc-filtros">
+      <div class="dc-buscador">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        <input class="dc-input dc-input-q" type="text" placeholder="Buscar por nombre…"
+               [(ngModel)]="fQ" (ngModelChange)="onBuscarChange()">
+      </div>
+      <select class="dc-select" [(ngModel)]="fTipo" (change)="filtrar()">
+        <option value="todos">Todos los tipos</option>
+        @for (t of tipos; track t) { <option [value]="t">{{ tipoLabel(t) }}</option> }
+      </select>
+      <input class="dc-input" type="text" placeholder="Módulo…" [(ngModel)]="fModulo" (keyup.enter)="filtrar()" (blur)="filtrar()">
+      <span class="dc-total"><strong>{{ total }}</strong> documentos</span>
+    </div>
+
+    @if (cargando) {
+      <div class="dc-loading"><app-spinner [size]="28"></app-spinner></div>
+    } @else if (documentos.length === 0) {
+      <div class="dc-empty">
+        <p>Sin documentos con los filtros actuales.</p>
+        <span>Los archivos que genere el sistema aparecerán aquí automáticamente.</span>
+      </div>
+    } @else {
+      <div class="dc-table-wrap">
+        <table class="dc-table">
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Módulo</th>
+              <th>Generado por</th>
+              <th>Fecha creación</th>
+              <th>Tamaño</th>
+              <th>Versión</th>
+              <th>Descargas</th>
+              <th>Integridad</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (d of documentos; track d.id) {
+              <tr class="dc-row">
+                <td class="td-nombre" [title]="d.nombre">{{ d.nombre }}</td>
+                <td><span class="dc-tipo dc-tipo-{{ d.tipo }}">{{ tipoLabel(d.tipo) }}</span></td>
+                <td class="td-modulo">{{ d.moduloOrigen ?? '—' }}</td>
+                <td>{{ d.generadoPorNombre ?? '—' }}</td>
+                <td class="td-fecha">{{ fmtFecha(d.fechaCreacion) }}</td>
+                <td class="td-tamano">{{ fmtBytes(d.tamanoBytes) }}</td>
+                <td class="td-version">v{{ d.version }}</td>
+                <td class="td-descargas">{{ d.descargas }}</td>
+                <td class="td-hash">
+                  @if (d.hashSha256) {
+                    <button class="dc-btn-hash" (click)="copiarHash(d)" [title]="'SHA-256: ' + d.hashSha256">
+                      {{ d.hashSha256.slice(0, 10) }}… ⧉
+                    </button>
+                  } @else { <span class="dc-muted">—</span> }
+                </td>
+                <td class="td-accion">
+                  @if (d.cloudinaryUrl) {
+                    <button class="dc-btn-abrir" (click)="abrir(d)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" width="13" height="13">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+                        <path d="M15 3h6v6"/>
+                        <path d="M10 14L21 3"/>
+                      </svg>
+                      Abrir
+                    </button>
+                  } @else {
+                    <span class="dc-muted">—</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPaginas > 1) {
+        <div class="dc-paginacion">
+          <button class="dc-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">‹</button>
+          <span class="dc-pg-info">{{ page }} / {{ totalPaginas }}</span>
+          <button class="dc-pg-btn" [disabled]="page === totalPaginas" (click)="irPagina(page + 1)">›</button>
+        </div>
+      }
+    }
+  </section>
+
+</div>

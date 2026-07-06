@@ -1,0 +1,147 @@
+<div class="ae-layout fade-in">
+
+  <!-- ═══════ CABECERA ═══════ -->
+  <header class="ae-header">
+    <div class="ae-header-main">
+      <div class="ae-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <path d="M14 2v6h6"/>
+          <path d="M16 13H8M16 17H8M10 9H8"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="ae-title">Auditoría de Eventos</h1>
+        <p class="ae-subtitle">Registro de accesos, descargas y eventos de seguridad del sistema</p>
+      </div>
+    </div>
+    <button class="ae-btn-exportar" (click)="exportarCsv()" [disabled]="exportando">
+      @if (exportando) {
+        <app-spinner [size]="14" theme="light"></app-spinner>
+      } @else {
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" width="15" height="15">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+        </svg>
+      }
+      Exportar CSV
+    </button>
+  </header>
+
+  <!-- ═══════ NOTA INFORMATIVA ═══════ -->
+  <div class="ae-nota">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+      <circle cx="12" cy="12" r="10"/>
+      <path d="M12 16v-4M12 8h.01"/>
+    </svg>
+    <span>Los cambios de datos (crear, editar o eliminar registros) siguen en la <strong>Auditoría clásica</strong>; esta pantalla es el registro de eventos de acceso y seguridad.</span>
+  </div>
+
+  <!-- ═══════ FILTROS ═══════ -->
+  <section class="ae-tabla-seccion">
+    <div class="ae-filtros">
+      <select class="ae-select" [(ngModel)]="fAccion" (change)="filtrar()">
+        <option value="todas">Todas las acciones</option>
+        @for (a of acciones; track a) { <option [value]="a">{{ a }}</option> }
+      </select>
+      <input class="ae-input" type="text" placeholder="Usuario…" [(ngModel)]="fUsuario" (keyup.enter)="filtrar()" (blur)="filtrar()">
+      <input class="ae-input" type="text" placeholder="IP…" [(ngModel)]="fIp" (keyup.enter)="filtrar()" (blur)="filtrar()">
+      <input class="ae-input ae-input-fecha" type="date" [(ngModel)]="fDesde" (change)="filtrar()" title="Desde">
+      <input class="ae-input ae-input-fecha" type="date" [(ngModel)]="fHasta" (change)="filtrar()" title="Hasta">
+      <select class="ae-select" [(ngModel)]="fResultado" (change)="filtrar()">
+        <option value="todos">Todos los resultados</option>
+        <option value="exito">Éxito</option>
+        <option value="fallo">Fallo</option>
+        <option value="denegado">Denegado</option>
+      </select>
+      <span class="ae-total"><strong>{{ total }}</strong> eventos</span>
+    </div>
+
+    @if (cargando) {
+      <div class="ae-loading"><app-spinner [size]="28"></app-spinner></div>
+    } @else if (eventos.length === 0) {
+      <div class="ae-empty">
+        <p>Sin eventos con los filtros actuales.</p>
+        <span>Prueba ampliar el rango de fechas o quitar filtros.</span>
+      </div>
+    } @else {
+      <div class="ae-table-wrap">
+        <table class="ae-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Acción</th>
+              <th>Usuario</th>
+              <th>IP</th>
+              <th>Ruta</th>
+              <th>Resultado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (e of eventos; track e.id) {
+              <tr class="ae-row" (click)="abrirDetalle(e)">
+                <td class="td-fecha">{{ fmtFecha(e.fecha) }}</td>
+                <td><span class="ae-accion ae-acc-{{ accionClase(e.accion) }}">{{ e.accion }}</span></td>
+                <td>
+                  {{ e.usuarioNombre ?? '—' }}
+                  @if (e.rol) { <div class="ae-rol">{{ e.rol }}</div> }
+                </td>
+                <td class="td-ip">{{ e.ip ?? '—' }}</td>
+                <td class="td-ruta" [title]="e.ruta ?? ''">
+                  @if (e.metodoHttp) { <span class="ae-metodo">{{ e.metodoHttp }}</span> }
+                  {{ e.ruta ?? '—' }}
+                </td>
+                <td><span class="ae-resultado ae-res-{{ e.resultado }}">{{ resultadoLabel(e.resultado) }}</span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPaginas > 1) {
+        <div class="ae-paginacion">
+          <button class="ae-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">‹</button>
+          <span class="ae-pg-info">{{ page }} / {{ totalPaginas }}</span>
+          <button class="ae-pg-btn" [disabled]="page === totalPaginas" (click)="irPagina(page + 1)">›</button>
+        </div>
+      }
+    }
+  </section>
+
+  <!-- ═══════ MODAL DETALLE DE EVENTO ═══════ -->
+  @if (eventoSel) {
+  <app-modal
+    [open]="true"
+    title="Detalle del evento"
+    [subtitle]="eventoSel.accion + ' · ' + fmtFecha(eventoSel.fecha)"
+    maxWidth="640px"
+    iconBg="rgba(145,211,55,0.12)"
+    iconColor="#4d7d18"
+    (closeModal)="cerrarDetalle()">
+
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <path d="M14 2v6h6"/>
+      <path d="M16 13H8M16 17H8M10 9H8"/>
+    </svg>
+
+    <div class="ae-modal-body">
+      <dl class="ae-detalle-grid">
+        <div><dt>Fecha</dt><dd>{{ fmtFecha(eventoSel.fecha) }}</dd></div>
+        <div><dt>Acción</dt><dd><span class="ae-accion ae-acc-{{ accionClase(eventoSel.accion) }}">{{ eventoSel.accion }}</span></dd></div>
+        <div><dt>Usuario</dt><dd>{{ eventoSel.usuarioNombre ?? '—' }}</dd></div>
+        <div><dt>Rol</dt><dd>{{ eventoSel.rol ?? '—' }}</dd></div>
+        <div><dt>IP</dt><dd>{{ eventoSel.ip ?? '—' }}</dd></div>
+        <div><dt>Método HTTP</dt><dd>{{ eventoSel.metodoHttp ?? '—' }}</dd></div>
+        <div class="ae-detalle-full"><dt>Ruta</dt><dd>{{ eventoSel.ruta ?? '—' }}</dd></div>
+        <div><dt>Resultado</dt><dd><span class="ae-resultado ae-res-{{ eventoSel.resultado }}">{{ resultadoLabel(eventoSel.resultado) }}</span></dd></div>
+        <div><dt>Entidad</dt><dd>{{ eventoSel.entidad ?? '—' }}</dd></div>
+        <div class="ae-detalle-full"><dt>ID entidad</dt><dd>{{ eventoSel.entidadId ?? '—' }}</dd></div>
+        <div class="ae-detalle-full"><dt>User agent</dt><dd class="ae-ua">{{ eventoSel.userAgent ?? '—' }}</dd></div>
+      </dl>
+      <h4 class="ae-detalle-sub">Detalle</h4>
+      <pre class="ae-detalle-json">{{ detalleJson(eventoSel) }}</pre>
+    </div>
+  </app-modal>
+  }
+
+</div>

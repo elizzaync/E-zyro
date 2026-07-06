@@ -1,0 +1,209 @@
+<div class="sm-layout fade-in">
+
+  <!-- ═══════ CABECERA ═══════ -->
+  <header class="sm-header">
+    <div class="sm-header-main">
+      <div class="sm-header-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="M12 8v4"/>
+          <path d="M12 16h.01"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="sm-title">Monitoreo de Seguridad</h1>
+        <p class="sm-subtitle">Métricas, alertas y eventos de acceso del sistema · últimas 24 horas</p>
+      </div>
+    </div>
+    <button class="sm-btn-refrescar" (click)="refrescar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+        <path d="M23 4v6h-6M1 20v-6h6"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      Refrescar
+    </button>
+  </header>
+
+  <!-- ═══════ TARJETAS DE MÉTRICAS ═══════ -->
+  @if (cargandoMetricas && !metricas) {
+    <div class="sm-loading"><app-spinner [size]="28"></app-spinner></div>
+  } @else if (metricas) {
+    <section class="sm-metricas">
+      @for (t of tarjetas; track t.clave) {
+        <div class="sm-metrica" [class.sm-metrica-alerta]="t.alerta">
+          <div class="sm-metrica-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              @for (d of t.iconos; track $index) { <path [attr.d]="d"/> }
+            </svg>
+          </div>
+          <div class="sm-metrica-txt">
+            <span class="sm-metrica-valor">{{ t.valor }}</span>
+            <span class="sm-metrica-label">{{ t.etiqueta }}</span>
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ═══════ ALERTAS DE SEGURIDAD ═══════ -->
+  <section class="sm-alertas-seccion">
+    <div class="sm-seccion-head">
+      <h2 class="sm-seccion-titulo">Alertas de seguridad</h2>
+      <select class="sm-select" [(ngModel)]="filtroAlertas" (change)="cargarAlertas()">
+        <option value="abierta">Abiertas</option>
+        <option value="revisada">Revisadas</option>
+        <option value="todas">Todas</option>
+      </select>
+    </div>
+
+    @if (cargandoAlertas) {
+      <div class="sm-loading"><app-spinner [size]="28"></app-spinner></div>
+    } @else if (alertas.length === 0) {
+      <div class="sm-empty">
+        <p>Sin alertas {{ filtroAlertas === 'abierta' ? 'abiertas' : (filtroAlertas === 'revisada' ? 'revisadas' : 'registradas') }}.</p>
+        <span>Todo tranquilo por aquí. Las alertas nuevas aparecerán automáticamente.</span>
+      </div>
+    } @else {
+      <div class="sm-alertas-lista">
+        @for (a of alertas; track a.id) {
+          <div class="sm-alerta" [class.sm-alerta-revisada]="a.estado === 'revisada'">
+            <div class="sm-alerta-main">
+              <div class="sm-alerta-linea1">
+                <span class="sm-sev sm-sev-{{ a.severidad }}">{{ a.severidad }}</span>
+                <span class="sm-alerta-tipo">{{ tipoAlertaLabel(a.tipo) }}</span>
+                <span class="sm-alerta-fecha">{{ fmtFecha(a.fecha) }}</span>
+              </div>
+              <p class="sm-alerta-titulo">{{ a.titulo }}</p>
+              <div class="sm-alerta-meta">
+                @if (a.ip) { <span>IP: <strong>{{ a.ip }}</strong></span> }
+                @if (a.usuarioNombre) { <span>Usuario: <strong>{{ a.usuarioNombre }}</strong></span> }
+                @if (a.estado === 'revisada') {
+                  <span class="sm-alerta-revision">Revisada por {{ a.revisadaPorNombre ?? '—' }} · {{ fmtFecha(a.fechaRevision) }}</span>
+                }
+              </div>
+            </div>
+            @if (a.estado === 'abierta') {
+              <button class="sm-btn-revisar" (click)="marcarRevisada(a)" [disabled]="revisandoId !== null">
+                @if (revisandoId === a.id) { <app-spinner [size]="13" theme="light"></app-spinner> }
+                Marcar revisada
+              </button>
+            }
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- ═══════ EVENTOS RECIENTES ═══════ -->
+  <section class="sm-eventos-seccion">
+    <div class="sm-seccion-head">
+      <h2 class="sm-seccion-titulo">Eventos recientes</h2>
+      <span class="sm-total"><strong>{{ total }}</strong> eventos</span>
+    </div>
+
+    <div class="sm-filtros">
+      <select class="sm-select" [(ngModel)]="fAccion" (change)="filtrar()">
+        <option value="todas">Todas las acciones</option>
+        @for (a of acciones; track a) { <option [value]="a">{{ a }}</option> }
+      </select>
+      <input class="sm-input" type="text" placeholder="Usuario…" [(ngModel)]="fUsuario" (keyup.enter)="filtrar()" (blur)="filtrar()">
+      <input class="sm-input" type="text" placeholder="IP…" [(ngModel)]="fIp" (keyup.enter)="filtrar()" (blur)="filtrar()">
+      <input class="sm-input sm-input-fecha" type="date" [(ngModel)]="fDesde" (change)="filtrar()" title="Desde">
+      <input class="sm-input sm-input-fecha" type="date" [(ngModel)]="fHasta" (change)="filtrar()" title="Hasta">
+      <select class="sm-select" [(ngModel)]="fResultado" (change)="filtrar()">
+        <option value="todos">Todos los resultados</option>
+        <option value="exito">Éxito</option>
+        <option value="fallo">Fallo</option>
+        <option value="denegado">Denegado</option>
+      </select>
+    </div>
+
+    @if (cargandoEventos) {
+      <div class="sm-loading"><app-spinner [size]="28"></app-spinner></div>
+    } @else if (eventos.length === 0) {
+      <div class="sm-empty">
+        <p>Sin eventos con los filtros actuales.</p>
+        <span>Prueba ampliar el rango de fechas o quitar filtros.</span>
+      </div>
+    } @else {
+      <div class="sm-table-wrap">
+        <table class="sm-table">
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Acción</th>
+              <th>Usuario</th>
+              <th>IP</th>
+              <th>Ruta</th>
+              <th>Resultado</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (e of eventos; track e.id) {
+              <tr class="sm-row" (click)="abrirDetalle(e)">
+                <td class="td-fecha">{{ fmtFecha(e.fecha) }}</td>
+                <td><span class="sm-accion sm-acc-{{ accionClase(e.accion) }}">{{ e.accion }}</span></td>
+                <td>
+                  {{ e.usuarioNombre ?? '—' }}
+                  @if (e.rol) { <div class="sm-rol">{{ e.rol }}</div> }
+                </td>
+                <td class="td-ip">{{ e.ip ?? '—' }}</td>
+                <td class="td-ruta" [title]="e.ruta ?? ''">
+                  @if (e.metodoHttp) { <span class="sm-metodo">{{ e.metodoHttp }}</span> }
+                  {{ e.ruta ?? '—' }}
+                </td>
+                <td><span class="sm-resultado sm-res-{{ e.resultado }}">{{ resultadoLabel(e.resultado) }}</span></td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPaginas > 1) {
+        <div class="sm-paginacion">
+          <button class="sm-pg-btn" [disabled]="page === 1" (click)="irPagina(page - 1)">‹</button>
+          <span class="sm-pg-info">{{ page }} / {{ totalPaginas }}</span>
+          <button class="sm-pg-btn" [disabled]="page === totalPaginas" (click)="irPagina(page + 1)">›</button>
+        </div>
+      }
+    }
+  </section>
+
+  <!-- ═══════ MODAL DETALLE DE EVENTO ═══════ -->
+  @if (eventoSel) {
+  <app-modal
+    [open]="true"
+    title="Detalle del evento"
+    [subtitle]="eventoSel.accion + ' · ' + fmtFecha(eventoSel.fecha)"
+    maxWidth="640px"
+    iconBg="rgba(145,211,55,0.12)"
+    iconColor="#4d7d18"
+    (closeModal)="cerrarDetalle()">
+
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      <path d="M12 8v4"/>
+      <path d="M12 16h.01"/>
+    </svg>
+
+    <div class="sm-modal-body">
+      <dl class="sm-detalle-grid">
+        <div><dt>Fecha</dt><dd>{{ fmtFecha(eventoSel.fecha) }}</dd></div>
+        <div><dt>Acción</dt><dd><span class="sm-accion sm-acc-{{ accionClase(eventoSel.accion) }}">{{ eventoSel.accion }}</span></dd></div>
+        <div><dt>Usuario</dt><dd>{{ eventoSel.usuarioNombre ?? '—' }}</dd></div>
+        <div><dt>Rol</dt><dd>{{ eventoSel.rol ?? '—' }}</dd></div>
+        <div><dt>IP</dt><dd>{{ eventoSel.ip ?? '—' }}</dd></div>
+        <div><dt>Método HTTP</dt><dd>{{ eventoSel.metodoHttp ?? '—' }}</dd></div>
+        <div class="sm-detalle-full"><dt>Ruta</dt><dd>{{ eventoSel.ruta ?? '—' }}</dd></div>
+        <div><dt>Resultado</dt><dd><span class="sm-resultado sm-res-{{ eventoSel.resultado }}">{{ resultadoLabel(eventoSel.resultado) }}</span></dd></div>
+        <div><dt>Entidad</dt><dd>{{ eventoSel.entidad ?? '—' }}</dd></div>
+        <div class="sm-detalle-full"><dt>ID entidad</dt><dd>{{ eventoSel.entidadId ?? '—' }}</dd></div>
+        <div class="sm-detalle-full"><dt>User agent</dt><dd class="sm-ua">{{ eventoSel.userAgent ?? '—' }}</dd></div>
+      </dl>
+      <h4 class="sm-detalle-sub">Detalle</h4>
+      <pre class="sm-detalle-json">{{ detalleJson(eventoSel) }}</pre>
+    </div>
+  </app-modal>
+  }
+
+</div>
