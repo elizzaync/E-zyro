@@ -10,7 +10,7 @@ La copia durable de largo plazo es la que Soporte descarga a su disco externo.
 """
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, BigInteger, Text, Date, DateTime
+from sqlalchemy import Column, String, BigInteger, Text, Date, DateTime, Boolean, SmallInteger
 from app.db.database import Base
 
 
@@ -30,7 +30,7 @@ class BackupJob(Base):
     disparado_por = Column(String(36), nullable=True)                     # usuario.id | NULL = sistema
     fecha_inicio  = Column(DateTime, nullable=False, default=datetime.utcnow)
     fecha_fin     = Column(DateTime, nullable=True)
-    estado        = Column(String(12), nullable=False, default="pendiente")  # pendiente|en_proceso|completado|fallido
+    estado        = Column(String(12), nullable=False, default="pendiente")  # pendiente|en_proceso|completado|fallido|cancelado
     contenido     = Column(String(60), nullable=False)                    # csv: bd,pdfs,cloudinary
     tamano_bytes  = Column(BigInteger, nullable=True)
     ubicacion     = Column(Text, nullable=True)                           # ruta del artefacto en BACKUP_DIR
@@ -38,3 +38,20 @@ class BackupJob(Base):
     error_detalle = Column(Text, nullable=True)
     retencion     = Column(String(10), nullable=True)                     # horario|diario|semanal|mensual
     expira_en     = Column(Date, nullable=True)                           # rotación GFS automática
+
+
+class BackupConfig(Base):
+    """Programación de los backups automáticos, editable por Soporte desde la
+    pantalla de Backups. Fila única (id=1); el scheduler la lee en cada tick,
+    así que un cambio aplica al minuto sin reiniciar el servidor."""
+    __tablename__ = "backup_config"
+
+    id              = Column(SmallInteger, primary_key=True, default=1)
+    bd_auto         = Column(Boolean, nullable=False, default=True)      # backups de BD automáticos on/off
+    bd_frecuencia   = Column(String(10), nullable=False, default="diario")  # cada_hora | diario | semanal
+    bd_hora         = Column(String(5), nullable=False, default="23:30")    # "HH:MM" hora local (America/Lima)
+    bd_dia_semana   = Column(SmallInteger, nullable=False, default=6)    # 0=lunes … 6=domingo (solo semanal)
+    bd_correo       = Column(Boolean, nullable=False, default=True)      # enviar dump por correo a Soporte
+    archivos_auto   = Column(Boolean, nullable=False, default=True)      # backups de archivos Cloudinary on/off
+    actualizado_por = Column(String(36), nullable=True)                  # usuario.id del último cambio
+    actualizado_en  = Column(DateTime, nullable=True, default=datetime.utcnow)

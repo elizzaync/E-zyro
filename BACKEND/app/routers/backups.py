@@ -52,6 +52,16 @@ class CrearBackupBody(BaseModel):
     alcance: str = "bd"
 
 
+class ConfigBackupBody(BaseModel):
+    """Programación editable de los backups automáticos (fila única backup_config)."""
+    bdAuto:       bool = True
+    bdFrecuencia: str  = "diario"     # cada_hora | diario | semanal
+    bdHora:       str  = "23:30"      # HH:MM (hora local America/Lima)
+    bdDiaSemana:  int  = 6            # 0=lunes … 6=domingo (solo semanal)
+    bdCorreo:     bool = True
+    archivosAuto: bool = True
+
+
 class BackupJobOut(BaseModel):
     id:            str
     tipo:          str
@@ -68,6 +78,7 @@ class BackupJobOut(BaseModel):
     expiraEn:      Optional[str] = None
     descargable:   bool = False   # hay artefacto en disco O es regenerable (bd)
     duracionSegundos: Optional[float] = None
+    nombreArchivo: Optional[str] = None  # nombre real del artefacto (extensión correcta)
 
 
 class BackupsListOut(BaseModel):
@@ -98,6 +109,7 @@ def _out(db: Session, j: BackupJob) -> BackupJobOut:
         expiraEn=j.expira_en.isoformat() if j.expira_en else None,
         descargable=(j.estado == "completado" and (tiene_archivo or regenerable)),
         duracionSegundos=dur,
+        nombreArchivo=Path(j.ubicacion).name if j.ubicacion else None,
     )
 
 
@@ -157,13 +169,81 @@ def listar_backups(
                           total=total, page=page, pageSize=page_size)
 
 
+def _config_out(cfg) -> dict:
+    return {
+        "bdAuto": cfg.bd_auto, "bdFrecuencia": cfg.bd_frecuencia,
+        "bdHora": cfg.bd_hora, "bdDiaSemana": cfg.bd_dia_semana,
+        "bdCorreo": cfg.bd_correo, "archivosAuto": cfg.archivos_auto,
+        "resumen": backup_service.resumen_config(cfg),
+        "backupDir": str(backup_service.BACKUP_DIR),
+        "retencionDias": backup_service.RETENCION_DIAS,
+    }
+
+
 @router.get("/config")
-def config_backups(payload: dict = Depends(verificar_token)):
-    """Frecuencia y retención vigentes (para la sección de configuración)."""
+def config_backups(payload: dict = Depends(verificar_token),
+                   db: Session = Depends(get_db)):
+    """Programación vigente + valores editables (pantalla de configuración)."""
     _autorizar_soporte(payload)
-    return {"config": backup_service.CONFIG_VIGENTE,
-            "backupDir": str(backup_service.BACKUP_DIR),
-            "retencionDias": backup_service.RETENCION_DIAS}
+    return _config_out(backup_service.obtener_config(db))
+
+
+@router.put("/config")
+def actualizar_config_backups(
+    body:    ConfigBackupBody,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Guarda la programación. El scheduler la relee en cada tick, así que el
+    cambio aplica al minuto sin reiniciar el servidor."""
+    _autorizar_soporte(payload)
+    if body.bdFrecuencia not in ("cada_hora", "diario", "semanal"):
+        raise HTTPException(status_code=422, detail="bdFrecuencia debe ser cada_hora, diario o semanal")
+    try:
+        hh, mm = body.bdHora.split(":")
+        assert 0 <= int(hh) <= 23 and 0 <= int(mm) <= 59
+    except (ValueError, AssertionError):
+        raise HTTPException(status_code=422, detail="bdHora debe tener formato HH:MM")
+    if not 0 <= body.bdDiaSemana <= 6:
+        raise HTTPException(status_code=422, detail="bdDiaSemana debe estar entre 0 (lunes) y 6 (domingo)")
+
+    cfg = backup_service.obtener_config(db)
+    cfg.bd_auto        = body.bdAuto
+    cfg.bd_frecuencia  = body.bdFrecuencia
+    cfg.bd_hora        = f"{int(hh):02d}:{int(mm):02d}"
+    cfg.bd_dia_semana  = body.bdDiaSemana
+    cfg.bd_correo      = body.bdCorreo
+    cfg.archivos_auto  = body.archivosAuto
+    cfg.actualizado_por = payload.get("id")
+    cfg.actualizado_en  = datetime.utcnow()
+    db.commit()
+    db.refresh(cfg)
+    return _config_out(cfg)
+
+
+@router.post("/{job_id}/cancelar", response_model=BackupJobOut)
+def cancelar_backup(
+    job_id:  str,
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Cancela un backup pendiente o en proceso. Cancelación cooperativa: el
+    worker chequea la bandera entre fases/archivos y, si hay un pg_dump
+    corriendo, se le hace terminate. El job queda en estado 'cancelado'."""
+    _autorizar_soporte(payload)
+    j = db.query(BackupJob).filter(BackupJob.id == job_id).first()
+    if not j:
+        raise HTTPException(status_code=404, detail="Backup no encontrado")
+    if j.estado not in ("pendiente", "en_proceso"):
+        raise HTTPException(status_code=409, detail=f"El backup ya está {j.estado}, no se puede cancelar")
+
+    backup_service.solicitar_cancelacion(job_id)
+    if j.estado == "pendiente":
+        # aún no arrancó: se marca directo (el worker lo respeta al despertar)
+        j.estado = "cancelado"
+        j.fecha_fin = datetime.utcnow()
+        db.commit()
+    return _out(db, j)
 
 
 @router.get("/{job_id}", response_model=BackupJobOut)
@@ -202,8 +282,8 @@ def descargar_backup(
                 status_code=410,
                 detail="El artefacto ya no está en el servidor (redeploy). Genera un backup nuevo.",
             )
-        # Regeneración al vuelo: un dump tarda segundos
-        destino = backup_service._ensure_dir() / f"bd_regen_{datetime.now():%Y%m%d_%H%M%S}_{j.id[:8]}.dump"
+        # Regeneración al vuelo: un dump tarda segundos (SQL plano, igual que los nuevos)
+        destino = backup_service._ensure_dir() / f"bd_regen_{datetime.now():%Y%m%d_%H%M%S}_{j.id[:8]}.sql"
         try:
             backup_service._dump_bd(destino)
         except Exception as e:

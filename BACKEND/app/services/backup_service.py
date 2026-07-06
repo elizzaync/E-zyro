@@ -34,7 +34,9 @@ import smtplib
 import subprocess
 import tarfile
 import tempfile
+import threading
 import uuid as _uuid
+import zipfile
 from datetime import datetime, date, timedelta
 from email.message import EmailMessage
 from pathlib import Path
@@ -43,7 +45,7 @@ import requests
 from sqlalchemy.orm import Session
 
 from app.db.database import SessionLocal
-from app.models.backup_job import BackupJob
+from app.models.backup_job import BackupJob, BackupConfig
 
 logger = logging.getLogger("backups")
 
@@ -58,14 +60,80 @@ RESOURCE_TYPES = ("image", "raw", "video")
 # Retención GFS (días de vida por nivel)
 RETENCION_DIAS = {"horario": 2, "diario": 7, "semanal": 28, "mensual": 365}
 
-# Config expuesta al frontend (pantalla de Backups → sección configuración)
-CONFIG_VIGENTE = {
-    "bd_horario":            "Dump de BD cada hora (silencioso, retención 48 h)",
-    "bd_diario":             "Backup diario de BD 23:30 (notifica + correo a Soporte, retención 7 días; domingo → semanal 28 días; día 1 → mensual 365 días)",
-    "archivos_incremental":  "Archivos nuevos de Cloudinary cada hora (solo si hay novedades, retención 7 días)",
-    "archivos_full":         "Paquete completo de archivos: domingo 22:00 (notifica, retención 28 días)",
-    "rotacion":              "Limpieza de expirados: diaria 03:00 (GFS 48h / 7d / 4sem / 12m)",
-}
+DIAS_SEMANA = ("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+
+
+# ── Programación editable (tabla backup_config, fila única id=1) ─────────────
+
+def obtener_config(db: Session) -> BackupConfig:
+    """Devuelve la fila única de configuración; la crea con defaults si no existe."""
+    cfg = db.query(BackupConfig).filter(BackupConfig.id == 1).first()
+    if not cfg:
+        cfg = BackupConfig(id=1)
+        db.add(cfg)
+        db.commit()
+        db.refresh(cfg)
+    return cfg
+
+
+def resumen_config(cfg: BackupConfig) -> dict:
+    """Texto legible de la programación vigente (sección config del frontend)."""
+    if not cfg.bd_auto:
+        bd = "Desactivados (solo backups manuales)"
+    elif cfg.bd_frecuencia == "cada_hora":
+        bd = (f"Cada hora en punto (silencioso, retención 48 h) + consolidado diario "
+              f"{cfg.bd_hora} con notificación y correo (GFS: dom→semanal, día 1→mensual)")
+    elif cfg.bd_frecuencia == "semanal":
+        bd = (f"Semanal: {DIAS_SEMANA[cfg.bd_dia_semana]} {cfg.bd_hora} "
+              f"(notifica{' + correo' if cfg.bd_correo else ''}, retención 28 días)")
+    else:
+        bd = (f"Diario {cfg.bd_hora} (notifica{' + correo' if cfg.bd_correo else ''}, "
+              f"retención 7 días; domingo → semanal 28 días; día 1 → mensual 365 días)")
+    archivos = ("Incremental cada hora (min 20, silencioso) + paquete completo domingo 22:00"
+                if cfg.archivos_auto else "Desactivados (solo backups manuales)")
+    return {
+        "base_de_datos": bd,
+        "archivos_cloudinary": archivos,
+        "rotacion": "Limpieza de expirados: diaria 03:00 (GFS 48h / 7d / 4sem / 12m)",
+        "formato_bd": "SQL plano (.sql) — se abre con cualquier editor y se restaura con psql",
+    }
+
+
+# ── Cancelación cooperativa de jobs ──────────────────────────────────────────
+# El worker (hilo o job del scheduler) chequea la bandera entre fases y entre
+# archivos; si hay un pg_dump corriendo se le hace terminate directamente.
+
+class BackupCancelado(Exception):
+    pass
+
+
+_CANCEL_LOCK = threading.Lock()
+_CANCELADOS: set[str] = set()
+_PROCESOS: dict[str, subprocess.Popen] = {}
+
+
+def solicitar_cancelacion(job_id: str) -> None:
+    with _CANCEL_LOCK:
+        _CANCELADOS.add(job_id)
+        proc = _PROCESOS.get(job_id)
+    if proc and proc.poll() is None:
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+
+
+def _chequear_cancelacion(job_id: str | None) -> None:
+    if job_id:
+        with _CANCEL_LOCK:
+            if job_id in _CANCELADOS:
+                raise BackupCancelado()
+
+
+def _limpiar_cancelacion(job_id: str) -> None:
+    with _CANCEL_LOCK:
+        _CANCELADOS.discard(job_id)
+        _PROCESOS.pop(job_id, None)
 
 
 def _ensure_dir() -> Path:
@@ -91,19 +159,37 @@ def _database_url() -> str:
 
 # ── Fuente 1: dump de PostgreSQL ─────────────────────────────────────────────
 
-def _dump_bd(destino: Path) -> None:
-    """pg_dump -Fc (custom format, ya comprimido; restaurable con pg_restore).
-    Requiere postgresql-client >= versión del servidor (18) en la imagen."""
-    cmd = ["pg_dump", "--format=custom", "--no-owner", "--no-privileges",
+def _dump_bd(destino: Path, job_id: str | None = None) -> None:
+    """pg_dump en SQL PLANO (.sql): legible en cualquier editor y restaurable
+    con `psql -f archivo.sql`. Requiere postgresql-client >= versión del
+    servidor (18) en la imagen. Si `job_id` viene, el proceso queda registrado
+    para poder cancelarlo (terminate) desde el endpoint de cancelación."""
+    _chequear_cancelacion(job_id)
+    cmd = ["pg_dump", "--format=plain", "--no-owner", "--no-privileges",
            f"--file={destino}", _database_url()]
-    res = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-    if res.returncode != 0:
-        raise RuntimeError(f"pg_dump falló (rc={res.returncode}): {res.stderr[-800:]}")
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if job_id:
+        with _CANCEL_LOCK:
+            _PROCESOS[job_id] = proc
+    try:
+        _, stderr = proc.communicate(timeout=600)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        destino.unlink(missing_ok=True)
+        raise RuntimeError("pg_dump excedió los 10 minutos")
+    finally:
+        if job_id:
+            with _CANCEL_LOCK:
+                _PROCESOS.pop(job_id, None)
+    if proc.returncode != 0:
+        destino.unlink(missing_ok=True)  # dump parcial inservible
+        _chequear_cancelacion(job_id)    # terminate por cancelación → cancelado, no error
+        raise RuntimeError(f"pg_dump falló (rc={proc.returncode}): {(stderr or '')[-800:]}")
 
 
 # ── Fuente 2: archivos en Cloudinary (PDFs raw + imágenes + video) ──────────
 
-def _listar_cloudinary(desde: datetime | None) -> list[dict]:
+def _listar_cloudinary(desde: datetime | None, job_id: str | None = None) -> list[dict]:
     """Lista recursos de Cloudinary por prefijo/resource_type, paginando.
     Si `desde` viene, filtra client-side por created_at (incremental)."""
     import cloudinary.api  # config ya inicializada por app.core.config_cloudinary
@@ -112,6 +198,7 @@ def _listar_cloudinary(desde: datetime | None) -> list[dict]:
         for prefijo in PREFIJOS_CLOUDINARY:
             cursor = None
             while True:
+                _chequear_cancelacion(job_id)
                 kwargs = {"type": "upload", "resource_type": rt, "prefix": prefijo,
                           "max_results": 500}
                 if cursor:
@@ -144,7 +231,7 @@ def _listar_cloudinary(desde: datetime | None) -> list[dict]:
     return recursos
 
 
-def _empaquetar_archivos(recursos: list[dict], destino_tar: Path) -> int:
+def _empaquetar_archivos(recursos: list[dict], destino_tar: Path, job_id: str | None = None) -> int:
     """Descarga cada recurso y lo empaqueta en un .tar.gz junto a manifest.json.
     Devuelve cuántos archivos entraron. Los que fallan quedan anotados en el
     manifiesto con error (el backup no se cae por un asset corrupto)."""
@@ -152,6 +239,7 @@ def _empaquetar_archivos(recursos: list[dict], destino_tar: Path) -> int:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
         for r in recursos:
+            _chequear_cancelacion(job_id)
             url = r.get("secure_url")
             if not url:
                 r["error"] = "sin secure_url"
@@ -217,8 +305,18 @@ def _enviar_dump_por_correo(path: Path, destinatarios: list[str], asunto: str, c
         msg["From"]    = os.getenv("MAIL_FROM", os.getenv("MAIL_USERNAME", ""))
         msg["To"]      = ", ".join(destinatarios)
         msg.set_content(cuerpo)
-        msg.add_attachment(path.read_bytes(), maintype="application",
-                           subtype="octet-stream", filename=path.name)
+        # El dump ahora es .sql plano (grande): se adjunta comprimido en .zip
+        # (formato nativo de Windows, se abre con doble clic).
+        if path.suffix == ".sql":
+            import io
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                z.write(path, arcname=path.name)
+            msg.add_attachment(buf.getvalue(), maintype="application",
+                               subtype="zip", filename=path.name + ".zip")
+        else:
+            msg.add_attachment(path.read_bytes(), maintype="application",
+                               subtype="octet-stream", filename=path.name)
         puerto = int(os.getenv("MAIL_PORT", "587"))
         with smtplib.SMTP(servidor, puerto, timeout=60) as s:
             s.starttls()
@@ -298,6 +396,10 @@ def ejecutar_backup(job_id: str, *, notificar: bool, enviar_correo: bool = False
         job = db.query(BackupJob).filter(BackupJob.id == job_id).first()
         if not job:
             return
+        # Cancelado antes de arrancar (estaba pendiente en cola)
+        if job.estado == "cancelado":
+            _limpiar_cancelacion(job_id)
+            return
         job.estado = "en_proceso"
         db.commit()
 
@@ -307,16 +409,17 @@ def ejecutar_backup(job_id: str, *, notificar: bool, enviar_correo: bool = False
         detalle_archivos = ""
 
         try:
+            _chequear_cancelacion(job_id)
             if "bd" in job.contenido:
-                dump = destino_dir / f"bd_{stamp}_{job.id[:8]}.dump"
-                _dump_bd(dump)
+                dump = destino_dir / f"bd_{stamp}_{job.id[:8]}.sql"
+                _dump_bd(dump, job_id=job_id)
                 partes.append(dump)
 
             if "cloudinary" in job.contenido:
-                recursos = _listar_cloudinary(incremental_desde)
+                recursos = _listar_cloudinary(incremental_desde, job_id=job_id)
                 if recursos or incremental_desde is None:
                     tar = destino_dir / f"archivos_{stamp}_{job.id[:8]}.tar.gz"
-                    n = _empaquetar_archivos(recursos, tar)
+                    n = _empaquetar_archivos(recursos, tar, job_id=job_id)
                     partes.append(tar)
                     detalle_archivos = f" · {n} archivos"
                 else:
@@ -374,11 +477,22 @@ def ejecutar_backup(job_id: str, *, notificar: bool, enviar_correo: bool = False
                     ref_key=f"backup:{job.id}:ok",
                 )
 
+        except BackupCancelado:
+            job.estado = "cancelado"
+            job.fecha_fin = datetime.utcnow()
+            job.error_detalle = None
+            db.commit()
+            # limpiar artefactos parciales (dump a medias, etc.)
+            for p in partes:
+                p.unlink(missing_ok=True)
+            logger.info("Backup %s CANCELADO por el usuario", job.id)
         except Exception as e:
             job.estado = "fallido"
             job.fecha_fin = datetime.utcnow()
             job.error_detalle = str(e)[:2000]
             db.commit()
+            for p in partes:
+                p.unlink(missing_ok=True)
             logger.error("Backup %s FALLÓ: %s", job.id, e)
             # Los fallos SIEMPRE se notifican a Soporte (aunque el job fuera silencioso)
             _notificar_soporte(
@@ -387,6 +501,7 @@ def ejecutar_backup(job_id: str, *, notificar: bool, enviar_correo: bool = False
                 ref_key=f"backup:{job.id}:err",
             )
     finally:
+        _limpiar_cancelacion(job_id)
         db.close()
 
 

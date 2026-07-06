@@ -1051,35 +1051,62 @@ def _depreciacion_mensual_automatica():
 # Import perezoso dentro de cada job para evitar ciclos (backup_service importa
 # _usuarios_por_rol/_emitir de este módulo para notificar a Soporte).
 
-def _backup_bd_horario():
-    """Dump de BD cada hora — SILENCIOSO (solo historial, sin push). A las 23h
-    no corre: lo cubre el diario de 23:30 con retención GFS."""
+def _backup_bd_programado():
+    """Tick por minuto: lee backup_config (editable desde Gestión TIC → Backups)
+    y dispara el backup de BD cuando toca según la frecuencia elegida:
+      - cada_hora: dump silencioso al minuto 0 + consolidado a la hora elegida
+        (notifica + correo, con promoción GFS dom→semanal / día 1→mensual)
+      - diario:    un backup a la hora elegida (GFS igual que arriba)
+      - semanal:   un backup el día y hora elegidos (retención 28 días)
+    Al leer la config en cada tick, un cambio aplica al minuto sin reiniciar."""
     from app.services import backup_service
-    if datetime.now().hour == 23:
-        return
+    from app.models.backup_job import BackupJob
+
+    ahora = datetime.now()  # el scheduler corre en America/Lima
+    hhmm = ahora.strftime("%H:%M")
+    job = None
     db = SessionLocal()
     try:
-        job = backup_service.crear_job(db, tipo="auto", nivel="bd_horario",
-                                       contenido="bd", disparado_por=None,
-                                       retencion="horario")
+        cfg = backup_service.obtener_config(db)
+        if not cfg.bd_auto:
+            return
+        es_hora_principal = (
+            hhmm == cfg.bd_hora
+            and (cfg.bd_frecuencia != "semanal" or ahora.weekday() == cfg.bd_dia_semana)
+        )
+        es_tick_horario = (cfg.bd_frecuencia == "cada_hora"
+                           and ahora.minute == 0 and hhmm != cfg.bd_hora)
+        if not (es_hora_principal or es_tick_horario):
+            return
+
+        # Anti-duplicado (misfires/reinicios): si ya corrió un auto-BD hace <5 min, saltar
+        reciente = db.query(BackupJob.id).filter(
+            BackupJob.tipo == "auto",
+            BackupJob.contenido == "bd",
+            BackupJob.fecha_inicio >= datetime.utcnow() - timedelta(minutes=5),
+        ).first()
+        if reciente:
+            return
+
+        if es_hora_principal:
+            if cfg.bd_frecuencia == "semanal":
+                nivel, retencion = "bd_semanal", "semanal"
+            else:
+                retencion, _dias = backup_service._retencion_de_hoy()
+                nivel = "bd_diario"
+            job = backup_service.crear_job(db, tipo="auto", nivel=nivel,
+                                           contenido="bd", disparado_por=None,
+                                           retencion=retencion)
+            notificar, correo = True, bool(cfg.bd_correo)
+        else:
+            job = backup_service.crear_job(db, tipo="auto", nivel="bd_horario",
+                                           contenido="bd", disparado_por=None,
+                                           retencion="horario")
+            notificar, correo = False, False
     finally:
         db.close()
-    backup_service.ejecutar_backup(job.id, notificar=False)
-
-
-def _backup_bd_diario():
-    """Backup diario de BD 23:30 — notifica a Soporte + envía el dump por
-    correo. Promoción GFS: domingo → semanal, día 1 → mensual."""
-    from app.services import backup_service
-    retencion, _dias = backup_service._retencion_de_hoy()
-    db = SessionLocal()
-    try:
-        job = backup_service.crear_job(db, tipo="auto", nivel="bd_diario",
-                                       contenido="bd", disparado_por=None,
-                                       retencion=retencion)
-    finally:
-        db.close()
-    backup_service.ejecutar_backup(job.id, notificar=True, enviar_correo=True)
+    if job is not None:
+        backup_service.ejecutar_backup(job.id, notificar=notificar, enviar_correo=correo)
 
 
 def _backup_archivos_incremental():
@@ -1088,6 +1115,8 @@ def _backup_archivos_incremental():
     from app.services import backup_service
     db = SessionLocal()
     try:
+        if not backup_service.obtener_config(db).archivos_auto:
+            return
         desde = backup_service.ultimo_backup_archivos_ok(db)
         job = backup_service.crear_job(db, tipo="auto", nivel="archivos_incremental",
                                        contenido="pdfs,cloudinary", disparado_por=None,
@@ -1104,6 +1133,8 @@ def _backup_archivos_full_semanal():
     from app.services import backup_service
     db = SessionLocal()
     try:
+        if not backup_service.obtener_config(db).archivos_auto:
+            return
         job = backup_service.crear_job(db, tipo="auto", nivel="archivos_full",
                                        contenido="pdfs,cloudinary", disparado_por=None,
                                        retencion="semanal")
@@ -1198,14 +1229,11 @@ def iniciar_scheduler():
         replace_existing=True
     )
     # ── Backups (Gestión de TIC) ──
-    # BD cada hora en punto (silencioso; se salta las 23h, cubierta por el diario)
-    scheduler.add_job(func=_backup_bd_horario, trigger=CronTrigger(minute=0),
-                      id="backup_bd_horario", replace_existing=True,
-                      misfire_grace_time=600, coalesce=True)
-    # BD diario consolidado 23:30 — notifica + correo (GFS: dom→semanal, día 1→mensual)
-    scheduler.add_job(func=_backup_bd_diario, trigger=CronTrigger(hour=23, minute=30),
-                      id="backup_bd_diario", replace_existing=True,
-                      misfire_grace_time=3600, coalesce=True)
+    # BD según programación editable (backup_config): tick por minuto que decide
+    # si toca correr (cada_hora / diario / semanal + hora y día elegidos).
+    scheduler.add_job(func=_backup_bd_programado, trigger=CronTrigger(minute="*"),
+                      id="backup_bd_programado", replace_existing=True,
+                      misfire_grace_time=50, coalesce=True)
     # Archivos Cloudinary incremental — cada hora al minuto 20 (silencioso)
     scheduler.add_job(func=_backup_archivos_incremental, trigger=CronTrigger(minute=20),
                       id="backup_archivos_incremental", replace_existing=True,
