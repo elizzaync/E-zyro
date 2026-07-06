@@ -7,11 +7,11 @@
     </div>
     <div class="header-actions">
       @if (puedeEditar && esVistaMensual) {
-      <button class="btn-guardar" [disabled]="guardando" (click)="guardarSueldos()">
+      <button class="btn-guardar" [disabled]="guardandoSueldos" (click)="guardarSueldos()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
         </svg>
-        @if (guardando) { Guardando… } @else { Guardar Sueldos }
+        @if (guardandoSueldos) { Guardando… } @else { Guardar Sueldos }
       </button>
       }
       @if (isAdmin && esVistaMensual) {
@@ -94,6 +94,46 @@
 
   </div>
 
+  <!-- ═══ CICLO REAL DE LA PLANILLA DEL MES: calcular → aprobar → pagar / anular ═══ -->
+  @if (esVistaMensual && puedeEditar) {
+  <div class="planilla-estado-bar">
+    @if (!planillaDelPeriodo) {
+    <span class="planilla-estado-chip chip-borrador">Sin calcular</span>
+    <span class="planilla-estado-hint">Esta planilla aún no se ha calculado ni contabilizado para {{ labelPeriodo }}.</span>
+    <button class="btn-planilla-accion btn-calcular" [disabled]="procesandoAccionPlanilla" (click)="calcularPlanillaDelMes()">
+      @if (procesandoAccionPlanilla) { Calculando… } @else { Calcular Planilla del mes }
+    </button>
+    } @else {
+    <span class="planilla-estado-chip" [ngClass]="'chip-' + planillaDelPeriodo.estado">
+      {{ estadoPlanillaLabel(planillaDelPeriodo.estado) }}
+    </span>
+    <span class="planilla-estado-hint">
+      Neto total: {{ formatMonto(planillaDelPeriodo.total_neto) }}
+      @if (planillaDelPeriodo.estado === 'aprobada' || planillaDelPeriodo.estado === 'pagada') {
+        · Provisión contabilizada
+      }
+      @if (planillaDelPeriodo.estado === 'pagada') {
+        · Pago contabilizado
+      }
+    </span>
+
+    @if (planillaDelPeriodo.estado === 'calculada') {
+    <button class="btn-planilla-accion btn-aprobar" [disabled]="procesandoAccionPlanilla" (click)="aprobarPlanillaDelMes()">
+      @if (procesandoAccionPlanilla) { Procesando… } @else { Aprobar }
+    </button>
+    <button class="btn-planilla-accion btn-anular" [disabled]="procesandoAccionPlanilla" (click)="anularPlanillaDelMes()">
+      Anular
+    </button>
+    }
+    @if (planillaDelPeriodo.estado === 'aprobada') {
+    <button class="btn-planilla-accion btn-pagar" [disabled]="procesandoAccionPlanilla" (click)="marcarPagadaPlanillaDelMes()">
+      @if (procesandoAccionPlanilla) { Procesando… } @else { Marcar como pagada }
+    </button>
+    }
+    }
+  </div>
+  }
+
   @if (kpis.bajoRmvCount > 0) {
   <div class="rmv-banner">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -148,7 +188,7 @@
       <div class="kpi-info">
         <span class="kpi-label">Descuentos Legales</span>
         <span class="kpi-value kpi-red">{{ formatMonto(kpis.totalDesc) }}</span>
-        <span class="kpi-sub">Faltas + ONP/AFP</span>
+        <span class="kpi-sub">Pensión + Renta 5ta</span>
       </div>
     </div>
 
@@ -220,7 +260,7 @@
             <th class="text-center">H. Trabajadas</th>
             <th class="text-center">H. Extra</th>
             <th class="text-center">H. Faltantes</th>
-            <th class="text-center">Desc. Faltas</th>
+            <th class="text-center" title="Parte del sueldo NO devengada por inasistencia (informativo — ya descontada del sueldo mostrado)">No Devengado</th>
             <th class="text-center">+ H. Extra</th>
             <th class="text-center">Pensión</th>
             <th class="text-center" title="% total AFP (aporte + seguro + comisión). Editable si la AFP notificó cambio.">AFP %</th>
@@ -244,14 +284,14 @@
             <td>
               <div class="emp-cell">
                 <div class="emp-avatar">
-                  @if (emp.fotoUrl) {
-                  <img class="avatar-photo" [src]="emp.fotoUrl" [alt]="emp.iniciales">
+                  @if (emp.foto_url) {
+                  <img class="avatar-photo" [src]="emp.foto_url" [alt]="emp.iniciales">
                   } @else {
-                  {{ iniciales(emp.nombreCompleto) }}
+                  {{ iniciales(emp.nombre_completo) }}
                   }
                 </div>
                 <div>
-                  <span class="emp-name">{{ emp.nombreCompleto }}</span>
+                  <span class="emp-name">{{ emp.nombre_completo }}</span>
                 </div>
               </div>
             </td>
@@ -270,21 +310,24 @@
 
             <td class="td-input">
               @if (puedeEditar && esVistaMensual) {
-              <div class="sueldo-input-wrap" [class.sueldo-input-warn]="bajoRmv(emp)">
+              <div class="sueldo-input-wrap" [class.sueldo-input-warn]="emp.bajo_rmv">
                 <span class="sueldo-prefix">S/.</span>
                 <input
                   type="number"
                   class="sueldo-input"
-                  [value]="getSueldo(emp.id) || ''"
+                  [value]="getSueldo(emp) || ''"
                   (input)="onSueldoChange(emp.id, $any($event.target).value)"
                   placeholder="0.00"
                   min="0"
                   step="0.01">
               </div>
-              } @else {
-              <span class="sueldo-readonly">{{ sueldoPeriodo(emp.id) > 0 ? formatMonto(sueldoPeriodo(emp.id)) : '—' }}</span>
+              @if (tieneSueldoPendiente(emp)) {
+              <span class="sueldo-pendiente-flag" title="Cambio sin guardar — el Neto se actualizará al guardar">● sin guardar</span>
               }
-              @if (bajoRmv(emp)) {
+              } @else {
+              <span class="sueldo-readonly">{{ emp.sueldo_periodo > 0 ? formatMonto(emp.sueldo_periodo) : '—' }}</span>
+              }
+              @if (emp.bajo_rmv) {
               <span class="rmv-flag" title="Por debajo de la RMV vigente (S/ {{ rmvVigente }})">⚠ Bajo RMV</span>
               }
             </td>
@@ -300,8 +343,8 @@
             </td>
 
             <td class="text-center">
-              @if (horasExtra(emp) > 0) {
-              <span class="badge-extra">+{{ formatH(horasExtra(emp)) }}</span>
+              @if (emp.horas_extra > 0) {
+              <span class="badge-extra">+{{ formatH(emp.horas_extra) }}</span>
               } @else {
               <span class="hrs-cero">—</span>
               }
@@ -316,16 +359,16 @@
             </td>
 
             <td class="text-center">
-              @if (descuentoFaltas(emp) > 0) {
-              <span class="monto-red">−{{ formatMonto(descuentoFaltas(emp)) }}</span>
+              @if (emp.descuento_faltas > 0) {
+              <span class="monto-red">−{{ formatMonto(emp.descuento_faltas) }}</span>
               } @else {
               <span class="hrs-cero">—</span>
               }
             </td>
 
             <td class="text-center">
-              @if (pagoHorasExtra(emp) > 0) {
-              <span class="monto-green">+{{ formatMonto(pagoHorasExtra(emp)) }}</span>
+              @if (emp.pago_horas_extra > 0) {
+              <span class="monto-green">+{{ formatMonto(emp.pago_horas_extra) }}</span>
               } @else {
               <span class="hrs-cero">—</span>
               }
@@ -336,12 +379,12 @@
               @if (esDependiente(emp)) {
                 @if (puedeEditar) {
                 <div class="pension-cell">
-                  <select class="pension-select" [ngModel]="getPension(emp.id)" (ngModelChange)="onPensionChange(emp.id, $event)">
+                  <select class="pension-select" [ngModel]="emp.sistema_pension" (ngModelChange)="onPensionChange(emp, $event)">
                     <option value="onp">ONP 13%</option>
                     <option value="afp">AFP</option>
                   </select>
-                  @if (getPension(emp.id) === 'afp') {
-                  <select class="pension-select afp-entidad-select" [ngModel]="getAfpEntidad(emp.id)" (ngModelChange)="onAfpEntidadChange(emp.id, $event)">
+                  @if (emp.sistema_pension === 'afp') {
+                  <select class="pension-select afp-entidad-select" [ngModel]="emp.entidad_afp ?? 'integra'" (ngModelChange)="onAfpEntidadChange(emp, $event)">
                     @for (afp of afpEntidades; track afp.value) {
                     <option [value]="afp.value">{{ afp.label }}</option>
                     }
@@ -358,36 +401,36 @@
 
             <!-- ── Columna: AFP % ────────────────────────────────────── -->
             <td class="text-center td-afp-pct">
-              @if (esDependiente(emp) && getPension(emp.id) === 'afp') {
+              @if (esDependiente(emp) && emp.sistema_pension === 'afp') {
                 <div class="afp-pct-col">
                   <!-- Chip: total que se descuenta al trabajador -->
                   <div class="afp-total-chip"
-                    title="Total AFP descontado al trabajador: Aporte Obligatorio 10% + Prima de Seguro 1.37% + Comisión flujo {{ (afpComisionPct(emp) * 100).toFixed(2) }}%">
-                    Total: {{ (pensionPct(emp) * 100).toFixed(2) }}%
+                    title="Total AFP descontado al trabajador: Aporte Obligatorio + Prima de Seguro + Comisión sobre flujo {{ (emp.comision_afp_pct * 100).toFixed(2) }}%">
+                    Total: {{ (pensionPct(emp) ?? 0) * 100 | number:'1.2-2' }}%
                   </div>
                   <!-- Fila editable: solo la comisión sobre flujo (varía por AFP) -->
                   @if (puedeEditar) {
                   <div class="afp-pct-row"
-                    [class.comision-custom]="isComisionCustomizada(emp.id)"
-                    title="Comisión sobre flujo oficial de {{ afpEntidadLabel(emp.id) }}. Editar SOLO si la AFP te notificó un cambio de tasa.">
+                    [class.comision-custom]="isComisionCustomizada(emp)"
+                    title="Comisión sobre flujo oficial de {{ afpEntidadLabel(emp) }}. Editar SOLO si la AFP te notificó un cambio de tasa.">
                     <span class="afp-pct-label">Comis.:</span>
                     <input class="afp-pct-input" type="number" min="0" max="50" step="0.01"
                       [(ngModel)]="comisionDisplayMap[emp.id]"
-                      (blur)="onAfpComisionBlur(emp.id, comisionDisplayMap[emp.id])">
+                      (blur)="onAfpComisionBlur(emp, comisionDisplayMap[emp.id])">
                     <span class="afp-pct-label">%</span>
-                    @if (isComisionCustomizada(emp.id)) {
+                    @if (isComisionCustomizada(emp)) {
                       <button class="comision-reset-btn"
-                        title="Restablecer a la tasa oficial de {{ afpEntidadLabel(emp.id) }}"
+                        title="Restablecer a la tasa oficial de {{ afpEntidadLabel(emp) }}"
                         type="button"
-                        (click)="resetComisionAfp(emp.id)">
+                        (click)="resetComisionAfp(emp)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.9-3.4M20 15A9 9 0 015.1 18.4"/>
                         </svg>
                       </button>
                     }
                   </div>
-                  @if (isComisionCustomizada(emp.id)) {
-                    <span class="comision-custom-badge" title="Tasa modificada manualmente — no es la tasa oficial de {{ afpEntidadLabel(emp.id) }}">personalizada</span>
+                  @if (isComisionCustomizada(emp)) {
+                    <span class="comision-custom-badge" title="Tasa modificada manualmente — no es la tasa oficial de {{ afpEntidadLabel(emp) }}">personalizada</span>
                   }
                   }
                 </div>
@@ -406,9 +449,9 @@
                   <input
                     [type]="showCusppMap[emp.id] ? 'text' : 'password'"
                     class="cuspp-input"
-                    [value]="getCuspp(emp.id)"
-                    (input)="setCuspp(emp.id, $any($event.target).value)"
-                    (blur)="guardarCuspp(emp.id, $any($event.target).value)"
+                    [value]="emp.cuspp ?? ''"
+                    (input)="emp.cuspp = $any($event.target).value.trim().toUpperCase()"
+                    (blur)="guardarCuspp(emp, $any($event.target).value)"
                     placeholder="Ej. 254879VVCTB8"
                     title="CUSPP — Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR)">
                   <button class="cuspp-eye-btn" type="button" (click)="toggleShowCuspp(emp.id)" [title]="showCusppMap[emp.id] ? 'Ocultar' : 'Mostrar'">
@@ -420,7 +463,7 @@
                   </button>
                 </div>
                 } @else {
-                <span class="cuspp-readonly">{{ getCuspp(emp.id) || '—' }}</span>
+                <span class="cuspp-readonly">{{ emp.cuspp || '—' }}</span>
                 }
               } @else {
               <span class="hrs-cero">—</span>
@@ -456,8 +499,11 @@
             </td>
 
             <td class="text-center td-neto">
-              @if (getSueldo(emp.id) > 0) {
-              <span class="neto-val">{{ formatMonto(netoAPagar(emp)) }}</span>
+              @if (getSueldo(emp) > 0) {
+              <span class="neto-val">{{ formatMonto(emp.neto_a_pagar) }}</span>
+              @if (tieneSueldoPendiente(emp)) {
+              <span class="neto-pendiente-hint" title="Guarda el sueldo para recalcular el neto">recalcular al guardar</span>
+              }
               } @else {
               <span class="neto-empty">—</span>
               }
@@ -545,9 +591,9 @@
 
     <!-- Empleado -->
     <div class="boleta-emp-row">
-      <div class="boleta-avatar">{{ iniciales(boletaEmp.nombreCompleto) }}</div>
+      <div class="boleta-avatar">{{ iniciales(boletaEmp.nombre_completo) }}</div>
       <div>
-        <div class="boleta-emp-name">{{ boletaEmp.nombreCompleto }}</div>
+        <div class="boleta-emp-name">{{ boletaEmp.nombre_completo }}</div>
         <div class="boleta-emp-cargo">{{ boletaEmp.cargo }}{{ safeArea(boletaEmp.area) }}</div>
         <div class="boleta-periodo">
           Período: {{ labelPeriodo | titlecase }}{{ esVistaMensual ? '' : ' · ' + (periodoPago === 'q1' ? '1ra' : '2da') + ' Quincena (' + labelRangoQuincena + ')' }}
@@ -568,17 +614,24 @@
         <tr class="row-ingreso">
           <td>Sueldo Base</td>
           <td class="col-detalle">{{ formatH(boletaEmp.meta_horas) }} estándar</td>
-          <td class="col-monto text-green">{{ formatMonto(getSueldo(boletaEmp.id)) }}</td>
+          <td class="col-monto text-green">{{ formatMonto(getSueldo(boletaEmp)) }}</td>
         </tr>
-        @if (horasExtra(boletaEmp) > 0) {
+        @if (boletaEmp.descuento_faltas > 0) {
+        <tr class="row-descuento">
+          <td>Inasistencias (parte no devengada)</td>
+          <td class="col-detalle">{{ formatH(boletaEmp.horas_faltantes) }} de {{ formatH(boletaEmp.meta_horas) }} de meta</td>
+          <td class="col-monto text-red">−{{ formatMonto(boletaEmp.descuento_faltas) }}</td>
+        </tr>
+        }
+        @if (boletaEmp.horas_extra > 0) {
         <tr class="row-ingreso">
-          <td>Horas Extra ({{ formatH(horasExtra(boletaEmp)) }})</td>
+          <td>Horas Extra ({{ formatH(boletaEmp.horas_extra) }})</td>
           <td class="col-detalle">
             @if (esPracticante(boletaEmp)) { Tarifa simple (sin recargo) }
-            @else if (horasExtra(boletaEmp) <= 2) { {{ formatH(horasExtra(boletaEmp)) }} × 25% recargo }
-            @else { 2h × 25% + {{ formatH(horasExtra(boletaEmp) - 2) }} × 35% recargo }
+            @else if (boletaEmp.horas_extra <= 2) { {{ formatH(boletaEmp.horas_extra) }} × 25% recargo }
+            @else { 2h × 25% + {{ formatH(boletaEmp.horas_extra - 2) }} × 35% recargo }
           </td>
-          <td class="col-monto text-green">+{{ formatMonto(pagoHorasExtra(boletaEmp)) }}</td>
+          <td class="col-monto text-green">+{{ formatMonto(boletaEmp.pago_horas_extra) }}</td>
         </tr>
         } @else {
         <tr class="row-na">
@@ -593,20 +646,20 @@
             Asignación Familiar
             @if (puedeEditar) {
             <label class="asigfam-toggle">
-              <input type="checkbox" [checked]="getAsigFamiliar(boletaEmp.id)" (change)="onAsigFamiliarChange(boletaEmp.id, $any($event.target).checked)">
+              <input type="checkbox" [checked]="boletaEmp.tiene_asignacion_familiar" (change)="onAsigFamiliarChange(boletaEmp, $any($event.target).checked)">
               ¿Tiene hijos a cargo?
             </label>
             }
           </td>
           <td class="col-detalle">10% RMV vigente (S/ {{ rmvVigente }})</td>
-          <td class="col-monto text-green">{{ asignacionFamiliar(boletaEmp) > 0 ? '+' + formatMonto(asignacionFamiliar(boletaEmp)) : '—' }}</td>
+          <td class="col-monto text-green">{{ boletaEmp.asignacion_familiar > 0 ? '+' + formatMonto(boletaEmp.asignacion_familiar) : '—' }}</td>
         </tr>
         }
       </tbody>
       <tfoot>
         <tr class="row-subtotal row-subtotal-ingreso">
           <td colspan="2">TOTAL INGRESOS</td>
-          <td class="col-monto text-green">{{ formatMonto(totalIngresos(boletaEmp)) }}</td>
+          <td class="col-monto text-green">{{ formatMonto(boletaEmp.total_ingresos) }}</td>
         </tr>
       </tfoot>
     </table>
@@ -620,24 +673,12 @@
         </tr>
       </thead>
       <tbody>
-        @if (descuentoFaltas(boletaEmp) > 0) {
-        <tr class="row-descuento">
-          <td>Faltas / Tardanzas</td>
-          <td class="col-detalle">{{ formatH(boletaEmp.horas_faltantes) }} × {{ formatMonto(valorHora(boletaEmp)) }}/h</td>
-          <td class="col-monto text-red">−{{ formatMonto(descuentoFaltas(boletaEmp)) }}</td>
-        </tr>
-        } @else {
-        <tr class="row-na">
-          <td>Faltas / Tardanzas</td>
-          <td class="col-detalle" colspan="2">Sin faltas ni tardanzas este período</td>
-        </tr>
-        }
         <!-- Pensión: SIEMPRE visible — con monto descontado o con el motivo por el que no aplica -->
-        @if (descuentoPension(boletaEmp) > 0) {
+        @if (boletaEmp.descuento_pension > 0) {
         <tr class="row-descuento">
           <td>Sistema de Pensión ({{ pensionLabel(boletaEmp) }})</td>
           <td class="col-detalle">Descuento obligatorio por ley</td>
-          <td class="col-monto text-red">−{{ formatMonto(descuentoPension(boletaEmp)) }}</td>
+          <td class="col-monto text-red">−{{ formatMonto(boletaEmp.descuento_pension) }}</td>
         </tr>
         } @else {
         <tr class="row-na">
@@ -647,11 +688,11 @@
         }
 
         @if (esDependiente(boletaEmp)) {
-          @if (impuestoQuintaCategoria(boletaEmp) > 0) {
+          @if (boletaEmp.renta_5ta > 0) {
           <tr class="row-descuento">
             <td>Renta de 5ta Categoría</td>
             <td class="col-detalle">Referencial — verificar con contador</td>
-            <td class="col-monto text-red">−{{ formatMonto(impuestoQuintaCategoria(boletaEmp)) }}</td>
+            <td class="col-monto text-red">−{{ formatMonto(boletaEmp.renta_5ta) }}</td>
           </tr>
           } @else {
           <tr class="row-na">
@@ -664,7 +705,7 @@
       <tfoot>
         <tr class="row-subtotal row-subtotal-descuento">
           <td colspan="2">TOTAL DESCUENTOS</td>
-          <td class="col-monto text-red">−{{ formatMonto(totalDescuentosLegales(boletaEmp)) }}</td>
+          <td class="col-monto text-red">−{{ formatMonto(boletaEmp.total_descuentos_legales) }}</td>
         </tr>
       </tfoot>
     </table>
@@ -673,7 +714,7 @@
     <div class="boleta-neto-box">
       <span class="neto-label">NETO A PAGAR</span>
       <span class="neto-sub">{{ formatH(boletaEmp.horas_total) }} trabajadas este período</span>
-      <span class="neto-box-val">{{ formatMonto(netoAPagar(boletaEmp)) }}</span>
+      <span class="neto-box-val">{{ formatMonto(boletaEmp.neto_a_pagar) }}</span>
     </div>
 
     <!-- Beneficios y aportes — SIEMPRE visibles para los 3 conceptos legales
@@ -689,14 +730,14 @@
         <tr class="row-info">
           <td>Aporte EsSalud (empleador)</td>
           <td class="col-detalle">No descontado al trabajador</td>
-          <td class="col-monto">{{ formatMonto(aporteEssalud(boletaEmp)) }}</td>
+          <td class="col-monto">{{ formatMonto(boletaEmp.aporte_essalud) }}</td>
         </tr>
 
-        @if (provisionCTS(boletaEmp) > 0) {
+        @if (boletaEmp.provision_cts > 0) {
         <tr class="row-info">
           <td>Provisión CTS</td>
           <td class="col-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? '1 remuneración/año' : '15 rem. diarias/año' }}</td>
-          <td class="col-monto">{{ formatMonto(provisionCTS(boletaEmp)) }}</td>
+          <td class="col-monto">{{ formatMonto(boletaEmp.provision_cts) }}</td>
         </tr>
         } @else {
         <tr class="row-na">
@@ -705,11 +746,11 @@
         </tr>
         }
 
-        @if (provisionGratificacion(boletaEmp) > 0) {
+        @if (boletaEmp.provision_gratificacion > 0) {
         <tr class="row-info">
           <td>Provisión Gratificación</td>
           <td class="col-detalle">{{ regimenLabel }} · {{ regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre' }}</td>
-          <td class="col-monto">{{ formatMonto(provisionGratificacion(boletaEmp)) }}</td>
+          <td class="col-monto">{{ formatMonto(boletaEmp.provision_gratificacion) }}</td>
         </tr>
         } @else {
         <tr class="row-na">
@@ -718,11 +759,11 @@
         </tr>
         }
 
-        @if (provisionVacaciones(boletaEmp) > 0) {
+        @if (boletaEmp.provision_vacaciones > 0) {
         <tr class="row-info">
           <td>Provisión Vacacional</td>
-          <td class="col-detalle">{{ diasVacaciones }} días/año</td>
-          <td class="col-monto">{{ formatMonto(provisionVacaciones(boletaEmp)) }}</td>
+          <td class="col-detalle">{{ boletaEmp.dias_vacaciones }} días/año</td>
+          <td class="col-monto">{{ formatMonto(boletaEmp.provision_vacaciones) }}</td>
         </tr>
         } @else {
         <tr class="row-na">
@@ -737,7 +778,7 @@
     <div class="boleta-stats">
       <div class="bstat">
         <span class="bstat-label">Valor Hora</span>
-        <span class="bstat-val">{{ formatMonto(valorHora(boletaEmp)) }}</span>
+        <span class="bstat-val">{{ formatMonto(boletaEmp.valor_hora) }}</span>
       </div>
       <div class="bstat">
         <span class="bstat-label">Cumplimiento</span>
@@ -749,7 +790,7 @@
       </div>
     </div>
 
-    @if (bajoRmv(boletaEmp)) {
+    @if (boletaEmp.bajo_rmv) {
     <div class="boleta-warning">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -768,7 +809,7 @@
     </div>
     }
 
-    @if (getSueldo(boletaEmp.id) === 0) {
+    @if (getSueldo(boletaEmp) === 0) {
     <div class="boleta-warning">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
@@ -783,7 +824,7 @@
   <div class="boleta-footer">
     <button class="btn-close-boleta" (click)="cerrarBoleta()">Cerrar</button>
     @if (esVistaMensual) {
-    <button class="btn-pdf" [disabled]="generandoPdf || getSueldo(boletaEmp.id) === 0" (click)="descargarPdf(boletaEmp)">
+    <button class="btn-pdf" [disabled]="generandoPdf || getSueldo(boletaEmp) === 0" (click)="descargarPdf(boletaEmp)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/>
       </svg>
@@ -791,7 +832,7 @@
     </button>
     }
     @if (isAdmin && esVistaMensual) {
-    <button class="btn-legajo" [disabled]="generandoPdf || getSueldo(boletaEmp.id) === 0" (click)="enviarALegajo(boletaEmp)">
+    <button class="btn-legajo" [disabled]="generandoPdf || getSueldo(boletaEmp) === 0" (click)="enviarALegajo(boletaEmp)">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
       </svg>
@@ -838,7 +879,6 @@
 <app-modal
   [open]="comisionConfirmOpen"
   title="Cambiar comisión sobre flujo"
-  [subtitle]="afpEntidadLabel(comisionConfirmEmpId)"
   maxWidth="480px"
   iconBg="rgba(239,68,68,0.10)"
   iconColor="#dc2626"
@@ -851,8 +891,7 @@
 
   <div class="afp-confirm-body">
     <p class="afp-confirm-msg">
-      Estás sobreescribiendo la tasa de comisión oficial de
-      <strong>{{ afpEntidadLabel(comisionConfirmEmpId) }}</strong>:
+      Estás sobreescribiendo la tasa de comisión oficial:
     </p>
     <div class="comision-cambio-grid">
       <div class="comision-cambio-item">

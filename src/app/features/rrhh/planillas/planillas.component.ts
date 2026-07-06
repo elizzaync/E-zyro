@@ -1,72 +1,21 @@
 import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RrhhService, ResumenEmpleadoDto, PeriodoDto } from '../../../core/services/rrhh.service';
+import {
+  RrhhService, PeriodoDto, PlanillaPreviewEmpleadoDto, PlanillaDto,
+  RegimenLaboral, EsquemaPagoPlanilla, PeriodoPagoPlanilla, SistemaPension, EntidadAfp,
+} from '../../../core/services/rrhh.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
 import html2pdf from 'html2pdf.js';
 
-const SUELDO_KEY       = 'ezp_sueldos_v1';
-const REGIMEN_KEY      = 'ezp_regimen_v1';
-const PENSION_KEY      = 'ezp_pensiones_v1';
-const AFP_KEY          = 'ezp_afp_entidad_v1';
-const AFP_COMISION_KEY = 'ezp_afp_comision_v1';
-const ESQUEMA_KEY      = 'ezp_esquema_pago_v1';
-const ASIGFAM_KEY      = 'ezp_asigfam_v1';
-const CUSPP_KEY        = 'ezp_cuspp_v1';
-const PER_PAGE         = 10;
-
-// Divisores legales peruanos (D.L. 854, MTPE) — fijos por norma, no por calendario.
-const DIVISOR_DIA  = 30;   // valor día = sueldo mensual / 30, siempre
-const HORAS_JORNADA = 8;   // jornada ordinaria máxima diaria
+const PER_PAGE = 10;
 
 const MESES_ES = [
   '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
   'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
 ];
-
-// ── Parámetros legales vigentes 2026 (Perú) ───────────────────────────────
-//    Fuentes: SUNAFIL, MTPE, SUNAT, SBS, Ley N.° 32353 (nueva clasificación
-//    empresarial), D.L. 19990 (ONP), D.L. 25897 (AFP), D.L. 854 (jornada),
-//    Ley 28518 (modalidades formativas), D.S. 035-90-TR (asignación familiar).
-//    Verificar vigencia antes de procesar planilla real. ─────────────────────
-const PENSION_ONP_PCT       = 0.13;    // ONP: aporte único fijo (D.L. 19990)
-const AFP_APORTE_PCT        = 0.10;    // AFP: aporte obligatorio a cuenta individual (D.L. 25897)
-const AFP_SEGURO_PCT        = 0.0137;  // AFP: prima de seguro 2026 — 1.37% (tope S/ 12,209.11)
-const ESSALUD_PCT           = 0.09;    // EsSalud: aporte patronal 9% — NO se descuenta al trabajador (Ley 26790)
-const RMV_VIGENTE           = 1130;    // RMV vigente desde enero 2025 (D.S. 001-2025-TR)
-const CTS_PEQUENA_FACTOR    = 1 / 24;  // Pequeña Empresa: 15 rem. diarias/año mensualizado (tope 90 días)
-const GRATIF_PEQUENA_FACTOR = 1 / 12;  // Pequeña Empresa: 2 medias remun./año mensualizado
-const CTS_GENERAL_FACTOR    = 1 / 12;  // Régimen General: 1 remuneración/año mensualizado
-const GRATIF_GENERAL_FACTOR = 1 / 6;   // Régimen General: 2 sueldos completos/año mensualizado
-const VACACIONES_DIAS_MYPE  = 15;      // Micro y Pequeña Empresa: 15 días/año (Ley N.° 32353)
-const VACACIONES_DIAS_GENERAL = 30;    // Régimen General: 30 días/año
-const ASIG_FAMILIAR_PCT     = 0.10;    // 10% RMV = S/ 113.00 — SOLO Régimen General (D.S. 035-90-TR)
-const UIT_VIGENTE           = 5500;    // UIT 2026 (R.M. de SUNAT)
-const RENTA_5TA_DEDUCCION_UIT = 7;     // Deducción anual: 7 UIT = S/ 38,500 (2026)
-// Tramos progresivos Renta de 5ta Categoría (base imponible anual en UIT — SUNAT 2026)
-const RENTA_5TA_TRAMOS: { limiteUit: number; tasa: number }[] = [
-  { limiteUit: 5,        tasa: 0.08 },
-  { limiteUit: 20,       tasa: 0.14 },
-  { limiteUit: 35,       tasa: 0.17 },
-  { limiteUit: 45,       tasa: 0.20 },
-  { limiteUit: Infinity, tasa: 0.30 },
-];
-
-// Comisión por flujo de cada AFP (2026, modalidad flujo — verificar SBS)
-const AFP_COMISIONES: Record<AfpEntidad, number> = {
-  integra:    0.0155,  // 1.55%
-  prima:      0.0160,  // 1.60%
-  profuturo:  0.0169,  // 1.69%
-  habitat:    0.0147,  // 1.47%
-};
-
-type Regimen = 'micro' | 'pequena' | 'general';
-type Pension = 'onp' | 'afp';
-type AfpEntidad = 'integra' | 'prima' | 'profuturo' | 'habitat';
-type PeriodoPago = 'q1' | 'q2' | 'mes';
-type EsquemaPago = 'quincenal' | 'mensual';
 
 @Component({
   selector: 'app-planillas',
@@ -85,64 +34,57 @@ export class PlanillasComponent implements OnInit {
   selectedMonth = new Date().getMonth() + 1;     // 1-12
   periodo: PeriodoDto | null = null;
 
-  // Esquema de pago de la empresa: quincenal (adelanto 15 + liquidación fin de
-  // mes) o simplemente mensual. Configurable y persistido — si es "mensual" no
-  // se muestra el selector de quincenas.
-  esquemaPago: EsquemaPago = 'quincenal';
+  // Esquema de pago y régimen laboral: configuración REAL de la empresa
+  // (GET/PATCH /planilla/config) — ya no viven en localStorage.
+  esquemaPago: EsquemaPagoPlanilla = 'quincenal';
+  regimenEmpresa: RegimenLaboral = 'micro';
 
-  // Pago por quincena (1-15 / 16-fin de mes) o mes completo. La boleta oficial
-  // (PDF + envío a Legajo Digital) solo se emite en vista "Mes Completo"; las
-  // quincenas son cálculos de adelanto proporcional sobre el mismo sueldo base.
-  periodoPago: PeriodoPago = 'mes';
+  // Vista de período de pago: quincena (solo simulación, nunca genera una
+  // Planilla real) o mes completo (la única que se puede calcular/aprobar/pagar).
+  periodoPago: PeriodoPagoPlanilla = 'mes';
 
-  // ── Empleados / asistencia ────────────────────────────────────────────────
-  empleados:     ResumenEmpleadoDto[] = [];
+  // RMV vigente: viene del backend (parámetro legal) en cada preview.
+  rmvVigente = 0;
+
+  // ── Empleados (asistencia real + desglose legal ya calculado en backend) ───
+  empleados:     PlanillaPreviewEmpleadoDto[] = [];
   totalRegistros = 0;
   totalPaginas   = 1;
   currentPage    = 1;
   cargando       = false;
   error          = '';
 
-  // ── Sueldos base (localStorage) ───────────────────────────────────────────
-  sueldoMap: Record<string, number> = {};
-  guardando = false;
-
-  // ── Régimen de la empresa: MYPE (Micro/Pequeña) o Régimen General ───────────
-  regimenEmpresa: Regimen = 'micro';
-
-  // ── Sistema de pensión por trabajador (solo planilla/contrato) ─────────────
-  pensionMap: Record<string, Pension> = {};
-  afpEntidadMap: Record<string, AfpEntidad> = {};
-
-  // ── Asignación Familiar (10% RMV, trabajadores con hijos a cargo) ──────────
-  asigFamiliarMap: Record<string, boolean> = {};
-
-  // ── CUSPP: Código Único de Seguro Previsional Privado (D.S. N.° 001-98-TR) ─
-  cusppMap: Record<string, string> = {};
-  showCusppMap: Record<string, boolean> = {};
-
-  // ── Comisión AFP personalizada (% flujo): permite sobrescribir la tabla estándar
-  afpComisionCustomMap: Record<string, number> = {};
-  // Valor que se muestra en el input (puede diferir del guardado mientras edita)
-  comisionDisplayMap: Record<string, string> = {};
+  // ── Sueldo base: buffer de ediciones NO guardadas (guardarSueldos() las
+  // persiste una por una vía PUT /planilla/empleados/{id}/sueldo-base). El
+  // valor mostrado en pantalla siempre es pendiente-o-servidor (getSueldo).
+  sueldoPendienteMap: Record<string, number> = {};
+  guardandoSueldos = false;
 
   // ── Modal confirmación cambio AFP entidad ─────────────────────────────────
   afpConfirmOpen    = false;
   afpConfirmEmpId   = '';
-  afpConfirmNewVal: AfpEntidad = 'integra';
+  afpConfirmNewVal: EntidadAfp = 'integra';
   afpConfirmLabel   = '';
 
   // ── Modal confirmación cambio comisión AFP ────────────────────────────────
   comisionConfirmOpen    = false;
   comisionConfirmEmpId   = '';
   comisionConfirmNewPct  = 0;   // nuevo valor en decimal (ej. 0.0160)
-  comisionConfirmOldPct  = 0;   // valor oficial de la AFP en decimal
+  comisionConfirmOldPct  = 0;   // valor oficial vigente en decimal
+
+  // Valor que se muestra en el input de comisión (puede diferir del guardado
+  // mientras el usuario edita) — se sincroniza al cargar desde emp.comision_afp_pct.
+  comisionDisplayMap: Record<string, string> = {};
 
   // ── Datos de la empresa (para el encabezado de la Planilla Mensual PDF) ────
   empresaInfo: { razon_social: string; ruc: string; regimen_tributario: string; direccion?: string; telefono?: string } | null = null;
 
+  // ── Estado real de la Planilla del mes (calcular/aprobar/pagar/anular) ─────
+  planillaDelPeriodo: PlanillaDto | null = null;
+  procesandoAccionPlanilla = false;
+
   // ── Modal boleta individual ───────────────────────────────────────────────
-  boletaEmp: ResumenEmpleadoDto | null = null;
+  boletaEmp: PlanillaPreviewEmpleadoDto | null = null;
   generandoPdf = false;
 
   // ── Envío masivo a Legajo Digital ─────────────────────────────────────────
@@ -163,20 +105,19 @@ export class PlanillasComponent implements OnInit {
   // ── Ciclo de vida ─────────────────────────────────────────────────────────
 
   ngOnInit(): void {
-    this.sueldoMap           = JSON.parse(localStorage.getItem(SUELDO_KEY) ?? '{}');
-    this.pensionMap          = JSON.parse(localStorage.getItem(PENSION_KEY) ?? '{}');
-    this.afpEntidadMap       = JSON.parse(localStorage.getItem(AFP_KEY) ?? '{}');
-    this.afpComisionCustomMap = JSON.parse(localStorage.getItem(AFP_COMISION_KEY) ?? '{}');
-    this.asigFamiliarMap     = JSON.parse(localStorage.getItem(ASIGFAM_KEY) ?? '{}');
-    this.cusppMap            = JSON.parse(localStorage.getItem(CUSPP_KEY) ?? '{}');
-    this.regimenEmpresa = (localStorage.getItem(REGIMEN_KEY) as Regimen) || 'micro';
-    this.esquemaPago    = (localStorage.getItem(ESQUEMA_KEY) as EsquemaPago) || 'quincenal';
-    if (this.esquemaPago === 'mensual') this.periodoPago = 'mes';
     this.svc.getEmpresaInfo().subscribe({
       next: (res) => { this.empresaInfo = res; },
       error: () => { this.empresaInfo = null; },
     });
-    this.cargar();
+    this.svc.getConfigPlanilla().subscribe({
+      next: (cfg) => {
+        this.regimenEmpresa = cfg.regimen_laboral;
+        this.esquemaPago    = cfg.esquema_pago_planilla;
+        if (this.esquemaPago === 'mensual') this.periodoPago = 'mes';
+        this.cargar();
+      },
+      error: () => { this.cargar(); },
+    });
   }
 
   // ── Período ───────────────────────────────────────────────────────────────
@@ -184,6 +125,11 @@ export class PlanillasComponent implements OnInit {
   get labelPeriodo(): string {
     return new Date(this.selectedYear, this.selectedMonth - 1, 1)
       .toLocaleDateString('es-PE', { month: 'long', year: 'numeric' });
+  }
+
+  // YYYY-MM — identifica el período contable para calcular/listar la Planilla real.
+  get periodoStr(): string {
+    return `${this.selectedYear}-${String(this.selectedMonth).padStart(2, '0')}`;
   }
 
   get fechaInicio(): string {
@@ -201,7 +147,7 @@ export class PlanillasComponent implements OnInit {
 
   // ── Período de pago: 1ra Quincena / 2da Quincena / Mes Completo ────────────
 
-  setPeriodoPago(val: PeriodoPago): void {
+  setPeriodoPago(val: PeriodoPagoPlanilla): void {
     this.periodoPago = val;
     this.currentPage = 1;
     this.cerrarBoleta();
@@ -221,19 +167,22 @@ export class PlanillasComponent implements OnInit {
     return '';
   }
 
-  // Monto correspondiente al período visualizado: la mitad del sueldo mensual
-  // en cada quincena, el sueldo completo en vista de mes.
-  sueldoPeriodo(empId: string): number {
-    const base = this.getSueldo(empId);
-    return this.periodoPago === 'mes' ? base : base / 2;
-  }
+  // ── Esquema de pago de la empresa: Quincenal o Mensual (persistido) ────────
 
-  // ── Esquema de pago de la empresa: Quincenal o Mensual ──────────────────────
-
-  setEsquemaPago(val: EsquemaPago): void {
+  setEsquemaPago(val: EsquemaPagoPlanilla): void {
+    if (this.esquemaPago === val) return;
+    const anterior = this.esquemaPago;
     this.esquemaPago = val;
-    localStorage.setItem(ESQUEMA_KEY, val);
-    if (val === 'mensual') this.setPeriodoPago('mes');
+    this.svc.actualizarConfigPlanilla({ esquema_pago_planilla: val }).subscribe({
+      next: () => {
+        this.toast.mostrar(`Esquema de pago actualizado a ${val === 'mensual' ? 'Mensual' : 'Quincenal'}`, 'success');
+        if (val === 'mensual') this.setPeriodoPago('mes');
+      },
+      error: (err) => {
+        this.esquemaPago = anterior;
+        this.toast.mostrar(err?.error?.detail || 'Error al actualizar el esquema de pago', 'error');
+      },
+    });
   }
 
   irMesAnterior(): void {
@@ -257,14 +206,15 @@ export class PlanillasComponent implements OnInit {
     return this.selectedYear === hoy.getFullYear() && this.selectedMonth === hoy.getMonth() + 1;
   }
 
-  // ── Carga de datos (boleta = ciclo mensual completo) ────────────────────────
+  // ── Carga de datos: desglose legal completo, ya calculado en backend ───────
 
   cargar(): void {
     this.cargando = true;
     this.error = '';
-    this.svc.getResumenAsistencia({
+    this.svc.previewPlanilla({
       fecha_inicio: this.fechaInicio,
       fecha_fin:    this.fechaFin,
+      periodo_pago: this.periodoPago,
       page:         this.currentPage,
       limit:        PER_PAGE,
     }).subscribe({
@@ -273,14 +223,10 @@ export class PlanillasComponent implements OnInit {
         this.empleados      = res.empleados;
         this.totalRegistros = res.total;
         this.totalPaginas   = res.total_paginas;
+        this.rmvVigente     = res.rmv_vigente;
         this.cargando       = false;
         for (const emp of res.empleados) {
-          // Pre-poblar CUSPP desde BD solo si el empleado aún no tiene valor local
-          if (emp.cuspp && !this.cusppMap[emp.id]) {
-            this.cusppMap[emp.id] = emp.cuspp;
-          }
-          // Sincronizar display del input de comisión con el valor efectivo actual
-          this.comisionDisplayMap[emp.id] = (this.getAfpComisionPct(emp.id) * 100).toFixed(2);
+          this.comisionDisplayMap[emp.id] = (emp.comision_afp_pct * 100).toFixed(2);
         }
       },
       error: () => {
@@ -288,6 +234,7 @@ export class PlanillasComponent implements OnInit {
         this.cargando = false;
       }
     });
+    if (this.esVistaMensual) this.cargarEstadoPlanilla();
   }
 
   irPagina(p: number): void {
@@ -308,15 +255,28 @@ export class PlanillasComponent implements OnInit {
     return { desde, hasta, total: this.totalRegistros };
   }
 
-  // ── Régimen de la empresa: Microempresa / Pequeña Empresa / Régimen General ─
+  // ── Régimen de la empresa: Microempresa / Pequeña Empresa / Régimen General
+  //    (persistido — cambia el cálculo real de CTS/gratificación/vacaciones/
+  //    asignación familiar en el backend) ──────────────────────────────────
 
-  setRegimen(val: Regimen): void {
+  setRegimen(val: RegimenLaboral): void {
+    if (this.regimenEmpresa === val) return;
+    const anterior = this.regimenEmpresa;
     this.regimenEmpresa = val;
-    localStorage.setItem(REGIMEN_KEY, val);
+    this.svc.actualizarConfigPlanilla({ regimen_laboral: val }).subscribe({
+      next: () => {
+        this.toast.mostrar(`Régimen actualizado a ${this.regimenLabel}`, 'success');
+        this.cargar(); // los montos de toda la tabla cambian con el régimen
+      },
+      error: (err) => {
+        this.regimenEmpresa = anterior;
+        this.toast.mostrar(err?.error?.detail || 'Error al actualizar el régimen', 'error');
+      },
+    });
   }
 
   get regimenLabel(): string {
-    const map: Record<Regimen, string> = {
+    const map: Record<RegimenLaboral, string> = {
       micro:   'Microempresa',
       pequena: 'Pequeña Empresa',
       general: 'Régimen General',
@@ -328,21 +288,17 @@ export class PlanillasComponent implements OnInit {
     return this.regimenEmpresa !== 'general';
   }
 
-  get diasVacaciones(): number {
-    return this.regimenEmpresa === 'general' ? VACACIONES_DIAS_GENERAL : VACACIONES_DIAS_MYPE;
-  }
-
   // ── Modalidad del trabajador (viene de la BD: empleado.tipo) ────────────────
 
-  esDependiente(emp: ResumenEmpleadoDto): boolean {
+  esDependiente(emp: PlanillaPreviewEmpleadoDto): boolean {
     return emp.tipo_contrato === 'planilla' || emp.tipo_contrato === 'contrato';
   }
 
-  esPracticante(emp: ResumenEmpleadoDto): boolean {
+  esPracticante(emp: PlanillaPreviewEmpleadoDto): boolean {
     return emp.tipo_contrato === 'practicante';
   }
 
-  modalidadLabel(emp: ResumenEmpleadoDto): string {
+  modalidadLabel(emp: PlanillaPreviewEmpleadoDto): string {
     const map: Record<string, string> = {
       planilla:    'Planilla',
       contrato:    'Contrato',
@@ -351,7 +307,7 @@ export class PlanillasComponent implements OnInit {
     return map[emp.tipo_contrato] ?? emp.tipo_contrato;
   }
 
-  modalidadClass(emp: ResumenEmpleadoDto): string {
+  modalidadClass(emp: PlanillaPreviewEmpleadoDto): string {
     const map: Record<string, string> = {
       planilla:    'tipo-planilla',
       contrato:    'tipo-contrato',
@@ -362,12 +318,15 @@ export class PlanillasComponent implements OnInit {
 
   // RRHH asigna la modalidad real de cada trabajador (afecta el cálculo legal:
   // pensión, recargo de horas extra, CTS/gratificación).
-  onModalidadChange(emp: ResumenEmpleadoDto, nuevoTipo: string): void {
+  onModalidadChange(emp: PlanillaPreviewEmpleadoDto, nuevoTipo: string): void {
     const anterior = emp.tipo_contrato;
     if (anterior === nuevoTipo) return;
     emp.tipo_contrato = nuevoTipo;
     this.svc.actualizarModalidad(emp.id, nuevoTipo as any).subscribe({
-      next: () => this.toast.mostrar(`Modalidad de ${emp.nombreCompleto} actualizada a ${this.modalidadLabel(emp)}`, 'success'),
+      next: () => {
+        this.toast.mostrar(`Modalidad de ${emp.nombre_completo} actualizada a ${this.modalidadLabel(emp)}`, 'success');
+        this.cargar(); // el cálculo legal completo depende de la modalidad
+      },
       error: (err) => {
         emp.tipo_contrato = anterior;
         this.toast.mostrar(err?.error?.detail || 'Error al actualizar la modalidad', 'error');
@@ -375,53 +334,81 @@ export class PlanillasComponent implements OnInit {
     });
   }
 
-  // ── Sueldos ───────────────────────────────────────────────────────────────
+  // ── Sueldo base: buffer local + guardado real por empleado ─────────────────
 
-  getSueldo(empId: string): number {
-    return this.sueldoMap[empId] ?? 0;
+  getSueldo(emp: PlanillaPreviewEmpleadoDto): number {
+    return this.sueldoPendienteMap[emp.id] ?? emp.sueldo_base;
+  }
+
+  tieneSueldoPendiente(emp: PlanillaPreviewEmpleadoDto): boolean {
+    return this.sueldoPendienteMap[emp.id] !== undefined
+      && this.sueldoPendienteMap[emp.id] !== emp.sueldo_base;
   }
 
   onSueldoChange(empId: string, raw: string): void {
     const val = parseFloat(raw.replace(/[^0-9.]/g, '')) || 0;
-    this.sueldoMap[empId] = val;
+    this.sueldoPendienteMap[empId] = val;
   }
 
   guardarSueldos(): void {
-    this.guardando = true;
-    setTimeout(() => {
-      localStorage.setItem(SUELDO_KEY, JSON.stringify(this.sueldoMap));
-      this.guardando = false;
-      this.toast.mostrar('Sueldos guardados correctamente', 'success');
-    }, 400);
+    const pendientes = Object.entries(this.sueldoPendienteMap).filter(([empId, monto]) => {
+      const emp = this.empleados.find(e => e.id === empId);
+      return !emp || monto !== emp.sueldo_base;
+    });
+    if (pendientes.length === 0) {
+      this.toast.mostrar('No hay cambios de sueldo por guardar', 'error');
+      return;
+    }
+    this.guardandoSueldos = true;
+    let ok = 0;
+    let fallidos = 0;
+    let restantes = pendientes.length;
+    for (const [empId, monto] of pendientes) {
+      this.svc.guardarSueldoBase(empId, monto).subscribe({
+        next: () => { ok++; delete this.sueldoPendienteMap[empId]; finalizar(); },
+        error: () => { fallidos++; finalizar(); },
+      });
+    }
+    const finalizar = () => {
+      restantes--;
+      if (restantes > 0) return;
+      this.guardandoSueldos = false;
+      if (fallidos === 0) {
+        this.toast.mostrar(`${ok} sueldo(s) guardado(s) correctamente`, 'success');
+      } else {
+        this.toast.mostrar(`${ok} guardado(s) · ${fallidos} con error — reintenta esos`, 'error');
+      }
+      this.cargar(); // refresca neto/descuentos con el sueldo ya persistido
+    };
   }
 
-  // ── Sistema de pensión (solo planilla/contrato): ONP o AFP + entidad ────────
+  // ── Sistema de pensión (solo dependientes): ONP o AFP + entidad ─────────────
 
-  readonly afpEntidades: { value: AfpEntidad; label: string }[] = [
+  readonly afpEntidades: { value: EntidadAfp; label: string }[] = [
     { value: 'integra',   label: 'AFP Integra' },
     { value: 'prima',     label: 'AFP Prima' },
     { value: 'profuturo', label: 'Profuturo AFP' },
     { value: 'habitat',   label: 'AFP Habitat' },
   ];
 
-  getPension(empId: string): Pension {
-    return this.pensionMap[empId] ?? 'onp';
+  onPensionChange(emp: PlanillaPreviewEmpleadoDto, val: SistemaPension): void {
+    const anterior = emp.sistema_pension;
+    if (anterior === val) return;
+    emp.sistema_pension = val;
+    this.svc.actualizarPensionEmpleado(emp.id, { sistema_pension: val }).subscribe({
+      next: () => { this.toast.mostrar('Sistema de pensión actualizado', 'success'); this.cargar(); },
+      error: (err) => {
+        emp.sistema_pension = anterior;
+        this.toast.mostrar(err?.error?.detail || 'Error al actualizar el sistema de pensión', 'error');
+      },
+    });
   }
 
-  onPensionChange(empId: string, val: Pension): void {
-    this.pensionMap[empId] = val;
-    localStorage.setItem(PENSION_KEY, JSON.stringify(this.pensionMap));
-  }
-
-  getAfpEntidad(empId: string): AfpEntidad {
-    return this.afpEntidadMap[empId] ?? 'integra';
-  }
-
-  onAfpEntidadChange(empId: string, val: AfpEntidad): void {
-    const actual = this.getAfpEntidad(empId);
+  onAfpEntidadChange(emp: PlanillaPreviewEmpleadoDto, val: EntidadAfp): void {
+    const actual = emp.entidad_afp ?? 'integra';
     if (actual === val) return;
     // Abrir modal de confirmación en lugar de confirm() nativo del navegador
-    this.afpConfirmEmpId  = empId;
+    this.afpConfirmEmpId  = emp.id;
     this.afpConfirmNewVal = val;
     this.afpConfirmLabel  = this.afpEntidades.find(a => a.value === val)?.label ?? val;
     this.afpConfirmOpen   = true;
@@ -429,377 +416,280 @@ export class PlanillasComponent implements OnInit {
 
   confirmarCambioAfp(): void {
     const empId = this.afpConfirmEmpId;
-    this.afpEntidadMap[empId] = this.afpConfirmNewVal;
-    localStorage.setItem(AFP_KEY, JSON.stringify(this.afpEntidadMap));
-    // Limpiar comisión custom: la nueva AFP tiene su propia tasa oficial
-    delete this.afpComisionCustomMap[empId];
-    localStorage.setItem(AFP_COMISION_KEY, JSON.stringify(this.afpComisionCustomMap));
-    const defaultPct = AFP_COMISIONES[this.afpConfirmNewVal];
-    this.comisionDisplayMap[empId] = (defaultPct * 100).toFixed(2);
+    const emp = this.empleados.find(e => e.id === empId);
+    const anteriorEntidad = emp?.entidad_afp ?? null;
+    const anteriorComision = emp?.comision_afp_personalizada ?? null;
+    if (emp) {
+      emp.entidad_afp = this.afpConfirmNewVal;
+      emp.comision_afp_personalizada = null; // la nueva AFP usa su propia tasa oficial
+    }
     this.afpConfirmOpen = false;
-    this.toast.mostrar(`AFP actualizada a ${this.afpConfirmLabel} (comisión: ${(defaultPct * 100).toFixed(2)}%)`, 'success');
+    // entidad_afp=null en el body borraría el campo; aquí SÍ queremos setearlo,
+    // así que se envían ambos explícitamente.
+    this.svc.actualizarPensionEmpleado(empId, {
+      entidad_afp: this.afpConfirmNewVal, comision_afp_personalizada: null,
+    }).subscribe({
+      next: () => { this.toast.mostrar(`AFP actualizada a ${this.afpConfirmLabel}`, 'success'); this.cargar(); },
+      error: (err) => {
+        if (emp) { emp.entidad_afp = anteriorEntidad; emp.comision_afp_personalizada = anteriorComision; }
+        this.toast.mostrar(err?.error?.detail || 'Error al actualizar la AFP', 'error');
+      },
+    });
   }
 
   cancelarCambioAfp(): void {
-    // El select vuelve al valor previo al cerrarse el modal (Angular lo re-renderiza
-    // con el valor de afpEntidadMap que no fue modificado).
     this.afpConfirmOpen = false;
   }
 
-  // Retorna la comisión AFP efectiva: personalizada si el usuario la sobreescribió,
-  // de lo contrario la tasa estándar de la entidad seleccionada.
-  getAfpComisionPct(empId: string): number {
-    if (this.afpComisionCustomMap[empId] !== undefined) return this.afpComisionCustomMap[empId];
-    return AFP_COMISIONES[this.getAfpEntidad(empId)];
+  isComisionCustomizada(emp: PlanillaPreviewEmpleadoDto): boolean {
+    return emp.comision_afp_personalizada !== null && emp.comision_afp_personalizada !== undefined;
   }
 
-  isComisionCustomizada(empId: string): boolean {
-    return this.afpComisionCustomMap[empId] !== undefined;
-  }
-
-  onAfpComisionBlur(empId: string, displayVal: string): void {
+  onAfpComisionBlur(emp: PlanillaPreviewEmpleadoDto, displayVal: string): void {
     const newPct = parseFloat(String(displayVal).replace(/[^0-9.]/g, '')) / 100;
-    const currentPct = this.getAfpComisionPct(empId);
+    const currentPct = emp.comision_afp_pct;
     // Entrada inválida o sin cambio: restablecer display al valor actual
     if (isNaN(newPct) || newPct < 0 || newPct > 0.5 || Math.abs(newPct - currentPct) < 0.00001) {
-      this.comisionDisplayMap[empId] = (currentPct * 100).toFixed(2);
+      this.comisionDisplayMap[emp.id] = (currentPct * 100).toFixed(2);
       return;
     }
     // Guardar pending y abrir modal de confirmación
-    this.comisionConfirmEmpId  = empId;
+    this.comisionConfirmEmpId  = emp.id;
     this.comisionConfirmNewPct = newPct;
-    this.comisionConfirmOldPct = AFP_COMISIONES[this.getAfpEntidad(empId)];
+    this.comisionConfirmOldPct = currentPct;
     this.comisionConfirmOpen   = true;
   }
 
   confirmarCambioComision(): void {
     const empId = this.comisionConfirmEmpId;
-    this.afpComisionCustomMap[empId] = this.comisionConfirmNewPct;
-    localStorage.setItem(AFP_COMISION_KEY, JSON.stringify(this.afpComisionCustomMap));
+    const emp = this.empleados.find(e => e.id === empId);
+    const anterior = emp?.comision_afp_personalizada ?? null;
+    if (emp) emp.comision_afp_personalizada = this.comisionConfirmNewPct;
     this.comisionDisplayMap[empId] = (this.comisionConfirmNewPct * 100).toFixed(2);
     this.comisionConfirmOpen = false;
-    this.toast.mostrar(`Comisión actualizada a ${(this.comisionConfirmNewPct * 100).toFixed(2)}% — aplica desde ahora`, 'success');
-  }
-
-  cancelarCambioComision(): void {
-    // Revertir el display al valor guardado real (sin modificar)
-    this.comisionDisplayMap[this.comisionConfirmEmpId] = (this.getAfpComisionPct(this.comisionConfirmEmpId) * 100).toFixed(2);
-    this.comisionConfirmOpen = false;
-  }
-
-  resetComisionAfp(empId: string): void {
-    delete this.afpComisionCustomMap[empId];
-    localStorage.setItem(AFP_COMISION_KEY, JSON.stringify(this.afpComisionCustomMap));
-    const defaultPct = AFP_COMISIONES[this.getAfpEntidad(empId)];
-    this.comisionDisplayMap[empId] = (defaultPct * 100).toFixed(2);
-    this.toast.mostrar(`Comisión restablecida al valor oficial: ${(defaultPct * 100).toFixed(2)}%`, 'success');
-  }
-
-  // ── CUSPP ─────────────────────────────────────────────────────────────────
-
-  getCuspp(empId: string): string {
-    return this.cusppMap[empId] ?? '';
-  }
-
-  setCuspp(empId: string, val: string): void {
-    this.cusppMap[empId] = val.trim().toUpperCase();
-    localStorage.setItem(CUSPP_KEY, JSON.stringify(this.cusppMap));
-  }
-
-  // Guarda el CUSPP al backend cuando el campo pierde el foco
-  guardarCuspp(empId: string, val: string): void {
-    const cuspp = val.trim().toUpperCase();
-    this.cusppMap[empId] = cuspp;
-    localStorage.setItem(CUSPP_KEY, JSON.stringify(this.cusppMap));
-    this.svc.actualizarPerfilEmpleado(empId, { cuspp }).subscribe({
-      next: () => this.toast.mostrar('CUSPP guardado', 'success'),
-      error: () => this.toast.mostrar('Error al guardar el CUSPP — se mantiene localmente', 'error'),
+    this.svc.actualizarPensionEmpleado(empId, { comision_afp_personalizada: this.comisionConfirmNewPct }).subscribe({
+      next: () => { this.toast.mostrar(`Comisión actualizada a ${(this.comisionConfirmNewPct * 100).toFixed(2)}%`, 'success'); this.cargar(); },
+      error: (err) => {
+        if (emp) emp.comision_afp_personalizada = anterior;
+        if (emp) this.comisionDisplayMap[empId] = (emp.comision_afp_pct * 100).toFixed(2);
+        this.toast.mostrar(err?.error?.detail || 'Error al actualizar la comisión', 'error');
+      },
     });
   }
 
+  cancelarCambioComision(): void {
+    const emp = this.empleados.find(e => e.id === this.comisionConfirmEmpId);
+    if (emp) this.comisionDisplayMap[emp.id] = (emp.comision_afp_pct * 100).toFixed(2);
+    this.comisionConfirmOpen = false;
+  }
+
+  resetComisionAfp(emp: PlanillaPreviewEmpleadoDto): void {
+    const anterior = emp.comision_afp_personalizada;
+    emp.comision_afp_personalizada = null;
+    this.svc.actualizarPensionEmpleado(emp.id, { comision_afp_personalizada: null }).subscribe({
+      next: () => {
+        this.comisionDisplayMap[emp.id] = (emp.comision_afp_pct * 100).toFixed(2);
+        this.toast.mostrar('Comisión restablecida a la tasa oficial', 'success');
+        this.cargar();
+      },
+      error: (err) => {
+        emp.comision_afp_personalizada = anterior;
+        this.toast.mostrar(err?.error?.detail || 'Error al restablecer la comisión', 'error');
+      },
+    });
+  }
+
+  // ── CUSPP (ya persistido en el legajo del empleado, sin buffer local) ──────
+
+  guardarCuspp(emp: PlanillaPreviewEmpleadoDto, val: string): void {
+    const cuspp = val.trim().toUpperCase();
+    const anterior = emp.cuspp;
+    emp.cuspp = cuspp;
+    this.svc.actualizarPerfilEmpleado(emp.id, { cuspp }).subscribe({
+      next: () => this.toast.mostrar('CUSPP guardado', 'success'),
+      error: () => {
+        emp.cuspp = anterior;
+        this.toast.mostrar('Error al guardar el CUSPP', 'error');
+      },
+    });
+  }
+
+  showCusppMap: Record<string, boolean> = {};
   toggleShowCuspp(empId: string): void {
     this.showCusppMap = { ...this.showCusppMap, [empId]: !this.showCusppMap[empId] };
   }
 
-  afpEntidadLabel(empId: string): string {
-    return this.afpEntidades.find(a => a.value === this.getAfpEntidad(empId))?.label ?? 'AFP Integra';
+  afpEntidadLabel(emp: PlanillaPreviewEmpleadoDto): string {
+    return this.afpEntidades.find(a => a.value === (emp.entidad_afp ?? 'integra'))?.label ?? 'AFP Integra';
   }
 
-  pensionLabel(emp: ResumenEmpleadoDto): string {
-    if (this.getPension(emp.id) === 'onp') return 'ONP (13%)';
-    const pct = (this.pensionPct(emp) * 100).toFixed(2);
-    return `${this.afpEntidadLabel(emp.id)} (≈${pct}%)`;
+  // Porcentaje efectivo de pensión, derivado de los montos ya calculados por el
+  // backend (no de constantes legales en el frontend). null si no hay base
+  // imponible este período (ej. 0% de asistencia).
+  pensionPct(emp: PlanillaPreviewEmpleadoDto): number | null {
+    return emp.base_pension > 0 ? emp.descuento_pension / emp.base_pension : null;
   }
 
-  pensionPct(emp: ResumenEmpleadoDto): number {
-    if (this.getPension(emp.id) === 'onp') return PENSION_ONP_PCT;
-    return AFP_APORTE_PCT + AFP_SEGURO_PCT + this.getAfpComisionPct(emp.id);
-  }
-
-  // ── Cumplimiento SUNAFIL: Remuneración Mínima Vital ─────────────────────────
-
-  bajoRmv(emp: ResumenEmpleadoDto): boolean {
-    const sueldo = this.getSueldo(emp.id);
-    return sueldo > 0 && sueldo < RMV_VIGENTE;
-  }
-
-  get rmvVigente(): number {
-    return RMV_VIGENTE;
+  pensionLabel(emp: PlanillaPreviewEmpleadoDto): string {
+    const pct = this.pensionPct(emp);
+    const pctTxt = pct !== null ? ` (${(pct * 100).toFixed(2)}%)` : '';
+    if (emp.sistema_pension === 'onp') return `ONP${pctTxt}`;
+    return `${this.afpEntidadLabel(emp)}${pctTxt}`;
   }
 
   // ── Asignación Familiar (10% RMV, solo dependientes con hijos a cargo) ──────
 
-  getAsigFamiliar(empId: string): boolean {
-    return !!this.asigFamiliarMap[empId];
+  onAsigFamiliarChange(emp: PlanillaPreviewEmpleadoDto, val: boolean): void {
+    const anterior = emp.tiene_asignacion_familiar;
+    emp.tiene_asignacion_familiar = val;
+    this.svc.actualizarPensionEmpleado(emp.id, { tiene_asignacion_familiar: val }).subscribe({
+      next: () => { this.toast.mostrar('Asignación familiar actualizada', 'success'); this.cargar(); },
+      error: (err) => {
+        emp.tiene_asignacion_familiar = anterior;
+        this.toast.mostrar(err?.error?.detail || 'Error al actualizar la asignación familiar', 'error');
+      },
+    });
   }
 
-  onAsigFamiliarChange(empId: string, val: boolean): void {
-    this.asigFamiliarMap[empId] = val;
-    localStorage.setItem(ASIGFAM_KEY, JSON.stringify(this.asigFamiliarMap));
-  }
+  // ── Motivos (por qué un beneficio sí/no aplica) — texto reactivo a modalidad
+  //    y régimen, usados en tabla, modal "Ver" y PDF. Sin cálculo de dinero:
+  //    solo describe el resultado ya calculado por el backend (provision_*). ──
 
-  // Asignación Familiar: 10% de la RMV (S/ 113.00 en 2026).
-  // Según D.S. N.° 035-90-TR y la Ley N.° 32353, solo corresponde al
-  // Régimen General. Micro y Pequeña Empresa están exoneradas.
-  asignacionFamiliar(emp: ResumenEmpleadoDto): number {
-    if (!this.esDependiente(emp)) return 0;
-    if (this.regimenEmpresa !== 'general') return 0;
-    if (!this.getAsigFamiliar(emp.id)) return 0;
-    const mensual = RMV_VIGENTE * ASIG_FAMILIAR_PCT;
-    return this.periodoPago === 'mes' ? mensual : mensual / 2;
-  }
-
-  // ── Impuesto a la Renta de 5ta Categoría (trabajadores dependientes) ────────
-  // Cálculo simplificado por proyección anual: (sueldo mensual + asignación
-  // familiar) × 12 − 7 UIT de deducción, tramos progresivos, entre 12. Las
-  // gratificaciones están exoneradas (Ley 30334) y no se incluyen en la base.
-  // Referencial — un contador debe validar la retención real de cada caso.
-  impuestoQuintaCategoria(emp: ResumenEmpleadoDto): number {
-    if (!this.esDependiente(emp)) return 0;
-    const sueldoMensual = this.getSueldo(emp.id);
-    if (sueldoMensual <= 0) return 0;
-    const asigMensual = this.esDependiente(emp) && this.getAsigFamiliar(emp.id) ? RMV_VIGENTE * ASIG_FAMILIAR_PCT : 0;
-    const rentaAnual = (sueldoMensual + asigMensual) * 12;
-    const deduccion  = RENTA_5TA_DEDUCCION_UIT * UIT_VIGENTE;
-    let baseImponible = Math.max(0, rentaAnual - deduccion);
-    if (baseImponible === 0) return 0;
-
-    let impuestoAnual = 0;
-    let limiteAnterior = 0;
-    for (const tramo of RENTA_5TA_TRAMOS) {
-      const limiteUitSoles = tramo.limiteUit * UIT_VIGENTE;
-      const montoEnTramo = Math.max(0, Math.min(baseImponible, limiteUitSoles) - limiteAnterior);
-      impuestoAnual += montoEnTramo * tramo.tasa;
-      limiteAnterior = limiteUitSoles;
-      if (baseImponible <= limiteUitSoles) break;
-    }
-
-    const impuestoMensual = impuestoAnual / 12;
-    return this.periodoPago === 'mes' ? impuestoMensual : impuestoMensual / 2;
-  }
-
-  // ── Cálculos de nómina (MYPE Perú: DL 854 + Ley 28015/DL 1086 + Ley 28518) ──
-  // Divisores legales fijos: valor día = sueldo / 30, valor hora = valor día / 8,
-  // valor minuto = valor hora / 60. El divisor 30 es fijo por norma (no varía según
-  // los días del mes) y aplica tanto en quincena como en mes completo.
-
-  valorDia(emp: ResumenEmpleadoDto): number {
-    return this.getSueldo(emp.id) / DIVISOR_DIA;
-  }
-
-  valorHora(emp: ResumenEmpleadoDto): number {
-    return this.valorDia(emp) / HORAS_JORNADA;
-  }
-
-  valorMinuto(emp: ResumenEmpleadoDto): number {
-    return this.valorHora(emp) / 60;
-  }
-
-  // Días de ausencia completa (jornada = 8h). Tardanzas son la fracción restante.
-  diasFaltantes(emp: ResumenEmpleadoDto): number {
-    return Math.floor(emp.horas_faltantes / HORAS_JORNADA);
-  }
-
-  minutosTardanza(emp: ResumenEmpleadoDto): number {
-    return Math.round((emp.horas_faltantes % HORAS_JORNADA) * 60);
-  }
-
-  // Descuento dominical: por cada día de inasistencia injustificada se pierde
-  // el descanso dominical de esa semana (D.S. 001-96-TR). Monto = valorDía / 30.
-  descuentoDominical(emp: ResumenEmpleadoDto): number {
-    return this.diasFaltantes(emp) * this.valorDia(emp) / DIVISOR_DIA;
-  }
-
-  horasExtra(emp: ResumenEmpleadoDto): number {
-    return Math.max(0, emp.horas_reales - emp.meta_horas);
-  }
-
-  // Horas extra: recargo legal 25%/35% solo aplica a trabajadores en planilla/contrato
-  // (DL 854). Los practicantes no tienen "sobretiempo" legal; se reconoce a tarifa simple.
-  pagoHorasExtra(emp: ResumenEmpleadoDto): number {
-    const vh     = this.valorHora(emp);
-    const extras = this.horasExtra(emp);
-    if (extras <= 0) return 0;
-    if (this.esPracticante(emp)) return extras * vh;
-    const h1 = Math.min(extras, 2) * vh * 1.25;
-    const h2 = Math.max(0, extras - 2) * vh * 1.35;
-    return h1 + h2;
-  }
-
-  // Descuento total por faltas y tardanzas:
-  //   · diasFaltantes × valorDía          (jornadas no laboradas)
-  //   · diasFaltantes × valorDía / 30     (castigo dominical, D.S. 001-96-TR)
-  //   · minutosTardanza × valorMinuto     (tardanzas parciales)
-  descuentoFaltas(emp: ResumenEmpleadoDto): number {
-    if (emp.horas_faltantes <= 0) return 0;
-    const vd = this.valorDia(emp);
-    const diasDesc    = this.diasFaltantes(emp) * vd;
-    const dominical   = this.descuentoDominical(emp);
-    const tardanzaDesc = this.minutosTardanza(emp) * this.valorMinuto(emp);
-    return diasDesc + dominical + tardanzaDesc;
-  }
-
-  // Descuento por sistema de pensiones (ONP/AFP): obligatorio solo para
-  // trabajadores dependientes (planilla/contrato). Los practicantes, bajo la
-  // Ley de Modalidades Formativas (28518), no tienen relación laboral y no
-  // están afiliados obligatoriamente.
-  // Base imponible para el aporte a pensiones (remuneración computable del período).
-  basePension(emp: ResumenEmpleadoDto): number {
-    if (!this.esDependiente(emp)) return 0;
-    const base = this.sueldoPeriodo(emp.id) - this.descuentoFaltas(emp) + this.pagoHorasExtra(emp) + this.asignacionFamiliar(emp);
-    return Math.max(0, base);
-  }
-
-  descuentoPension(emp: ResumenEmpleadoDto): number {
-    if (!this.esDependiente(emp)) return 0;
-    return this.basePension(emp) * this.pensionPct(emp);
-  }
-
-  // ── Desglose del Sistema Privado de Pensiones (AFP) en sus 3 componentes ────
-  // Estándar de boleta peruana: Aporte Obligatorio (10%), Prima de Seguro y
-  // Comisión de la AFP por separado. Solo aplica a dependientes afiliados a AFP;
-  // en ONP el aporte es único (13%). La suma de los tres = descuentoPension.
-  esAfp(emp: ResumenEmpleadoDto): boolean {
-    return this.esDependiente(emp) && this.getPension(emp.id) === 'afp';
-  }
-
-  afpAporteObligatorio(emp: ResumenEmpleadoDto): number {
-    return this.esAfp(emp) ? this.basePension(emp) * AFP_APORTE_PCT : 0;
-  }
-
-  afpPrimaSeguro(emp: ResumenEmpleadoDto): number {
-    return this.esAfp(emp) ? this.basePension(emp) * AFP_SEGURO_PCT : 0;
-  }
-
-  afpComision(emp: ResumenEmpleadoDto): number {
-    return this.esAfp(emp) ? this.basePension(emp) * this.getAfpComisionPct(emp.id) : 0;
-  }
-
-  afpComisionPct(emp: ResumenEmpleadoDto): number {
-    return this.getAfpComisionPct(emp.id);
-  }
-
-  // Aporte EsSalud: costo del empleador, NO se descuenta del trabajador.
-  // Aplica a ambas modalidades (seguro de salud obligatorio).
-  aporteEssalud(emp: ResumenEmpleadoDto): number {
-    return this.sueldoPeriodo(emp.id) * ESSALUD_PCT;
-  }
-
-  // CTS y Gratificación: en Microempresa la ley exonera ambos beneficios; en
-  // Pequeña Empresa corresponde la mitad; en Régimen General corresponden
-  // completos. Solo para dependientes (planilla/contrato). Se muestran como
-  // provisión informativa: no afectan el neto de este mes (se acumulan/pagan
-  // en su fecha legal — CTS mayo/noviembre, gratificación julio/diciembre).
-  provisionCTS(emp: ResumenEmpleadoDto): number {
-    if (!this.esDependiente(emp) || this.regimenEmpresa === 'micro') return 0;
-    const factor = this.regimenEmpresa === 'general' ? CTS_GENERAL_FACTOR : CTS_PEQUENA_FACTOR;
-    return this.sueldoPeriodo(emp.id) * factor;
-  }
-
-  provisionGratificacion(emp: ResumenEmpleadoDto): number {
-    if (!this.esDependiente(emp) || this.regimenEmpresa === 'micro') return 0;
-    const factor = this.regimenEmpresa === 'general' ? GRATIF_GENERAL_FACTOR : GRATIF_PEQUENA_FACTOR;
-    return this.sueldoPeriodo(emp.id) * factor;
-  }
-
-  // Provisión vacacional informativa: 15 días/año (MYPE) o 30 días/año
-  // (Régimen General), mensualizada. No afecta el neto (se goza como descanso
-  // pagado, no como pago adicional en la boleta mensual).
-  provisionVacaciones(emp: ResumenEmpleadoDto): number {
-    if (!this.esDependiente(emp)) return 0;
-    return this.sueldoPeriodo(emp.id) * (this.diasVacaciones / 360);
-  }
-
-  // ── Motivos (por qué un beneficio sí/no aplica) — reactivos a modalidad y
-  //    régimen, usados en tabla, modal "Ver" y PDF para mostrar SIEMPRE el
-  //    concepto, nunca ocultarlo sin explicación. ─────────────────────────────
-
-  motivoCTS(emp: ResumenEmpleadoDto): string {
+  motivoCTS(emp: PlanillaPreviewEmpleadoDto): string {
     if (this.esPracticante(emp)) return 'No aplica — Practicante (Ley 28518)';
     if (this.regimenEmpresa === 'micro') return 'No corresponde — Microempresa (exoneración MYPE)';
     if (this.regimenEmpresa === 'general') return 'Completo — 1 remuneración/año (mayo y noviembre)';
     return 'Medio — 15 remun. diarias/año (mayo y noviembre)';
   }
 
-  motivoGratificacion(emp: ResumenEmpleadoDto): string {
+  motivoGratificacion(emp: PlanillaPreviewEmpleadoDto): string {
     if (this.esPracticante(emp)) return 'No aplica — Practicante (Ley 28518)';
     if (this.regimenEmpresa === 'micro') return 'No corresponde — Microempresa (exoneración MYPE)';
     if (this.regimenEmpresa === 'general') return 'Completa — 1 sueldo × semestre (julio y diciembre)';
     return 'Media — medio sueldo × semestre (julio y diciembre)';
   }
 
-  motivoVacaciones(emp: ResumenEmpleadoDto): string {
+  motivoVacaciones(emp: PlanillaPreviewEmpleadoDto): string {
     if (this.esPracticante(emp)) return 'Descanso de 30 días/año (sin provisión monetaria)';
-    return `${this.diasVacaciones} días/año, mensualizado`;
+    return `${emp.dias_vacaciones} días/año, mensualizado`;
   }
 
-  motivoPension(emp: ResumenEmpleadoDto): string {
+  motivoPension(emp: PlanillaPreviewEmpleadoDto): string {
     if (this.esPracticante(emp)) return 'No aplica — sin afiliación obligatoria (Ley 28518)';
     return this.pensionLabel(emp);
   }
 
-  // Resumen compacto para la columna "Beneficios" de la tabla — cambia en vivo
-  // según régimen y modalidad sin recargar datos.
-  beneficiosResumen(emp: ResumenEmpleadoDto): { cts: boolean; grati: boolean; vac: number; aplica: boolean } {
+  // Resumen compacto para la columna "Beneficios" de la tabla.
+  beneficiosResumen(emp: PlanillaPreviewEmpleadoDto): { cts: boolean; grati: boolean; vac: number; aplica: boolean } {
     return {
-      cts:    this.provisionCTS(emp) > 0,
-      grati:  this.provisionGratificacion(emp) > 0,
-      vac:    this.esDependiente(emp) ? this.diasVacaciones : 30,
+      cts:    emp.provision_cts > 0,
+      grati:  emp.provision_gratificacion > 0,
+      vac:    this.esDependiente(emp) ? emp.dias_vacaciones : 30,
       aplica: this.esDependiente(emp),
     };
-  }
-
-  netoAPagar(emp: ResumenEmpleadoDto): number {
-    const sueldo = this.sueldoPeriodo(emp.id);
-    if (sueldo <= 0) return 0;
-    return Math.max(0, this.totalIngresos(emp) - this.totalDescuentosLegales(emp));
-  }
-
-  totalDescuentosLegales(emp: ResumenEmpleadoDto): number {
-    return this.descuentoFaltas(emp) + this.descuentoPension(emp) + this.impuestoQuintaCategoria(emp);
-  }
-
-  totalIngresos(emp: ResumenEmpleadoDto): number {
-    return this.sueldoPeriodo(emp.id) + this.pagoHorasExtra(emp) + this.asignacionFamiliar(emp);
   }
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
 
   get kpis() {
-    const sinSueldo = this.empleados.filter(e => this.getSueldo(e.id) === 0).length;
-    const totalNeto = this.empleados.reduce((s, e) => s + this.netoAPagar(e), 0);
-    const totalDesc = this.empleados.reduce((s, e) => s + this.totalDescuentosLegales(e), 0);
-    const totalExt  = this.empleados.reduce((s, e) => s + this.pagoHorasExtra(e), 0);
+    const sinSueldo = this.empleados.filter(e => this.getSueldo(e) === 0).length;
+    const totalNeto = this.empleados.reduce((s, e) => s + e.neto_a_pagar, 0);
+    const totalDesc = this.empleados.reduce((s, e) => s + e.total_descuentos_legales, 0);
+    const totalExt  = this.empleados.reduce((s, e) => s + e.pago_horas_extra, 0);
     const enPlanilla = this.empleados.filter(e => this.esDependiente(e)).length;
     const practicantes = this.empleados.filter(e => this.esPracticante(e)).length;
-    const bajoRmvCount = this.empleados.filter(e => this.bajoRmv(e)).length;
+    const bajoRmvCount = this.empleados.filter(e => e.bajo_rmv).length;
     return { totalEmpleados: this.totalRegistros, totalNeto, totalDesc, totalExt, sinSueldo, enPlanilla, practicantes, bajoRmvCount };
   }
 
   // ── Boleta individual ─────────────────────────────────────────────────────
 
-  verBoleta(emp: ResumenEmpleadoDto): void { this.boletaEmp = emp; }
+  verBoleta(emp: PlanillaPreviewEmpleadoDto): void { this.boletaEmp = emp; }
   cerrarBoleta(): void { this.boletaEmp = null; }
+
+  // ── Ciclo real de la Planilla del mes: calcular → aprobar → pagar / anular ─
+  // Solo tiene sentido en Vista Mensual (la quincena es una simulación, nunca
+  // genera una Planilla real — ver planilla_service.calcular_planilla).
+
+  cargarEstadoPlanilla(): void {
+    this.svc.getPlanillas(this.periodoStr).subscribe({
+      next: (planillas) => {
+        this.planillaDelPeriodo = planillas.find(p => p.estado !== 'anulada') ?? planillas[0] ?? null;
+      },
+      error: () => { this.planillaDelPeriodo = null; },
+    });
+  }
+
+  calcularPlanillaDelMes(): void {
+    this.procesandoAccionPlanilla = true;
+    this.svc.calcularPlanilla(this.periodoStr).subscribe({
+      next: (p) => {
+        this.planillaDelPeriodo = p;
+        this.procesandoAccionPlanilla = false;
+        this.toast.mostrar(`Planilla de ${this.labelPeriodo} calculada`, 'success');
+      },
+      error: (err) => {
+        this.procesandoAccionPlanilla = false;
+        this.toast.mostrar(err?.error?.detail || 'Error al calcular la planilla', 'error');
+      },
+    });
+  }
+
+  aprobarPlanillaDelMes(): void {
+    if (!this.planillaDelPeriodo) return;
+    this.procesandoAccionPlanilla = true;
+    this.svc.aprobarPlanilla(this.planillaDelPeriodo.id).subscribe({
+      next: (p) => {
+        this.planillaDelPeriodo = p;
+        this.procesandoAccionPlanilla = false;
+        this.toast.mostrar('Planilla aprobada — asiento de provisión contabilizado', 'success');
+      },
+      error: (err) => {
+        this.procesandoAccionPlanilla = false;
+        this.toast.mostrar(err?.error?.detail || 'Error al aprobar la planilla', 'error');
+      },
+    });
+  }
+
+  marcarPagadaPlanillaDelMes(): void {
+    if (!this.planillaDelPeriodo) return;
+    this.procesandoAccionPlanilla = true;
+    this.svc.marcarPagadaPlanilla(this.planillaDelPeriodo.id).subscribe({
+      next: (p) => {
+        this.planillaDelPeriodo = p;
+        this.procesandoAccionPlanilla = false;
+        this.toast.mostrar('Planilla marcada como pagada — asiento de pago contabilizado', 'success');
+      },
+      error: (err) => {
+        this.procesandoAccionPlanilla = false;
+        this.toast.mostrar(err?.error?.detail || 'Error al marcar la planilla como pagada', 'error');
+      },
+    });
+  }
+
+  anularPlanillaDelMes(): void {
+    if (!this.planillaDelPeriodo) return;
+    this.procesandoAccionPlanilla = true;
+    this.svc.anularPlanilla(this.planillaDelPeriodo.id).subscribe({
+      next: () => {
+        this.planillaDelPeriodo = null;
+        this.procesandoAccionPlanilla = false;
+        this.toast.mostrar('Planilla anulada — el período queda libre para recalcular', 'success');
+      },
+      error: (err) => {
+        this.procesandoAccionPlanilla = false;
+        this.toast.mostrar(err?.error?.detail || 'Error al anular la planilla', 'error');
+      },
+    });
+  }
+
+  estadoPlanillaLabel(estado: string): string {
+    const map: Record<string, string> = {
+      borrador: 'Borrador', calculada: 'Calculada', aprobada: 'Aprobada',
+      pagada: 'Pagada', anulada: 'Anulada',
+    };
+    return map[estado] ?? estado;
+  }
 
   // ── Selección masiva para Legajo Digital ──────────────────────────────────
 
@@ -828,14 +718,15 @@ export class PlanillasComponent implements OnInit {
 
     if (this.selectedLegajoCount === 0) {
       this.masivoProgreso = 'Cargando lista de empleados…';
-      this.svc.getResumenAsistencia({
+      this.svc.previewPlanilla({
         fecha_inicio: this.fechaInicio,
         fecha_fin:    this.fechaFin,
+        periodo_pago: this.periodoPago,
         page: 1,
         limit: 1000,
       }).subscribe({
         next: async (res) => {
-          const validos = res.empleados.filter(e => this.getSueldo(e.id) > 0);
+          const validos = res.empleados.filter(e => this.getSueldo(e) > 0);
           if (validos.length === 0) {
             this.enviandoMasivo = false;
             this.masivoProgreso = '';
@@ -854,7 +745,7 @@ export class PlanillasComponent implements OnInit {
       const selIds = new Set(
         Object.entries(this.selectedLegajoMap).filter(([, v]) => v).map(([k]) => k)
       );
-      const validos = this.empleados.filter(e => selIds.has(e.id) && this.getSueldo(e.id) > 0);
+      const validos = this.empleados.filter(e => selIds.has(e.id) && this.getSueldo(e) > 0);
       if (validos.length === 0) {
         this.enviandoMasivo = false;
         this.toast.mostrar('Los empleados seleccionados no tienen sueldo registrado', 'error');
@@ -864,7 +755,7 @@ export class PlanillasComponent implements OnInit {
     }
   }
 
-  private async procesarEnvioMasivo(emps: ResumenEmpleadoDto[]): Promise<void> {
+  private async procesarEnvioMasivo(emps: PlanillaPreviewEmpleadoDto[]): Promise<void> {
     let enviados = 0;
     let errores = 0;
     const total = emps.length;
@@ -919,19 +810,19 @@ export class PlanillasComponent implements OnInit {
 
   // ── Generar PDF de la boleta y enviarla a Legajo Digital ────────────────────
 
-  private construirVoucherHtml(emp: ResumenEmpleadoDto): string {
+  private construirVoucherHtml(emp: PlanillaPreviewEmpleadoDto): string {
     const dependiente = this.esDependiente(emp);
-    const sueldo       = this.sueldoPeriodo(emp.id);
-    const extra        = this.pagoHorasExtra(emp);
-    const descFaltas    = this.descuentoFaltas(emp);
-    const descPension   = this.descuentoPension(emp);
-    const neto          = this.netoAPagar(emp);
-    const essalud       = this.aporteEssalud(emp);
-    const cts            = this.provisionCTS(emp);
-    const grati          = this.provisionGratificacion(emp);
-    const vacaciones      = this.provisionVacaciones(emp);
-    const asig = this.asignacionFamiliar(emp);
-    const renta = this.impuestoQuintaCategoria(emp);
+    const sueldo       = emp.sueldo_periodo;
+    const extra        = emp.pago_horas_extra;
+    const descFaltas    = emp.descuento_faltas;
+    const descPension   = emp.descuento_pension;
+    const neto          = emp.neto_a_pagar;
+    const essalud       = emp.aporte_essalud;
+    const cts            = emp.provision_cts;
+    const grati          = emp.provision_gratificacion;
+    const vacaciones      = emp.provision_vacaciones;
+    const asig = emp.asignacion_familiar;
+    const renta = emp.renta_5ta;
 
     // Blanco y negro, sin color de relleno — solo bordes y negritas para
     // jerarquía visual (mismo lenguaje que la Planilla Mensual consolidada).
@@ -943,21 +834,21 @@ export class PlanillasComponent implements OnInit {
     let filasIngresos = fila('Remuneración Básica', `Jornada ordinaria pactada — ${this.formatH(emp.meta_horas)}`, `${this.formatMonto(sueldo)}`);
     if (extra > 0) {
       const detalleExtra = dependiente
-        ? (this.horasExtra(emp) <= 2 ? `Recargo 25% — ${this.formatH(this.horasExtra(emp))}` : `2h al 25% + ${this.formatH(this.horasExtra(emp) - 2)} al 35%`)
-        : `Tarifa simple — ${this.formatH(this.horasExtra(emp))} (sin recargo, Ley N.° 28518)`;
-      filasIngresos += fila(`Trabajo en Sobretiempo (${this.formatH(this.horasExtra(emp))})`, detalleExtra, `+${this.formatMonto(extra)}`);
+        ? (emp.horas_extra <= 2 ? `Recargo 25% — ${this.formatH(emp.horas_extra)}` : `2h al 25% + ${this.formatH(emp.horas_extra - 2)} al 35%`)
+        : `Tarifa simple — ${this.formatH(emp.horas_extra)} (sin recargo, Ley N.° 28518)`;
+      filasIngresos += fila(`Trabajo en Sobretiempo (${this.formatH(emp.horas_extra)})`, detalleExtra, `+${this.formatMonto(extra)}`);
     }
     if (asig > 0) {
-      filasIngresos += fila('Asignación Familiar', `10% de la R.M.V. (S/ ${RMV_VIGENTE}) — Régimen General · D.S. N.° 035-90-TR`, `+${this.formatMonto(asig)}`);
+      filasIngresos += fila('Asignación Familiar', `10% de la R.M.V. (S/ ${this.rmvVigente}) — Régimen General · D.S. N.° 035-90-TR`, `+${this.formatMonto(asig)}`);
     }
 
     let filasDescuentos = '';
     if (descFaltas > 0) {
-      const diasAus  = this.diasFaltantes(emp);
-      const minsAus  = this.minutosTardanza(emp);
-      const dominical = this.descuentoDominical(emp);
-      const vd = this.valorDia(emp);
-      const vm = this.valorMinuto(emp);
+      const diasAus  = emp.dias_faltantes;
+      const minsAus  = emp.minutos_tardanza;
+      const dominical = emp.descuento_dominical;
+      const vd = emp.valor_dia;
+      const vm = emp.valor_minuto;
       let detalleAus = `Valor día S/ ${this.formatMonto(vd)} (sueldo / 30)`;
       if (diasAus > 0 && minsAus > 0) {
         detalleAus += ` · ${diasAus} día(s) + castigo dominical + ${minsAus} min. tardanza`;
@@ -966,19 +857,19 @@ export class PlanillasComponent implements OnInit {
       } else {
         detalleAus += ` · ${minsAus} min. tardanza × S/ ${this.formatMonto(vm)}/min`;
       }
-      filasDescuentos += fila('Descuento por Inasistencias y Tardanzas', detalleAus, `−${this.formatMonto(descFaltas)}`);
+      filasDescuentos += fila('Inasistencias (parte no devengada del sueldo)', detalleAus, `−${this.formatMonto(descFaltas)}`);
     } else {
-      filasDescuentos += filaSinMonto('Descuento por Inasistencias y Tardanzas', 'Sin faltas ni tardanzas registradas en el período');
+      filasDescuentos += filaSinMonto('Inasistencias (parte no devengada del sueldo)', 'Sin faltas ni tardanzas registradas en el período');
     }
     if (descPension > 0) {
-      if (this.esAfp(emp)) {
+      if (emp.es_afp) {
         // Desglose en 3 componentes (estándar de boleta peruana, D.L. N.° 25897).
-        const afpNom = this.afpEntidadLabel(emp.id);
-        filasDescuentos += fila('Aporte Obligatorio al Fondo de Pensiones', `Cuenta Individual de Capitalización — 10.00% · ${afpNom}`, `−${this.formatMonto(this.afpAporteObligatorio(emp))}`);
-        filasDescuentos += fila('Prima de Seguro de Invalidez y Sobrevivencia', `Cobertura previsional SPP — ${(AFP_SEGURO_PCT * 100).toFixed(2)}% (tope S/ 12,209.11)`, `−${this.formatMonto(this.afpPrimaSeguro(emp))}`);
-        filasDescuentos += fila('Comisión de Administración (AFP)', `${afpNom} — comisión sobre flujo ${(this.afpComisionPct(emp) * 100).toFixed(2)}%`, `−${this.formatMonto(this.afpComision(emp))}`);
+        const afpNom = this.afpEntidadLabel(emp);
+        filasDescuentos += fila('Aporte Obligatorio al Fondo de Pensiones', `Cuenta Individual de Capitalización · ${afpNom}`, `−${this.formatMonto(emp.afp_aporte_obligatorio)}`);
+        filasDescuentos += fila('Prima de Seguro de Invalidez y Sobrevivencia', 'Cobertura previsional SPP', `−${this.formatMonto(emp.afp_prima_seguro)}`);
+        filasDescuentos += fila('Comisión de Administración (AFP)', `${afpNom} — comisión sobre flujo ${(emp.comision_afp_pct * 100).toFixed(2)}%`, `−${this.formatMonto(emp.afp_comision)}`);
       } else {
-        filasDescuentos += fila('Aporte al Sistema Nacional de Pensiones (ONP)', 'Aporte obligatorio — D.L. N.° 19990 · 13.00%', `−${this.formatMonto(descPension)}`);
+        filasDescuentos += fila('Aporte al Sistema Nacional de Pensiones (ONP)', 'Aporte obligatorio — D.L. N.° 19990', `−${this.formatMonto(descPension)}`);
       }
     } else {
       filasDescuentos += filaSinMonto('Aporte al Sistema de Pensiones', this.motivoPension(emp));
@@ -997,7 +888,7 @@ export class PlanillasComponent implements OnInit {
       ? fila('Gratificación Legal (Ley N.° 27735)', `${this.regimenLabel} · ${this.regimenEmpresa === 'general' ? 'sueldo completo/semestre' : 'medio sueldo/semestre'}`, this.formatMonto(grati))
       : filaSinMonto('Gratificación Legal (Ley N.° 27735)', this.motivoGratificacion(emp));
     filasInformativas += vacaciones > 0
-      ? fila('Provisión de Vacaciones', `${this.diasVacaciones} días/año`, this.formatMonto(vacaciones))
+      ? fila('Provisión de Vacaciones', `${emp.dias_vacaciones} días/año`, this.formatMonto(vacaciones))
       : filaSinMonto('Provisión de Vacaciones', this.motivoVacaciones(emp));
 
     const razonSocial = this.empresaInfo?.razon_social || 'E-SYSTEM TIC';
@@ -1009,7 +900,7 @@ export class PlanillasComponent implements OnInit {
     // Documento de identidad del trabajador (DNI / Carné de Extranjería).
     const docTipo = (emp.tipo_documento || 'DNI').toUpperCase();
     const docNum  = (emp.numero_documento || '').trim() || '—';
-    const cusppVal = (this.getCuspp(emp.id) || emp.cuspp || '').trim() || '—';
+    const cusppVal = (emp.cuspp || '').trim() || '—';
     // Fecha de ingreso (vital para el cálculo de beneficios sociales).
     const fechaIngreso = emp.fecha_ingreso
       ? new Date(emp.fecha_ingreso + 'T00:00:00').toLocaleDateString('es-PE', { day: '2-digit', month: 'long', year: 'numeric' })
@@ -1063,7 +954,7 @@ export class PlanillasComponent implements OnInit {
 
       <table class="bol-datos">
         <tr>
-          <td style="width:25%;"><strong>Apellidos y Nombres:</strong> ${emp.nombreCompleto}</td>
+          <td style="width:25%;"><strong>Apellidos y Nombres:</strong> ${emp.nombre_completo}</td>
           <td style="width:25%;"><strong>${docTipo}:</strong> ${docNum}</td>
           <td style="width:25%;"><strong>Fecha de Ingreso:</strong> ${fechaIngreso}</td>
           <td style="width:25%;"><strong>Régimen Laboral:</strong> ${this.modalidadLabel(emp)}</td>
@@ -1082,7 +973,7 @@ export class PlanillasComponent implements OnInit {
           <table class="bol-tabla">
             <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Importe S/.</th></tr></thead>
             <tbody>${filasIngresos}</tbody>
-            <tfoot><tr class="bol-tot"><td colspan="2">TOTAL REMUNERACIÓN BRUTA</td><td class="c-mon">${this.formatMonto(this.totalIngresos(emp))}</td></tr></tfoot>
+            <tfoot><tr class="bol-tot"><td colspan="2">TOTAL REMUNERACIÓN BRUTA</td><td class="c-mon">${this.formatMonto(emp.total_ingresos)}</td></tr></tfoot>
           </table>
         </div>
         <div class="bol-col">
@@ -1090,7 +981,7 @@ export class PlanillasComponent implements OnInit {
           <table class="bol-tabla">
             <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Importe S/.</th></tr></thead>
             <tbody>${filasDescuentos}</tbody>
-            <tfoot><tr class="bol-tot"><td colspan="2">TOTAL DESCUENTOS</td><td class="c-mon">−${this.formatMonto(this.totalDescuentosLegales(emp))}</td></tr></tfoot>
+            <tfoot><tr class="bol-tot"><td colspan="2">TOTAL DESCUENTOS</td><td class="c-mon">−${this.formatMonto(emp.total_descuentos_legales)}</td></tr></tfoot>
           </table>
         </div>
       </div>
@@ -1098,8 +989,8 @@ export class PlanillasComponent implements OnInit {
       <div class="bol-sec-tit">Resumen de Liquidación</div>
       <table class="bol-tabla bol-liq" style="margin-bottom:14px;">
         <tbody>
-          <tr><td>Total Remuneración Bruta (ingresos afectos del período)</td><td class="c-mon">${this.formatMonto(this.totalIngresos(emp))}</td></tr>
-          <tr><td>(−) Total Descuentos y Retenciones de cargo del trabajador</td><td class="c-mon">−${this.formatMonto(this.totalDescuentosLegales(emp))}</td></tr>
+          <tr><td>Total Remuneración Bruta (ingresos afectos del período)</td><td class="c-mon">${this.formatMonto(emp.total_ingresos)}</td></tr>
+          <tr><td>(−) Total Descuentos y Retenciones de cargo del trabajador</td><td class="c-mon">−${this.formatMonto(emp.total_descuentos_legales)}</td></tr>
           <tr class="bol-liq-final"><td>Total Neto a Recibir</td><td class="c-mon">${this.formatMonto(neto)}</td></tr>
         </tbody>
       </table>
@@ -1128,7 +1019,7 @@ export class PlanillasComponent implements OnInit {
   // se agrega en flujo normal (sin position/opacity), simplemente al final
   // del body: queda fuera de la vista (debajo del contenido visible) sin
   // necesidad de trucos que rompan la captura.
-  private async crearDivVoucher(emp: ResumenEmpleadoDto): Promise<HTMLElement> {
+  private async crearDivVoucher(emp: PlanillaPreviewEmpleadoDto): Promise<HTMLElement> {
     const div = document.createElement('div');
     div.style.pointerEvents = 'none';
     div.innerHTML = this.construirVoucherHtml(emp);
@@ -1140,8 +1031,8 @@ export class PlanillasComponent implements OnInit {
   }
 
   // Nombre de archivo: boleta_<primer-nombre>_<DDMMYYYY> (fecha de emisión)
-  private nombreArchivoBoleta(emp: ResumenEmpleadoDto): string {
-    const primerNombre = (emp.nombreCompleto || 'trabajador').trim().split(/\s+/)[0]
+  private nombreArchivoBoleta(emp: PlanillaPreviewEmpleadoDto): string {
+    const primerNombre = (emp.nombre_completo || 'trabajador').trim().split(/\s+/)[0]
       .toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     const hoy = new Date();
     const dd = String(hoy.getDate()).padStart(2, '0');
@@ -1150,12 +1041,12 @@ export class PlanillasComponent implements OnInit {
     return `boleta_${primerNombre}_${dd}${mm}${yyyy}`;
   }
 
-  async descargarPdf(emp: ResumenEmpleadoDto): Promise<void> {
+  async descargarPdf(emp: PlanillaPreviewEmpleadoDto): Promise<void> {
     if (!this.esVistaMensual) {
       this.toast.mostrar('La boleta oficial se genera en la vista "Mes Completo"', 'error');
       return;
     }
-    if (this.getSueldo(emp.id) <= 0) {
+    if (this.getSueldo(emp) <= 0) {
       this.toast.mostrar('Ingresa el sueldo base antes de generar la boleta', 'error');
       return;
     }
@@ -1179,7 +1070,7 @@ export class PlanillasComponent implements OnInit {
     }
   }
 
-  async enviarALegajo(emp: ResumenEmpleadoDto): Promise<void> {
+  async enviarALegajo(emp: PlanillaPreviewEmpleadoDto): Promise<void> {
     if (!this.esVistaMensual) {
       this.toast.mostrar('La boleta oficial se genera en la vista "Mes Completo"', 'error');
       return;
@@ -1188,7 +1079,7 @@ export class PlanillasComponent implements OnInit {
       this.toast.mostrar('Solo un administrador puede enviar boletas al legajo digital', 'error');
       return;
     }
-    if (this.getSueldo(emp.id) <= 0) {
+    if (this.getSueldo(emp) <= 0) {
       this.toast.mostrar('Ingresa el sueldo base antes de generar la boleta', 'error');
       return;
     }
@@ -1218,7 +1109,7 @@ export class PlanillasComponent implements OnInit {
       this.svc.subirDocumento(emp.id, form).subscribe({
         next: () => {
           this.generandoPdf = false;
-          this.toast.mostrar(`Boleta enviada al legajo digital de ${emp.nombreCompleto}`, 'success');
+          this.toast.mostrar(`Boleta enviada al legajo digital de ${emp.nombre_completo}`, 'success');
         },
         error: (err) => {
           this.generandoPdf = false;
@@ -1235,21 +1126,21 @@ export class PlanillasComponent implements OnInit {
 
   // ── Helpers visuales ──────────────────────────────────────────────────────
 
-  iniciales(nombre: string): string {
+  iniciales(nombre: string | null): string {
     if (!nombre) return '?';
     return nombre.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase();
   }
 
-  estadoClass(emp: ResumenEmpleadoDto): string {
-    if (this.getSueldo(emp.id) === 0) return 'badge-sin-sueldo';
-    if (emp.horas_faltantes === 0)    return 'badge-success';
-    if (emp.porcentaje >= 75)         return 'badge-warning';
+  estadoClass(emp: PlanillaPreviewEmpleadoDto): string {
+    if (this.getSueldo(emp) === 0) return 'badge-sin-sueldo';
+    if (emp.horas_faltantes === 0)  return 'badge-success';
+    if (emp.porcentaje >= 75)       return 'badge-warning';
     return 'badge-danger';
   }
 
-  estadoLabel(emp: ResumenEmpleadoDto): string {
-    if (this.getSueldo(emp.id) === 0) return 'Sin sueldo';
-    if (emp.horas_faltantes === 0)    return 'Completo';
+  estadoLabel(emp: PlanillaPreviewEmpleadoDto): string {
+    if (this.getSueldo(emp) === 0) return 'Sin sueldo';
+    if (emp.horas_faltantes === 0)  return 'Completo';
     return `−${emp.horas_faltantes.toFixed(1)}h`;
   }
 
@@ -1262,7 +1153,7 @@ export class PlanillasComponent implements OnInit {
   }
 
   private _uuidRx = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  safeArea(s: string): string {
+  safeArea(s: string | null): string {
     if (!s || this._uuidRx.test(s.trim())) return '';
     return ` · ${s}`;
   }

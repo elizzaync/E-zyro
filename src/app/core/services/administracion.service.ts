@@ -71,21 +71,6 @@ export interface FilaReporte {
 }
 export interface ReporteFinanciero { titulo: string; filas: FilaReporte[]; total?: number; }
 
-// ── Planilla ─────────────────────────────────────────────────────────────────
-export interface PlanillaItem {
-  id: string; periodo: string; estado: 'borrador' | 'aprobada' | 'pagada' | 'anulada';
-  total_bruto: number; total_descuentos: number; total_neto: number;
-  total_aportes_empleador: number; n_empleados: number;
-  fecha_calculo?: string; fecha_aprobacion?: string;
-}
-export interface BolетaPago {
-  id: string; empleado_id: string; empleado_nombre?: string;
-  total_ingresos: number; total_descuentos: number; neto: number;
-}
-export interface ConceptoPlanilla {
-  id: string; nombre: string; tipo: 'ingreso' | 'descuento' | 'aporte';
-  es_base: boolean; activo: boolean;
-}
 
 // ── Controlling ──────────────────────────────────────────────────────────────
 export interface CentroCosto {
@@ -269,38 +254,10 @@ export class AdministracionService {
     return this.http.get<any>(`${this.base}/reportes-financieros/libro-mayor/${cuenta_id}`, { params: { desde, hasta } });
   }
 
-  // ── Planilla ───────────────────────────────────────────────────────────────
-  getPlanillas(): Observable<PlanillaItem[]> {
-    return this.http.get<PlanillaItem[]>(`${this.base}/planilla`);
-  }
-
-  calcularPlanilla(periodo: string): Observable<PlanillaItem> {
-    return this.http.post<PlanillaItem>(`${this.base}/planilla/calcular`, null, { params: { periodo } });
-  }
-
-  aprobarPlanilla(id: string): Observable<any> {
-    return this.http.post(`${this.base}/planilla/${id}/aprobar`, {});
-  }
-
-  marcarPagadaPlanilla(id: string): Observable<any> {
-    return this.http.post(`${this.base}/planilla/${id}/marcar-pagada`, {});
-  }
-
-  anularPlanilla(id: string): Observable<any> {
-    return this.http.post(`${this.base}/planilla/${id}/anular`, {});
-  }
-
-  getBoletas(planilla_id: string): Observable<BolетaPago[]> {
-    return this.http.get<BolетaPago[]>(`${this.base}/planilla/${planilla_id}/boletas`);
-  }
-
-  getConceptosPlanilla(): Observable<ConceptoPlanilla[]> {
-    return this.http.get<ConceptoPlanilla[]>(`${this.base}/planilla/conceptos`);
-  }
-
-  getEmpleadosPlanilla(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.base}/planilla/empleados`);
-  }
+  // Nota: los métodos de Planilla se retiraron de este servicio (duplicaban,
+  // sin ningún consumidor, los de RrhhService — que es quien realmente los usa
+  // desde PlanillasComponent). Ver rrhh.service.ts para calcularPlanilla,
+  // aprobarPlanilla, marcarPagadaPlanilla, anularPlanilla, previewPlanilla, etc.
 
   // ── Controlling ────────────────────────────────────────────────────────────
   getCentrosCosto(): Observable<CentroCosto[]> {

@@ -193,6 +193,133 @@ export interface PaginatedResumen {
   total_paginas: number;
 }
 
+// ── Planilla (Fase 8 — motor legal en backend) ──────────────────────────────
+
+export type SistemaPension = 'onp' | 'afp';
+export type EntidadAfp = 'integra' | 'prima' | 'profuturo' | 'habitat';
+export type RegimenLaboral = 'micro' | 'pequena' | 'general';
+export type EsquemaPagoPlanilla = 'mensual' | 'quincenal';
+export type PeriodoPagoPlanilla = 'mes' | 'q1' | 'q2';
+export type EstadoPlanilla = 'borrador' | 'calculada' | 'aprobada' | 'pagada' | 'anulada';
+
+export interface ConfigPlanillaDto {
+  descuento_tardanza_auto: boolean;
+  regimen_laboral: RegimenLaboral;
+  esquema_pago_planilla: EsquemaPagoPlanilla;
+}
+
+export interface PensionConfigDto {
+  empleado_id: string;
+  sistema_pension: SistemaPension;
+  entidad_afp: EntidadAfp | null;
+  comision_afp_personalizada: number | null;
+  tiene_asignacion_familiar: boolean;
+}
+
+export interface PlanillaDto {
+  id: string;
+  periodo_id: string;
+  anio: number | null;
+  mes: number | null;
+  fecha_proceso: string;
+  estado: EstadoPlanilla;
+  total_ingresos: number;
+  total_descuentos: number;
+  total_aportes: number;
+  total_neto: number;
+  total_cts: number;
+  total_gratificacion: number;
+  total_vacaciones: number;
+  asiento_provision_id: string | null;
+  asiento_pago_id: string | null;
+}
+
+// Desglose completo de UN empleado calculado por el motor legal — 1:1 con
+// PlanillaPreviewEmpleadoOut (backend). Incluye identidad/asistencia (mismos
+// campos que ResumenEmpleadoDto) + configuración previsional vigente + todos
+// los montos ya calculados (ningún cálculo de dinero se hace en el cliente).
+export interface PlanillaPreviewEmpleadoDto {
+  id: string;
+  nombre_completo: string | null;
+  cargo: string | null;
+  area: string | null;
+  iniciales: string;
+  foto_url: string;
+  tipo_contrato: 'planilla' | 'contrato' | 'practicante' | string;
+  codigo: string | null;
+  tipo_documento: string | null;
+  numero_documento: string | null;
+  cuspp: string | null;
+  fecha_ingreso: string | null;
+  horas_reales: number;
+  horas_justificadas: number;
+  horas_total: number;
+  horas_faltantes: number;
+  horas_extra: number;
+  horas_extra_aprobadas: number;
+  horas_extra_no_autor: number;
+  dias_laborados: number;
+  meta_horas: number;
+  porcentaje: number;
+  advertencias: number;
+
+  sistema_pension: SistemaPension;
+  entidad_afp: EntidadAfp | null;
+  comision_afp_personalizada: number | null;
+  comision_afp_pct: number;
+  tiene_asignacion_familiar: boolean;
+
+  sueldo_base: number;
+  sueldo_periodo: number;
+  sueldo_devengado: number;
+
+  valor_dia: number;
+  valor_hora: number;
+  valor_minuto: number;
+
+  dias_faltantes: number;
+  minutos_tardanza: number;
+  descuento_dominical: number;
+  descuento_faltas: number;
+
+  pago_horas_extra: number;
+  asignacion_familiar: number;
+
+  es_afp: boolean;
+  base_pension: number;
+  descuento_pension: number;
+  afp_aporte_obligatorio: number;
+  afp_prima_seguro: number;
+  afp_comision: number;
+
+  renta_5ta: number;
+
+  total_ingresos: number;
+  total_descuentos_legales: number;
+  neto_a_pagar: number;
+
+  aporte_essalud: number;
+  provision_cts: number;
+  provision_gratificacion: number;
+  provision_vacaciones: number;
+  dias_vacaciones: number;
+
+  bajo_rmv: boolean;
+}
+
+export interface PlanillaPreviewDto {
+  periodo: PeriodoDto;
+  regimen_empresa: RegimenLaboral;
+  esquema_pago: EsquemaPagoPlanilla;
+  periodo_pago: PeriodoPagoPlanilla;
+  rmv_vigente: number;   // parámetro legal (D.S. 001-2025-TR) — viene del backend, no se duplica aquí
+  empleados: PlanillaPreviewEmpleadoDto[];
+  total: number;
+  page: number;
+  limit: number;
+  total_paginas: number;
+}
+
 export interface DetalleDiarioResponse {
   empleado_id: string;
   periodo: { fecha_inicio: string; fecha_fin: string };
@@ -391,24 +518,69 @@ export class RrhhService {
 
   // ── Planillas ────────────────────────────────────────────────────────────────────
 
-  getPlanillas(): Observable<any> {
-    return this.http.get<any>(`${this.api}/planilla`);
+  // Vista previa del motor legal (Fase 8): NO persiste nada. periodo_pago
+  // acepta 'mes'|'q1'|'q2' (quincena es solo una vista, nunca genera Planilla).
+  previewPlanilla(params: {
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    periodo_pago?: PeriodoPagoPlanilla;
+    page?: number;
+    limit?: number;
+  }): Observable<PlanillaPreviewDto> {
+    const qs: string[] = [];
+    if (params.fecha_inicio) qs.push(`fecha_inicio=${params.fecha_inicio}`);
+    if (params.fecha_fin)    qs.push(`fecha_fin=${params.fecha_fin}`);
+    if (params.periodo_pago) qs.push(`periodo_pago=${params.periodo_pago}`);
+    if (params.page)         qs.push(`page=${params.page}`);
+    if (params.limit)        qs.push(`limit=${params.limit}`);
+    const url = `${this.api}/planilla/preview` + (qs.length ? '?' + qs.join('&') : '');
+    return this.http.get<PlanillaPreviewDto>(url);
   }
 
-  calcularPlanilla(periodo: string): Observable<any> {
-    return this.http.post<any>(`${this.api}/planilla/calcular?periodo=${encodeURIComponent(periodo)}`, {});
+  getConfigPlanilla(): Observable<ConfigPlanillaDto> {
+    return this.http.get<ConfigPlanillaDto>(`${this.api}/planilla/config`);
   }
 
-  aprobarPlanilla(id: string): Observable<any> {
-    return this.http.post<any>(`${this.api}/planilla/${id}/aprobar`, {});
+  actualizarConfigPlanilla(body: Partial<ConfigPlanillaDto>): Observable<ConfigPlanillaDto> {
+    return this.http.patch<ConfigPlanillaDto>(`${this.api}/planilla/config`, body);
   }
 
-  marcarPagadaPlanilla(id: string): Observable<any> {
-    return this.http.post<any>(`${this.api}/planilla/${id}/marcar-pagada`, {});
+  actualizarPensionEmpleado(empleadoId: string, body: Partial<{
+    sistema_pension: SistemaPension;
+    entidad_afp: EntidadAfp | null;
+    comision_afp_personalizada: number | null;
+    tiene_asignacion_familiar: boolean;
+  }>): Observable<PensionConfigDto> {
+    return this.http.patch<PensionConfigDto>(`${this.api}/planilla/empleados/${empleadoId}/pension`, body);
   }
 
-  anularPlanilla(id: string): Observable<any> {
-    return this.http.post<any>(`${this.api}/planilla/${id}/anular`, {});
+  guardarSueldoBase(empleadoId: string, monto: number): Observable<{ empleado_id: string; sueldo_base: string }> {
+    return this.http.put<any>(`${this.api}/planilla/empleados/${empleadoId}/sueldo-base`, { monto });
+  }
+
+  inicializarCatalogoEstandarPlanilla(): Observable<any[]> {
+    return this.http.post<any[]>(`${this.api}/planilla/conceptos/inicializar-estandar`, {});
+  }
+
+  getPlanillas(periodo?: string): Observable<PlanillaDto[]> {
+    const url = `${this.api}/planilla` + (periodo ? `?periodo=${encodeURIComponent(periodo)}` : '');
+    return this.http.get<PlanillaDto[]>(url);
+  }
+
+  calcularPlanilla(periodo: string): Observable<PlanillaDto> {
+    return this.http.post<PlanillaDto>(`${this.api}/planilla/calcular?periodo=${encodeURIComponent(periodo)}`, {});
+  }
+
+  aprobarPlanilla(id: string): Observable<PlanillaDto> {
+    return this.http.post<PlanillaDto>(`${this.api}/planilla/${id}/aprobar`, {});
+  }
+
+  marcarPagadaPlanilla(id: string): Observable<PlanillaDto> {
+    return this.http.post<PlanillaDto>(`${this.api}/planilla/${id}/marcar-pagada`, {});
+  }
+
+  anularPlanilla(id: string): Observable<PlanillaDto> {
+    return this.http.post<PlanillaDto>(`${this.api}/planilla/${id}/anular`, {});
   }
 
   getBoletasPlanilla(planillaId: string): Observable<any> {
