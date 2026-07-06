@@ -7,6 +7,9 @@ planilla_service → registrar_asiento. RBAC (modulo='planilla').
 """
 from __future__ import annotations
 
+import calendar as _cal
+from datetime import date
+from decimal import Decimal
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -28,10 +31,15 @@ from ..schemas.planilla import (
     EmpleadoPlanillaOut, AsignacionOut, AsignacionItem,
     BoletaDetalleUpdate, ConfigPlanillaOut, ConfigPlanillaUpdate, ModalidadUpdate,
     PensionConfigOut, PensionConfigUpdate, SueldoBaseUpdate,
+    PeriodoPreviewOut, PlanillaPreviewEmpleadoOut, PlanillaPreviewOut,
 )
 from ..services import planilla_service as planilla_svc
+from ..services.planilla_asistencia_service import resumen_horas_periodo
+from ..services.planilla_calculo_service import InsumoEmpleado, calcular_boleta_empleado
 
 router = APIRouter(prefix="/planilla", tags=["planilla"])
+
+PERIODOS_PAGO_VALIDOS = {"mes", "q1", "q2"}
 
 
 def _empleado_id(db: Session, payload: dict) -> Optional[str]:
@@ -181,6 +189,159 @@ def actualizar_config(
         regimen_laboral=emp.regimen_laboral,
         esquema_pago_planilla=emp.esquema_pago_planilla,
     )
+
+
+# ── Vista previa (Fase 8) — NO persiste nada ─────────────────────────────────
+@router.get("/preview", response_model=PlanillaPreviewOut)
+def preview_planilla(
+    fecha_inicio: Optional[date] = Query(None),
+    fecha_fin:    Optional[date] = Query(None),
+    periodo_pago: str            = Query("mes", description="mes | q1 | q2"),
+    page:         int            = Query(1,  ge=1),
+    limit:        int            = Query(10, ge=1, le=100),
+    payload:      dict           = Depends(verificar_token),
+    db:           Session        = Depends(get_db),
+):
+    """Desglose completo de la boleta de cada empleado para el rango dado,
+    SIN escribir nada en BD (ni Planilla, ni BoletaPago, ni EmpleadoConcepto).
+    Combina `resumen_horas_periodo` (asistencia real, Fase 0) con
+    `calcular_boleta_empleado` (motor legal puro, Fase 2). El sueldo base y
+    la config previsional se leen de la misma fuente que usará `POST
+    /calcular` cuando esta vista se comprometa a BD (Fase 4)."""
+    exigir_permiso(db, payload, "planilla", "ver")
+    empresa_id = payload["empresa_id"]
+
+    if periodo_pago not in PERIODOS_PAGO_VALIDOS:
+        raise HTTPException(status_code=422, detail=f"periodo_pago debe ser uno de {sorted(PERIODOS_PAGO_VALIDOS)}")
+
+    hoy = date.today()
+    if fecha_inicio is None or fecha_fin is None:
+        # Default: mes calendario completo (a diferencia de /rrhh/asistencia/resumen,
+        # que por defecto usa la semana — planilla es de naturaleza mensual).
+        ultimo_dia = _cal.monthrange(hoy.year, hoy.month)[1]
+        fecha_inicio = fecha_inicio or date(hoy.year, hoy.month, 1)
+        fecha_fin = fecha_fin or date(hoy.year, hoy.month, ultimo_dia)
+    if fecha_fin < fecha_inicio:
+        raise HTTPException(status_code=400, detail="fecha_fin debe ser >= fecha_inicio")
+
+    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    regimen_empresa = getattr(empresa, "regimen_laboral", None) or "micro"
+    esquema_pago = getattr(empresa, "esquema_pago_planilla", None) or "quincenal"
+    descuento_tardanza_auto = bool(getattr(empresa, "descuento_tardanza_auto", True))
+
+    filas_asistencia = resumen_horas_periodo(db, empresa_id, fecha_inicio, fecha_fin)
+
+    # Sueldo base: EmpleadoConcepto sobre el concepto SUELDO_BASE (es_base).
+    # Si el catálogo aún no existe (nadie ha guardado ningún sueldo todavía),
+    # sueldo_base=0 para todos — mismo comportamiento que "sin sueldo" hoy.
+    concepto_base = db.query(ConceptoRemunerativo).filter(
+        ConceptoRemunerativo.empresa_id == empresa_id,
+        ConceptoRemunerativo.codigo == planilla_svc.COD_SUELDO_BASE,
+    ).first()
+    sueldos_por_emp: dict[str, Decimal] = {}
+    if concepto_base:
+        sueldos_por_emp = {
+            str(ec.empleado_id): ec.monto
+            for ec in db.query(EmpleadoConcepto).filter(
+                EmpleadoConcepto.empresa_id == empresa_id,
+                EmpleadoConcepto.concepto_id == concepto_base.id,
+            ).all()
+        }
+
+    config_por_emp = {
+        str(c.empleado_id): c
+        for c in db.query(EmpleadoPlanillaConfig).filter(
+            EmpleadoPlanillaConfig.empresa_id == empresa_id).all()
+    }
+
+    empleados_out: list[PlanillaPreviewEmpleadoOut] = []
+    for fila in filas_asistencia:
+        emp_id = str(fila["id"])
+        cfg = config_por_emp.get(emp_id)
+        sueldo_base = sueldos_por_emp.get(emp_id, Decimal("0"))
+
+        insumo = InsumoEmpleado(
+            empleado_id=emp_id,
+            tipo_contrato=fila["tipo_contrato"],
+            sueldo_base=Decimal(sueldo_base),
+            horas_reales=Decimal(str(fila["horas_reales"])),
+            horas_faltantes=Decimal(str(fila["horas_faltantes"])),
+            meta_horas=Decimal(str(fila["meta_horas"])),
+            sistema_pension=(cfg.sistema_pension if cfg else "onp"),
+            entidad_afp=(cfg.entidad_afp if cfg else None),
+            comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
+            tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+        )
+        desglose = calcular_boleta_empleado(
+            insumo, regimen_empresa=regimen_empresa, periodo_pago=periodo_pago,
+            descuento_tardanza_auto=descuento_tardanza_auto,
+        )
+
+        empleados_out.append(PlanillaPreviewEmpleadoOut(
+            id=emp_id, nombre_completo=fila.get("nombreCompleto"), cargo=fila.get("cargo"),
+            area=fila.get("area"), iniciales=fila.get("iniciales", "?"),
+            foto_url=fila.get("fotoUrl", ""), tipo_contrato=fila["tipo_contrato"],
+            codigo=fila.get("codigo"), tipo_documento=fila.get("tipo_documento"),
+            numero_documento=fila.get("numero_documento"), cuspp=fila.get("cuspp"),
+            fecha_ingreso=fila.get("fecha_ingreso"),
+            horas_reales=fila["horas_reales"], horas_justificadas=fila["horas_justificadas"],
+            horas_total=fila["horas_total"], horas_faltantes=fila["horas_faltantes"],
+            horas_extra=fila["horas_extra"], horas_extra_aprobadas=fila["horas_extra_aprobadas"],
+            horas_extra_no_autor=fila["horas_extra_no_autor"], dias_laborados=fila["dias_laborados"],
+            meta_horas=fila["meta_horas"], porcentaje=fila["porcentaje"],
+            advertencias=fila["advertencias"],
+            sistema_pension=insumo.sistema_pension, entidad_afp=insumo.entidad_afp,
+            comision_afp_personalizada=insumo.comision_afp_personalizada,
+            comision_afp_pct=desglose.comision_afp_pct,
+            tiene_asignacion_familiar=insumo.tiene_asignacion_familiar,
+            sueldo_base=insumo.sueldo_base, sueldo_periodo=desglose.sueldo_periodo,
+            valor_dia=desglose.valor_dia, valor_hora=desglose.valor_hora,
+            valor_minuto=desglose.valor_minuto, dias_faltantes=desglose.dias_faltantes,
+            minutos_tardanza=desglose.minutos_tardanza,
+            descuento_dominical=desglose.descuento_dominical,
+            descuento_faltas=desglose.descuento_faltas, pago_horas_extra=desglose.pago_horas_extra,
+            asignacion_familiar=desglose.asignacion_familiar, es_afp=desglose.es_afp,
+            base_pension=desglose.base_pension, descuento_pension=desglose.descuento_pension,
+            afp_aporte_obligatorio=desglose.afp_aporte_obligatorio,
+            afp_prima_seguro=desglose.afp_prima_seguro, afp_comision=desglose.afp_comision,
+            renta_5ta=desglose.renta_5ta, total_ingresos=desglose.total_ingresos,
+            total_descuentos_legales=desglose.total_descuentos_legales,
+            neto_a_pagar=desglose.neto_a_pagar, aporte_essalud=desglose.aporte_essalud,
+            provision_cts=desglose.provision_cts,
+            provision_gratificacion=desglose.provision_gratificacion,
+            provision_vacaciones=desglose.provision_vacaciones,
+            dias_vacaciones=desglose.dias_vacaciones, bajo_rmv=desglose.bajo_rmv,
+        ))
+
+    # Mismo criterio de orden que /rrhh/asistencia/resumen (déficit de horas
+    # primero), luego paginación en memoria.
+    empleados_out.sort(key=lambda e: e.horas_faltantes, reverse=True)
+    total = len(empleados_out)
+    offset = (page - 1) * limit
+    pagina = empleados_out[offset: offset + limit]
+
+    dias_lab_ef = [
+        d for d in _dias_laborables_rango(fecha_inicio, fecha_fin)
+    ]
+    meta_horas_global = len(dias_lab_ef) * 8.0
+
+    return PlanillaPreviewOut(
+        periodo=PeriodoPreviewOut(fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, meta_horas=meta_horas_global),
+        regimen_empresa=regimen_empresa, esquema_pago=esquema_pago, periodo_pago=periodo_pago,
+        empleados=pagina, total=total, page=page, limit=limit,
+        total_paginas=max(1, -(-total // limit)),
+    )
+
+
+def _dias_laborables_rango(inicio: date, fin: date) -> list[date]:
+    """Días L-V del rango, sin descontar feriados (solo para el chip global
+    de meta_horas del preview — no participa en el cálculo por empleado, que
+    ya usa la meta real de `resumen_horas_periodo`, considerando turno propio
+    y feriados)."""
+    from ..routers.rrhh_asistencia import _dias_laborables
+    return _dias_laborables(inicio, fin)
 
 
 # ── Planilla ─────────────────────────────────────────────────────────────────

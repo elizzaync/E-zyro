@@ -137,6 +137,99 @@ class SueldoBaseUpdate(BaseModel):
         return v
 
 
+# ── Vista previa de planilla (Fase 8, GET /planilla/preview) ────────────────
+# NO persiste nada — combina resumen_horas_periodo (asistencia real) +
+# calcular_boleta_empleado (motor legal puro) para mostrar el desglose
+# completo de cada empleado antes de comprometerlo con POST /calcular.
+
+class PeriodoPreviewOut(BaseModel):
+    fecha_inicio: date
+    fecha_fin: date
+    meta_horas: float
+
+
+class PlanillaPreviewEmpleadoOut(BaseModel):
+    # Identidad / asistencia (paridad con ResumenEmpleadoDto del frontend)
+    id: str
+    nombre_completo: Optional[str] = None
+    cargo: Optional[str] = None
+    area: Optional[str] = None
+    iniciales: str
+    foto_url: str
+    tipo_contrato: str
+    codigo: Optional[str] = None
+    tipo_documento: Optional[str] = None
+    numero_documento: Optional[str] = None
+    cuspp: Optional[str] = None
+    fecha_ingreso: Optional[date] = None
+    horas_reales: float
+    horas_justificadas: float
+    horas_total: float
+    horas_faltantes: float
+    horas_extra: float
+    horas_extra_aprobadas: float = 0
+    horas_extra_no_autor: float = 0
+    dias_laborados: int = 0
+    meta_horas: float
+    porcentaje: float
+    advertencias: int = 0
+
+    # Configuración previsional vigente (para reflejar selects sin otra llamada)
+    sistema_pension: str
+    entidad_afp: Optional[str] = None
+    comision_afp_personalizada: Optional[Decimal] = None
+    comision_afp_pct: Decimal
+    tiene_asignacion_familiar: bool
+
+    sueldo_base: Decimal
+    sueldo_periodo: Decimal
+
+    valor_dia: Decimal
+    valor_hora: Decimal
+    valor_minuto: Decimal
+
+    dias_faltantes: int
+    minutos_tardanza: int
+    descuento_dominical: Decimal
+    descuento_faltas: Decimal
+
+    pago_horas_extra: Decimal
+    asignacion_familiar: Decimal
+
+    es_afp: bool
+    base_pension: Decimal
+    descuento_pension: Decimal
+    afp_aporte_obligatorio: Decimal
+    afp_prima_seguro: Decimal
+    afp_comision: Decimal
+
+    renta_5ta: Decimal
+
+    total_ingresos: Decimal
+    total_descuentos_legales: Decimal
+    neto_a_pagar: Decimal
+
+    aporte_essalud: Decimal
+    provision_cts: Decimal
+    provision_gratificacion: Decimal
+    provision_vacaciones: Decimal
+    dias_vacaciones: int
+
+    bajo_rmv: bool
+
+
+class PlanillaPreviewOut(BaseModel):
+    periodo: PeriodoPreviewOut
+    regimen_empresa: str
+    esquema_pago: str
+    periodo_pago: str
+    empleados: List[PlanillaPreviewEmpleadoOut]
+    total: int
+    page: int
+    limit: int
+    total_paginas: int
+
+
 class PlanillaOut(BaseModel):
     id: str
     periodo_id: str
