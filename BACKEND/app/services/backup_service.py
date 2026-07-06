@@ -189,9 +189,12 @@ def _dump_bd(destino: Path, job_id: str | None = None) -> None:
 
 # ── Fuente 2: archivos en Cloudinary (PDFs raw + imágenes + video) ──────────
 
-def _listar_cloudinary(desde: datetime | None, job_id: str | None = None) -> list[dict]:
+def _listar_cloudinary(desde: datetime | None, hasta: datetime | None = None,
+                       job_id: str | None = None) -> list[dict]:
     """Lista recursos de Cloudinary por prefijo/resource_type, paginando.
-    Si `desde` viene, filtra client-side por created_at (incremental)."""
+    Si `desde` viene, filtra client-side por created_at (incremental).
+    Si `hasta` viene, excluye lo subido después (regeneración de un job viejo:
+    reproduce la ventana original en vez de empaquetar cosas nuevas)."""
     import cloudinary.api  # config ya inicializada por app.core.config_cloudinary
     recursos: list[dict] = []
     for rt in RESOURCE_TYPES:
@@ -210,10 +213,12 @@ def _listar_cloudinary(desde: datetime | None, job_id: str | None = None) -> lis
                     break
                 for r in resp.get("resources", []):
                     creado = r.get("created_at")  # ISO "2026-07-05T10:00:00Z"
-                    if desde and creado:
+                    if (desde or hasta) and creado:
                         try:
                             dt = datetime.fromisoformat(creado.replace("Z", "+00:00")).replace(tzinfo=None)
-                            if dt <= desde:
+                            if desde and dt <= desde:
+                                continue
+                            if hasta and dt > hasta:
                                 continue
                         except ValueError:
                             pass
@@ -503,6 +508,66 @@ def ejecutar_backup(job_id: str, *, notificar: bool, enviar_correo: bool = False
     finally:
         _limpiar_cancelacion(job_id)
         db.close()
+
+
+# ── Regeneración al vuelo (descarga de jobs cuyo artefacto ya no está) ──────
+
+def _ventana_incremental(db: Session, job: BackupJob) -> datetime:
+    """`desde` que usó (o habría usado) el incremental original: la fecha del
+    backup de archivos completado inmediatamente anterior a este job."""
+    prev = (db.query(BackupJob.fecha_inicio)
+              .filter(BackupJob.contenido.contains("cloudinary"),
+                      BackupJob.estado == "completado",
+                      BackupJob.id != job.id,
+                      BackupJob.fecha_inicio < job.fecha_inicio)
+              .order_by(BackupJob.fecha_inicio.desc())
+              .first())
+    return prev.fecha_inicio if prev else job.fecha_inicio - timedelta(days=7)
+
+
+def regenerar_artefacto(db: Session, job: BackupJob) -> Path:
+    """Reconstruye el artefacto de un job completado cuyo archivo ya no está
+    en disco (efímero tras redeploy / borrado por retención). Las fuentes
+    reales siguen existiendo, así que TODO backup con contenido es
+    regenerable: la BD con un dump nuevo y los archivos reempaquetando desde
+    Cloudinary la MISMA ventana temporal del job original (assets borrados de
+    Cloudinary después de esa corrida ya no pueden incluirse; queda anotado
+    en el manifest). Lanza RuntimeError si el job no produjo artefacto
+    (incremental sin novedades)."""
+    destino_dir = _ensure_dir()
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    partes: list[Path] = []
+    try:
+        if "bd" in job.contenido:
+            dump = destino_dir / f"bd_regen_{stamp}_{job.id[:8]}.sql"
+            _dump_bd(dump)
+            partes.append(dump)
+
+        # Solo si la corrida original SÍ empaquetó algo (tamano_bytes seteado);
+        # un incremental "sin novedades" no tiene nada que regenerar.
+        if "cloudinary" in job.contenido and job.tamano_bytes:
+            desde = _ventana_incremental(db, job) if job.nivel == "archivos_incremental" else None
+            recursos = _listar_cloudinary(desde, hasta=job.fecha_inicio)
+            tar_path = destino_dir / f"archivos_regen_{stamp}_{job.id[:8]}.tar.gz"
+            _empaquetar_archivos(recursos, tar_path)
+            partes.append(tar_path)
+
+        if not partes:
+            raise RuntimeError("este backup no generó artefacto (corrida sin novedades)")
+
+        if len(partes) > 1:
+            paquete = destino_dir / f"backup_completo_regen_{stamp}_{job.id[:8]}.tar.gz"
+            with tarfile.open(paquete, "w:gz") as tar:
+                for p in partes:
+                    tar.add(p, arcname=p.name)
+            for p in partes:
+                p.unlink(missing_ok=True)
+            return paquete
+        return partes[0]
+    except Exception:
+        for p in partes:
+            p.unlink(missing_ok=True)
+        raise
 
 
 # ── Rotación GFS ─────────────────────────────────────────────────────────────

@@ -96,7 +96,11 @@ def _out(db: Session, j: BackupJob) -> BackupJobOut:
         u = db.query(Usuario.nombre).filter(Usuario.id == j.disparado_por).first()
         nombre = u.nombre if u else None
     tiene_archivo = bool(j.ubicacion) and Path(j.ubicacion).exists()
-    regenerable = j.estado == "completado" and j.contenido == "bd"
+    # Regenerable = las fuentes siguen existiendo: la BD siempre (dump nuevo) y
+    # los paquetes de archivos si la corrida original empaquetó algo (se
+    # reconstruyen desde Cloudinary con la misma ventana). Lo único NO
+    # descargable es el incremental "sin novedades" (nunca hubo artefacto).
+    regenerable = j.estado == "completado" and ("bd" in j.contenido or bool(j.tamano_bytes))
     dur = None
     if j.fecha_fin and j.fecha_inicio:
         dur = round((j.fecha_fin - j.fecha_inicio).total_seconds(), 1)
@@ -312,17 +316,16 @@ def descargar_backup(
 
     ruta = Path(j.ubicacion) if j.ubicacion else None
     if not ruta or not ruta.exists():
-        if j.contenido != "bd":
-            raise HTTPException(
-                status_code=410,
-                detail="El artefacto ya no está en el servidor (redeploy). Genera un backup nuevo.",
-            )
-        # Regeneración al vuelo: un dump tarda segundos (SQL plano, igual que los nuevos)
-        destino = backup_service._ensure_dir() / f"bd_regen_{datetime.now():%Y%m%d_%H%M%S}_{j.id[:8]}.sql"
+        # Regeneración al vuelo para CUALQUIER tipo (bd, archivos, completo):
+        # la BD con un dump nuevo y los archivos reempaquetando desde Cloudinary
+        # la misma ventana del job original. Solo el incremental "sin novedades"
+        # es irrecuperable (nunca produjo artefacto) → 410.
         try:
-            backup_service._dump_bd(destino)
+            destino = backup_service.regenerar_artefacto(db, j)
+        except RuntimeError as e:
+            raise HTTPException(status_code=410, detail=f"No hay nada que descargar: {e}")
         except Exception as e:
-            raise HTTPException(status_code=500, detail=f"No se pudo regenerar el dump: {e}")
+            raise HTTPException(status_code=500, detail=f"No se pudo regenerar el backup: {e}")
         j.ubicacion    = str(destino)
         j.tamano_bytes = destino.stat().st_size
         j.hash_sha256  = backup_service._sha256(destino)
