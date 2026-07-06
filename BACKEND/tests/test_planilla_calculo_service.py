@@ -43,26 +43,29 @@ def test_caso_a_dependiente_onp_general_con_extras_y_faltas():
         sistema_pension="onp", tiene_asignacion_familiar=True,
         regimen_empresa="general",
     )
+    # Informativos (ya no afectan el dinero, solo describen la asistencia)
     assert d.dias_faltantes == 1
     assert d.minutos_tardanza == 120
     assert q2(d.descuento_dominical) == Decimal("2.78")
-    assert q2(d.descuento_faltas) == Decimal("106.94")
+    # Sueldo devengado: proporcional a (meta_horas - horas_faltantes)/meta_horas = 166/176
+    assert q2(d.sueldo_devengado) == Decimal("2357.95")
+    assert q2(d.descuento_faltas) == Decimal("142.05")          # informativo: 2500 - 2357.95
     assert d.horas_extra == Decimal(4)
     assert q2(d.pago_horas_extra) == Decimal("54.17")          # 2h@25% + 2h@35%
     assert q2(d.asignacion_familiar) == Decimal("113.00")       # 10% RMV, régimen general
     assert d.es_afp is False
-    assert q2(d.base_pension) == Decimal("2560.22")
-    assert q2(d.descuento_pension) == Decimal("332.83")         # ONP 13% plano
+    assert q2(d.base_pension) == Decimal("2525.12")
+    assert q2(d.descuento_pension) == Decimal("328.27")         # ONP 13% plano sobre la base ya proporcional
     assert q2(d.afp_aporte_obligatorio) == Decimal("0.00")
     assert d.renta_5ta == Decimal(0)                            # no supera las 7 UIT de deducción
-    assert q2(d.total_ingresos) == Decimal("2667.17")
-    assert q2(d.total_descuentos_legales) == Decimal("439.77")
-    assert q2(d.neto_a_pagar) == Decimal("2227.39")
-    # Informativos: NO deben tocar el neto ni los ingresos
-    assert q2(d.aporte_essalud) == Decimal("225.00")
-    assert q2(d.provision_cts) == Decimal("208.33")
-    assert q2(d.provision_gratificacion) == Decimal("416.67")
-    assert q2(d.provision_vacaciones) == Decimal("208.33")
+    assert q2(d.total_ingresos) == Decimal("2525.12")
+    assert q2(d.total_descuentos_legales) == Decimal("328.27")
+    assert q2(d.neto_a_pagar) == Decimal("2196.86")
+    # Informativos (EsSalud/provisiones): sobre lo DEVENGADO, no el sueldo teórico completo
+    assert q2(d.aporte_essalud) == Decimal("212.22")
+    assert q2(d.provision_cts) == Decimal("196.50")
+    assert q2(d.provision_gratificacion) == Decimal("392.99")
+    assert q2(d.provision_vacaciones) == Decimal("196.50")
     assert d.dias_vacaciones == 30
     assert d.bajo_rmv is False
 
@@ -106,12 +109,50 @@ def test_caso_c_practicante():
     assert q2(d.provision_cts) == Decimal("0.00")
     assert q2(d.provision_gratificacion) == Decimal("0.00")
     assert q2(d.provision_vacaciones) == Decimal("0.00")
-    # Tarifa simple en horas faltantes (sin recargo), pero SÍ hay descuento por faltas
-    assert q2(d.descuento_faltas) == Decimal("20.00")
+    # Sueldo devengado proporcional: (176-4)/176 = 172/176 de 1200
+    assert q2(d.sueldo_devengado) == Decimal("1172.73")
+    assert q2(d.descuento_faltas) == Decimal("27.27")            # informativo
     # Fidelidad deliberada: EsSalud se calcula IGUAL para practicantes (no
     # condicionado por es_dependiente en el original) — no es un bug, se copia tal cual.
-    assert q2(d.aporte_essalud) == Decimal("108.00")
-    assert q2(d.neto_a_pagar) == Decimal("1180.00")
+    # Ahora sobre lo devengado, no sobre el sueldo teórico completo.
+    assert q2(d.aporte_essalud) == Decimal("105.55")
+    assert q2(d.neto_a_pagar) == Decimal("1172.73")
+
+
+# ── Caso H: 100% de inasistencia — el neto DEBE ser exactamente 0 ──────────
+def test_caso_h_inasistencia_total_no_debe_pagar_nada():
+    """Escenario reportado por el usuario: sueldo 1200, mes entero sin marcar
+    asistencia (horas_faltantes == meta_horas). Antes de la corrección esto
+    dejaba un residuo (~S/73) por el método de 'descuento aproximado sobre
+    sueldo completo'; ahora el sueldo devengado es proporcional y da 0 exacto."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(1200),
+        horas_faltantes=Decimal(216), horas_reales=Decimal(0), meta_horas=Decimal(216),
+        sistema_pension="onp", tiene_asignacion_familiar=False, regimen_empresa="micro",
+    )
+    assert q2(d.sueldo_devengado) == Decimal("0.00")
+    assert q2(d.descuento_faltas) == Decimal("1200.00")          # informativo: se perdió el sueldo completo
+    assert q2(d.total_ingresos) == Decimal("0.00")
+    assert q2(d.descuento_pension) == Decimal("0.00")
+    assert q2(d.neto_a_pagar) == Decimal("0.00")
+    assert q2(d.aporte_essalud) == Decimal("0.00")               # tampoco se aporta EsSalud sobre nada devengado
+
+
+# ── Caso I: practicante con turno reducido, asistencia completa ────────────
+def test_caso_i_turno_reducido_con_asistencia_completa_cobra_el_100pct():
+    """meta_horas ya viene resuelta por el TURNO específico del empleado
+    (Fase 0, resumen_horas_periodo) — un practicante con una jornada más
+    corta que la estándar de 8h NO debe verse penalizado por eso: si cumple
+    SU turno completo, cobra el 100% de su sueldo, sin importar que sea menos
+    horas que un puesto de jornada completa."""
+    d = calc(
+        tipo_contrato="practicante", sueldo_base=Decimal(600),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(88), meta_horas=Decimal(88),
+        sistema_pension="onp", tiene_asignacion_familiar=False, regimen_empresa="general",
+    )
+    assert q2(d.sueldo_devengado) == Decimal("600.00")
+    assert q2(d.descuento_faltas) == Decimal("0.00")
+    assert q2(d.neto_a_pagar) == Decimal("600.00")
 
 
 # ── Caso D: sueldo bajo la RMV ───────────────────────────────────────────────
@@ -164,8 +205,15 @@ def test_caso_f_quincena_divide_sueldo_a_la_mitad():
     assert q2(d.valor_dia) == Decimal("100.00")                  # 3000/30, no 1500/30
 
 
-# ── Caso G: descuento_tardanza_auto = False tiene efecto real ──────────────
-def test_caso_g_descuento_tardanza_auto_desactivado():
+# ── Caso G: descuento_tardanza_auto ya no tiene efecto monetario ───────────
+def test_caso_g_descuento_tardanza_auto_es_no_op_bajo_el_modelo_proporcional():
+    """Con el modelo corregido (sueldo devengado proporcional a la asistencia
+    real), la tardanza YA queda reflejada en horas_faltantes/meta_horas — no
+    hay un término aparte de 'minutos de tardanza × valor minuto' que este
+    flag pudiera apagar. Se preserva el parámetro por compatibilidad de
+    config (Empresa.descuento_tardanza_auto, Fase 1), pero debe dar el mismo
+    resultado con True o False: si algún día deja de ser así, esta prueba
+    avisa del cambio de contrato."""
     base_kwargs = dict(
         tipo_contrato="planilla", sueldo_base=Decimal(2000),
         horas_faltantes=Decimal(2), horas_reales=Decimal(174), meta_horas=Decimal(176),
@@ -175,11 +223,9 @@ def test_caso_g_descuento_tardanza_auto_desactivado():
     sin_auto = calc(**base_kwargs, descuento_tardanza_auto=False)
 
     assert con_auto.minutos_tardanza == sin_auto.minutos_tardanza == 120
-    # Con el descuento automático activo, la tardanza SÍ se descuenta
-    assert q2(con_auto.descuento_faltas) == Decimal("16.67")
-    # Desactivado, el término de tardanza se omite (día completo y dominical
-    # igual dan 0 porque con 2h faltantes no hay ningún día completo perdido)
-    assert q2(sin_auto.descuento_faltas) == Decimal("0.00")
+    assert con_auto == sin_auto
+    assert q2(con_auto.sueldo_devengado) == Decimal("1977.27")
+    assert q2(con_auto.neto_a_pagar) == Decimal("1720.23")
 
 
 # ── Defaults y validaciones puntuales ───────────────────────────────────────

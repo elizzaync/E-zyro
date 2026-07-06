@@ -183,6 +183,7 @@ class PlanillaPreviewEmpleadoOut(BaseModel):
 
     sueldo_base: Decimal
     sueldo_periodo: Decimal
+    sueldo_devengado: Decimal   # sueldo_periodo ya proporcional a la asistencia real
 
     valor_dia: Decimal
     valor_hora: Decimal

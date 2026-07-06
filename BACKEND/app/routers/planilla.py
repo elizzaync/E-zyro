@@ -297,6 +297,7 @@ def preview_planilla(
             comision_afp_pct=desglose.comision_afp_pct,
             tiene_asignacion_familiar=insumo.tiene_asignacion_familiar,
             sueldo_base=insumo.sueldo_base, sueldo_periodo=desglose.sueldo_periodo,
+            sueldo_devengado=desglose.sueldo_devengado,
             valor_dia=desglose.valor_dia, valor_hora=desglose.valor_hora,
             valor_minuto=desglose.valor_minuto, dias_faltantes=desglose.dias_faltantes,
             minutos_tardanza=desglose.minutos_tardanza,

@@ -22,6 +22,25 @@ Reglas de fidelidad (no negociables sin volver a esta fuente):
   - `entidad_afp` sin definir cae a 'integra' (mismo default que
     `getAfpEntidad()` en el TS).
 
+CORRECCIÓN DELIBERADA respecto al TS original (a pedido explícito del
+usuario, 2026-07-06 — esto SÍ se corrige, a diferencia de las fidelidades de
+arriba): el TS calculaba el pago base como "sueldo completo del período menos
+un descuento aproximado por falta" (días completos ÷ 30 + una pequeña
+corrección dominical), lo que dejaba un residuo de pago incluso con 100% de
+inasistencia (ej. sueldo 1200, mes entero sin marcar asistencia → seguía
+abonando ~S/73). Aquí el sueldo DEVENGADO se calcula proporcional a las horas
+realmente trabajadas/justificadas frente a la meta del período
+(`sueldo_devengado = sueldo_periodo × (meta_horas − horas_faltantes) /
+meta_horas`), consistente con que `horas_reales` ya refleja fielmente
+tardanzas (la duración entrada-salida ya sale más corta si llegó tarde, sin
+descuento adicional que la duplique) y con la meta por turno de cada
+empleado (practicantes u otros con jornada reducida cobran el 100% de SU
+turno si lo cumplen, no se les exige la jornada estándar de 8h). Consecuencia
+correcta: 0% de asistencia ⇒ sueldo devengado = 0 ⇒ neto = 0. `dias_faltantes`/
+`minutos_tardanza`/`descuento_dominical` se conservan como campos
+INFORMATIVOS (para mostrar en la boleta "por qué"), ya no participan en el
+cálculo del neto — el descuento real ya está reflejado en `sueldo_devengado`.
+
 Fuentes legales (idénticas al comentario original en TypeScript): SUNAFIL,
 MTPE, SUNAT, SBS, Ley N.° 32353 (clasificación empresarial), D.L. 19990
 (ONP), D.L. 25897 (AFP), D.L. 854 (jornada), Ley 28518 (modalidades
@@ -100,6 +119,7 @@ class InsumoEmpleado:
 class DesgloseBoleta:
     """Resultado completo del cálculo — 1:1 con lo que hoy muestra la boleta."""
     sueldo_periodo: Decimal
+    sueldo_devengado: Decimal   # sueldo_periodo ya proporcional a lo asistido (ver corrección arriba)
     valor_dia: Decimal
     valor_hora: Decimal
     valor_minuto: Decimal
@@ -178,24 +198,37 @@ def calcular_boleta_empleado(
     valor_hora = valor_dia / HORAS_JORNADA
     valor_minuto = valor_hora / Decimal(60)
 
-    # Faltas / tardanzas (D.S. 001-96-TR: descuento dominical por cada día
-    # de inasistencia injustificada).
+    # Faltas / tardanzas — SOLO INFORMATIVO (desglose para mostrar en la
+    # boleta "por qué"). El descuento real de dinero ya no pasa por aquí:
+    # ver sueldo_devengado más abajo (corrección deliberada, ver docstring
+    # del módulo). `descuento_tardanza_auto` ya no tiene efecto monetario
+    # directo — se preserva el parámetro por compatibilidad de firma/config,
+    # pero la proporción de asistencia ya captura cualquier tardanza real
+    # (horas_reales sale más corto si el empleado marcó tarde).
     horas_faltantes_int = insumo.horas_faltantes
     dias_faltantes_dec = (horas_faltantes_int / HORAS_JORNADA).to_integral_value(rounding="ROUND_FLOOR")
     dias_faltantes = int(dias_faltantes_dec)
     minutos_tardanza_dec = (horas_faltantes_int % HORAS_JORNADA) * Decimal(60)
     minutos_tardanza = int(minutos_tardanza_dec.to_integral_value(rounding="ROUND_HALF_UP"))
-
     descuento_dominical = Decimal(dias_faltantes) * valor_dia / DIVISOR_DIA
 
-    if insumo.horas_faltantes <= CERO:
-        descuento_faltas = CERO
+    # Sueldo DEVENGADO: proporcional a lo realmente asistido/justificado
+    # frente a la meta del período (ya sea la jornada estándar o el turno
+    # específico del empleado — meta_horas ya viene resuelta por turno desde
+    # `resumen_horas_periodo`). horas_faltantes siempre cae en [0, meta_horas]
+    # por construcción, así que la proporción siempre cae en [0, 1].
+    if insumo.meta_horas > CERO:
+        proporcion_asistencia = max(CERO, min(
+            Decimal(1), (insumo.meta_horas - insumo.horas_faltantes) / insumo.meta_horas
+        ))
     else:
-        dias_desc = Decimal(dias_faltantes) * valor_dia
-        tardanza_desc = Decimal(minutos_tardanza) * valor_minuto
-        if not descuento_tardanza_auto:
-            tardanza_desc = CERO  # respeta Empresa.descuento_tardanza_auto (Fase 2 del modelo)
-        descuento_faltas = dias_desc + descuento_dominical + tardanza_desc
+        proporcion_asistencia = Decimal(1)  # sin meta definida (ej. rango sin días laborables): no penalizar
+    sueldo_devengado = sueldo_periodo * proporcion_asistencia
+    # descuento_faltas ahora es informativo: cuánto del sueldo del período NO
+    # se devengó por inasistencia. Ya está reflejado en sueldo_devengado, no
+    # se vuelve a restar en total_descuentos_legales (evita duplicar el
+    # descuento).
+    descuento_faltas = sueldo_periodo - sueldo_devengado
 
     # Horas extra: recargo legal 25%/35% (DL 854) solo para dependientes;
     # practicantes a tarifa simple (Ley 28518, sin "sobretiempo" legal).
@@ -217,11 +250,12 @@ def calcular_boleta_empleado(
         mensual = RMV_VIGENTE * ASIG_FAMILIAR_PCT
         asignacion_familiar = mensual if es_mes else mensual / Decimal(2)
 
-    # Base imponible para pensiones = remuneración computable del período.
+    # Base imponible para pensiones = remuneración computable del período
+    # (ya con sueldo_devengado, que refleja la asistencia real).
     if not dependiente:
         base_pension = CERO
     else:
-        base = sueldo_periodo - descuento_faltas + pago_horas_extra + asignacion_familiar
+        base = sueldo_devengado + pago_horas_extra + asignacion_familiar
         base_pension = max(CERO, base)
 
     es_afp = dependiente and insumo.sistema_pension == "afp"
@@ -240,26 +274,28 @@ def calcular_boleta_empleado(
     afp_prima_seguro = base_pension * AFP_SEGURO_PCT if es_afp else CERO
     afp_comision = base_pension * comision_pct if es_afp else CERO
 
-    # EsSalud: costo del EMPLEADOR, nunca se descuenta al trabajador. Fidelidad
-    # deliberada: el TS lo calcula para AMBAS modalidades (no está condicionado
-    # por es_dependiente) — se copia tal cual, no se "corrige" aquí.
-    aporte_essalud = sueldo_periodo * ESSALUD_PCT
+    # EsSalud: costo del EMPLEADOR, nunca se descuenta al trabajador. Sobre
+    # sueldo_devengado (no se aporta EsSalud sobre remuneración no devengada).
+    # Fidelidad deliberada: se calcula para AMBAS modalidades (no está
+    # condicionado por es_dependiente en el original) — se copia tal cual.
+    aporte_essalud = sueldo_devengado * ESSALUD_PCT
 
     # CTS / Gratificación / Vacaciones: SOLO informativos (provisión
-    # mensualizada). NO afectan el neto de este mes — se pagan en su fecha
-    # legal real (CTS mayo/noviembre, gratificación julio/diciembre).
+    # mensualizada sobre lo devengado). NO afectan el neto de este mes — se
+    # pagan en su fecha legal real (CTS mayo/noviembre, gratificación
+    # julio/diciembre).
     if not dependiente or regimen_empresa == "micro":
         provision_cts = CERO
         provision_gratificacion = CERO
     else:
         factor_cts = CTS_GENERAL_FACTOR if regimen_empresa == "general" else CTS_PEQUENA_FACTOR
         factor_grat = GRATIF_GENERAL_FACTOR if regimen_empresa == "general" else GRATIF_PEQUENA_FACTOR
-        provision_cts = sueldo_periodo * factor_cts
-        provision_gratificacion = sueldo_periodo * factor_grat
+        provision_cts = sueldo_devengado * factor_cts
+        provision_gratificacion = sueldo_devengado * factor_grat
 
     dv = dias_vacaciones(regimen_empresa)
     provision_vacaciones = (
-        sueldo_periodo * (Decimal(dv) / Decimal(360)) if dependiente else CERO
+        sueldo_devengado * (Decimal(dv) / Decimal(360)) if dependiente else CERO
     )
 
     # Renta de 5ta categoría — proyección anual, tramos progresivos.
@@ -281,14 +317,18 @@ def calcular_boleta_empleado(
             impuesto_mensual = impuesto_anual / Decimal(12)
             renta_5ta = impuesto_mensual if es_mes else impuesto_mensual / Decimal(2)
 
-    total_ingresos = sueldo_periodo + pago_horas_extra + asignacion_familiar
-    total_descuentos_legales = descuento_faltas + descuento_pension + renta_5ta
+    # total_ingresos parte de sueldo_devengado (ya proporcional a la
+    # asistencia real) — el descuento por faltas NO se resta de nuevo en
+    # total_descuentos_legales (sería duplicarlo). Los únicos descuentos
+    # "legales" reales son pensión y renta de 5ta.
+    total_ingresos = sueldo_devengado + pago_horas_extra + asignacion_familiar
+    total_descuentos_legales = descuento_pension + renta_5ta
     neto_a_pagar = CERO if sueldo_periodo <= CERO else max(CERO, total_ingresos - total_descuentos_legales)
 
     bajo_rmv = insumo.sueldo_base > CERO and insumo.sueldo_base < RMV_VIGENTE
 
     return DesgloseBoleta(
-        sueldo_periodo=sueldo_periodo,
+        sueldo_periodo=sueldo_periodo, sueldo_devengado=sueldo_devengado,
         valor_dia=valor_dia, valor_hora=valor_hora, valor_minuto=valor_minuto,
         dias_faltantes=dias_faltantes, minutos_tardanza=minutos_tardanza,
         descuento_dominical=descuento_dominical, descuento_faltas=descuento_faltas,
