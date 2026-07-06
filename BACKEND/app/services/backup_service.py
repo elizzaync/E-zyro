@@ -407,6 +407,67 @@ def crear_job(db: Session, *, tipo: str, nivel: str, contenido: str,
     return job
 
 
+def _dedup_autos(db: Session, job: BackupJob) -> None:
+    """Evita que los backups automáticos acumulen filas equivalentes en el
+    historial. Se llama al completar un job tipo='auto':
+
+    - SIN información nueva → se "actualiza" el mismo backup: la fila recién
+      completada reemplaza a las anteriores equivalentes (mismas fuentes, nada
+      nuevo), que se borran junto con su artefacto:
+        · incremental de archivos "sin novedades" (sin artefacto): colapsa las
+          filas auto vacías anteriores del mismo nivel — queda solo la última
+          (= "verificado por última vez a las X").
+        · dump de BD con el MISMO SHA-256 que un auto anterior: la BD no
+          cambió; se borra la fila vieja y su archivo. La nueva hereda la
+          retención más larga para no romper la promoción GFS
+          (diario→semanal→mensual).
+    - CON información nueva (hash distinto / archivos nuevos) → no borra nada:
+      fila nueva normal.
+
+    Los backups manuales JAMÁS se tocan. Best-effort: si falla, el backup ya
+    quedó completado y solo se pierde la limpieza (rollback + warning)."""
+    if job.tipo != "auto" or job.estado != "completado":
+        return
+    try:
+        if "cloudinary" in job.contenido and not job.tamano_bytes:
+            previas = (db.query(BackupJob)
+                         .filter(BackupJob.tipo == "auto",
+                                 BackupJob.nivel == job.nivel,
+                                 BackupJob.estado == "completado",
+                                 BackupJob.id != job.id,
+                                 BackupJob.tamano_bytes.is_(None))
+                         .all())
+            for p in previas:
+                db.delete(p)
+            if previas:
+                db.commit()
+                logger.info("Dedup backups: %d filas 'sin novedades' (%s) colapsadas en %s",
+                            len(previas), job.nivel, job.id[:8])
+
+        elif job.contenido == "bd" and job.hash_sha256:
+            previas = (db.query(BackupJob)
+                         .filter(BackupJob.tipo == "auto",
+                                 BackupJob.contenido == "bd",
+                                 BackupJob.estado == "completado",
+                                 BackupJob.id != job.id,
+                                 BackupJob.hash_sha256 == job.hash_sha256)
+                         .all())
+            if previas:
+                mejor = max(previas, key=lambda p: p.expira_en or date.min)
+                if mejor.expira_en and job.expira_en and mejor.expira_en > job.expira_en:
+                    job.nivel, job.retencion, job.expira_en = mejor.nivel, mejor.retencion, mejor.expira_en
+                for p in previas:
+                    if p.ubicacion:
+                        Path(p.ubicacion).unlink(missing_ok=True)
+                    db.delete(p)
+                db.commit()
+                logger.info("Dedup backups: BD sin cambios (sha %s…), %d filas viejas "
+                            "reemplazadas por %s", job.hash_sha256[:10], len(previas), job.id[:8])
+    except Exception as e:
+        db.rollback()
+        logger.warning("Dedup de backups auto falló (no crítico): %s", e)
+
+
 def ejecutar_backup(job_id: str, *, notificar: bool, enviar_correo: bool = False,
                     incremental_desde: datetime | None = None) -> None:
     """Ejecuta el backup de la fila `job_id`. Diseñada para correr en un hilo
@@ -464,6 +525,7 @@ def ejecutar_backup(job_id: str, *, notificar: bool, enviar_correo: bool = False
                 job.error_detalle = None
                 job.ubicacion = None
                 db.commit()
+                _dedup_autos(db, job)  # colapsa los "sin novedades" anteriores
                 logger.info("Backup %s sin novedades (incremental vacío)", job.id)
                 return
 
@@ -473,6 +535,9 @@ def ejecutar_backup(job_id: str, *, notificar: bool, enviar_correo: bool = False
             job.estado       = "completado"
             job.fecha_fin    = datetime.utcnow()
             db.commit()
+            # Sin información nueva (mismo hash de BD) → esta fila REEMPLAZA a
+            # las auto anteriores equivalentes en vez de acumularse.
+            _dedup_autos(db, job)
 
             dur = (job.fecha_fin - job.fecha_inicio).total_seconds()
             logger.info("Backup %s completado en %.1fs — %s (%s)",
