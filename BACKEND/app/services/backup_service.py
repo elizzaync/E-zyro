@@ -239,7 +239,13 @@ def _listar_cloudinary(desde: datetime | None, hasta: datetime | None = None,
 def _empaquetar_archivos(recursos: list[dict], destino_tar: Path, job_id: str | None = None) -> int:
     """Descarga cada recurso y lo empaqueta en un .tar.gz junto a manifest.json.
     Devuelve cuántos archivos entraron. Los que fallan quedan anotados en el
-    manifiesto con error (el backup no se cae por un asset corrupto)."""
+    manifiesto con error (el backup no se cae por un asset corrupto).
+
+    El tar CONSERVA las carpetas reales de Cloudinary (taxonomía de
+    cloudinary_paths): e-zyro/{empresa}/evidencias/{proyecto}/{servicio}/...,
+    firmas/{contexto}/..., asistencia/{empleado}/{periodo}/..., etc. Así el
+    paquete se abre ya organizado por módulo/entidad en vez de un listado
+    plano. manifest.json queda en la raíz."""
     empaquetados = 0
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -249,16 +255,26 @@ def _empaquetar_archivos(recursos: list[dict], destino_tar: Path, job_id: str | 
             if not url:
                 r["error"] = "sin secure_url"
                 continue
-            # nombre plano y único dentro del tar (el public_id trae carpetas)
             ext = f".{r['format']}" if r.get("format") else ""
-            nombre = r["public_id"].replace("/", "__") + ext
+            # El public_id trae la ruta de carpetas: se reproduce dentro del tar
+            # (se sanea contra componentes vacíos o '..' por seguridad).
+            partes_pid = [p for p in r["public_id"].split("/") if p not in ("", ".", "..")]
+            if not partes_pid:
+                r["error"] = "public_id vacío"
+                continue
+            carpeta = tmp_path.joinpath(*partes_pid[:-1])
+            carpeta.mkdir(parents=True, exist_ok=True)
+            ruta_archivo = carpeta / (partes_pid[-1] + ext)
+            if ruta_archivo.exists():
+                # mismo public_id en otro resource_type (image vs raw): sufijo
+                ruta_archivo = carpeta / f"{partes_pid[-1]}__{r['resource_type']}{ext}"
             try:
                 with requests.get(url, stream=True, timeout=120) as resp:
                     resp.raise_for_status()
-                    with open(tmp_path / nombre, "wb") as f:
+                    with open(ruta_archivo, "wb") as f:
                         for chunk in resp.iter_content(1024 * 256):
                             f.write(chunk)
-                r["archivo_en_tar"] = nombre
+                r["archivo_en_tar"] = ruta_archivo.relative_to(tmp_path).as_posix()
                 empaquetados += 1
             except Exception as e:
                 r["error"] = str(e)[:300]
@@ -274,8 +290,8 @@ def _empaquetar_archivos(recursos: list[dict], destino_tar: Path, job_id: str | 
             json.dump(manifest, f, ensure_ascii=False, indent=1)
 
         with tarfile.open(destino_tar, "w:gz") as tar:
-            for archivo in sorted(tmp_path.iterdir()):
-                tar.add(archivo, arcname=archivo.name)
+            for archivo in sorted(p for p in tmp_path.rglob("*") if p.is_file()):
+                tar.add(archivo, arcname=archivo.relative_to(tmp_path).as_posix())
     return empaquetados
 
 
