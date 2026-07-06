@@ -35,7 +35,7 @@ from ..schemas.planilla import (
 )
 from ..services import planilla_service as planilla_svc
 from ..services.planilla_asistencia_service import resumen_horas_periodo
-from ..services.planilla_calculo_service import InsumoEmpleado, calcular_boleta_empleado
+from ..services.planilla_calculo_service import InsumoEmpleado, calcular_boleta_empleado, RMV_VIGENTE
 
 router = APIRouter(prefix="/planilla", tags=["planilla"])
 
@@ -335,6 +335,7 @@ def preview_planilla(
     return PlanillaPreviewOut(
         periodo=PeriodoPreviewOut(fecha_inicio=fecha_inicio, fecha_fin=fecha_fin, meta_horas=meta_horas_global),
         regimen_empresa=regimen_empresa, esquema_pago=esquema_pago, periodo_pago=periodo_pago,
+        rmv_vigente=RMV_VIGENTE,
         empleados=pagina, total=total, page=page, limit=limit,
         total_paginas=max(1, -(-total // limit)),
     )

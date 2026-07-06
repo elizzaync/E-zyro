@@ -224,6 +224,7 @@ class PlanillaPreviewOut(BaseModel):
     regimen_empresa: str
     esquema_pago: str
     periodo_pago: str
+    rmv_vigente: Decimal  # parámetro legal (D.S. 001-2025-TR) — evita duplicarlo en el frontend
     empleados: List[PlanillaPreviewEmpleadoOut]
     total: int
     page: int
