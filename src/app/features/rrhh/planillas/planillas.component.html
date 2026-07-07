@@ -92,6 +92,20 @@
     </div>
     }
 
+    @if (puedeEditar) {
+    <div class="config-block">
+      <span class="regimen-toggle-label">Pago de sobretiempo:</span>
+      <button class="pago-btn" [class.active]="!pagarHorasExtraSinTramite" (click)="setPagarHorasExtraSinTramite(false)"
+        title="Solo se paga el sobretiempo respaldado por un trámite de Permanencia Extra aprobado. El resto queda registrado como alerta, sin pagar.">
+        Solo con trámite aprobado
+      </button>
+      <button class="pago-btn" [class.active]="pagarHorasExtraSinTramite" (click)="setPagarHorasExtraSinTramite(true)"
+        title="Se paga TODO el sobretiempo registrado, tenga o no trámite aprobado (SUNAFIL presume autorización tácita con el solo registro de asistencia).">
+        Todo el sobretiempo registrado
+      </button>
+    </div>
+    }
+
   </div>
 
   <!-- ═══ CICLO REAL DE LA PLANILLA DEL MES: calcular → aprobar → pagar / anular ═══ -->
@@ -434,33 +448,52 @@
                 <div class="afp-pct-col">
                   <!-- Chip: total que se descuenta al trabajador -->
                   <div class="afp-total-chip"
-                    title="Total AFP descontado al trabajador: Aporte Obligatorio + Prima de Seguro + Comisión sobre flujo {{ (emp.comision_afp_pct * 100).toFixed(2) }}%">
+                    title="Total AFP descontado al trabajador: Aporte Obligatorio + Prima de Seguro + Comisión ({{ emp.tipo_comision_afp === 'flujo' ? (emp.comision_afp_pct * 100).toFixed(2) + '% sobre flujo' : '0% — esquema saldo' }})">
                     Total: {{ (pensionPct(emp) ?? 0) * 100 | number:'1.2-2' }}%
                   </div>
-                  <!-- Fila editable: solo la comisión sobre flujo (varía por AFP) -->
+                  <!-- Esquema de comisión SPP: saldo (default, no se descuenta en
+                       planilla) o flujo (se descuenta cada mes, comisión editable abajo) -->
                   @if (puedeEditar) {
-                  <div class="afp-pct-row"
-                    [class.comision-custom]="isComisionCustomizada(emp)"
-                    title="Comisión sobre flujo oficial de {{ afpEntidadLabel(emp) }}. Editar SOLO si la AFP te notificó un cambio de tasa.">
-                    <span class="afp-pct-label">Comis.:</span>
-                    <input class="afp-pct-input" type="number" min="0" max="50" step="0.01"
-                      [(ngModel)]="comisionDisplayMap[emp.id]"
-                      (blur)="onAfpComisionBlur(emp, comisionDisplayMap[emp.id])">
-                    <span class="afp-pct-label">%</span>
-                    @if (isComisionCustomizada(emp)) {
-                      <button class="comision-reset-btn"
-                        title="Restablecer a la tasa oficial de {{ afpEntidadLabel(emp) }}"
-                        type="button"
-                        (click)="resetComisionAfp(emp)">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.9-3.4M20 15A9 9 0 015.1 18.4"/>
-                        </svg>
-                      </button>
+                  <select class="pension-select afp-comision-esquema-select"
+                    [ngModel]="emp.tipo_comision_afp"
+                    (ngModelChange)="onTipoComisionAfpChange(emp, $event)"
+                    title="Esquema de comisión SPP: Saldo (default legal desde 2013, sobre el fondo acumulado, NO se descuenta en planilla) o Flujo (sobre la remuneración, SÍ se descuenta cada mes).">
+                    @for (t of tiposComisionAfp; track t.value) {
+                    <option [value]="t.value">{{ t.label }}</option>
                     }
-                  </div>
-                  @if (isComisionCustomizada(emp)) {
-                    <span class="comision-custom-badge" title="Tasa modificada manualmente — no es la tasa oficial de {{ afpEntidadLabel(emp) }}">personalizada</span>
+                  </select>
+                  } @else {
+                  <span class="pension-readonly">{{ emp.tipo_comision_afp === 'flujo' ? 'Esquema flujo' : 'Esquema saldo' }}</span>
                   }
+                  <!-- Fila editable: solo la comisión sobre flujo (varía por AFP) —
+                       solo tiene efecto si el esquema es 'flujo' -->
+                  @if (emp.tipo_comision_afp === 'flujo') {
+                    @if (puedeEditar) {
+                    <div class="afp-pct-row"
+                      [class.comision-custom]="isComisionCustomizada(emp)"
+                      title="Comisión sobre flujo oficial de {{ afpEntidadLabel(emp) }}. Editar SOLO si la AFP te notificó un cambio de tasa.">
+                      <span class="afp-pct-label">Comis.:</span>
+                      <input class="afp-pct-input" type="number" min="0" max="50" step="0.01"
+                        [(ngModel)]="comisionDisplayMap[emp.id]"
+                        (blur)="onAfpComisionBlur(emp, comisionDisplayMap[emp.id])">
+                      <span class="afp-pct-label">%</span>
+                      @if (isComisionCustomizada(emp)) {
+                        <button class="comision-reset-btn"
+                          title="Restablecer a la tasa oficial de {{ afpEntidadLabel(emp) }}"
+                          type="button"
+                          (click)="resetComisionAfp(emp)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="11" height="11">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h5M20 20v-5h-5M4 9a9 9 0 0114.9-3.4M20 15A9 9 0 015.1 18.4"/>
+                          </svg>
+                        </button>
+                      }
+                    </div>
+                    @if (isComisionCustomizada(emp)) {
+                      <span class="comision-custom-badge" title="Tasa modificada manualmente — no es la tasa oficial de {{ afpEntidadLabel(emp) }}">personalizada</span>
+                    }
+                    }
+                  } @else {
+                    <span class="hrs-cero afp-comision-saldo-nota" title="Esquema saldo: la comisión SPP se cobra del fondo acumulado, no se descuenta de la planilla.">Comis.: no aplica</span>
                   }
                 </div>
               } @else if (esDependiente(emp)) {

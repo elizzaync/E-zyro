@@ -1006,7 +1006,9 @@
 }
 
 /* ── Columna AFP % ─────────────────────────────────────────────────────── */
-.td-afp-pct { min-width: 90px; }
+.td-afp-pct { min-width: 130px; }
+.afp-comision-esquema-select { font-size: 10px; min-width: 130px; }
+.afp-comision-saldo-nota { font-size: 10px; }
 .afp-pct-col {
   display:        flex;
   flex-direction: column;

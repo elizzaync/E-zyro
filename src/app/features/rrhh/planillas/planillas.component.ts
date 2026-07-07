@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import {
   RrhhService, PeriodoDto, PlanillaPreviewEmpleadoDto, PlanillaDto,
   RegimenLaboral, EsquemaPagoPlanilla, PeriodoPagoPlanilla, SistemaPension, EntidadAfp,
+  TipoComisionAfp,
 } from '../../../core/services/rrhh.service';
 import { ToastService } from '../../../core/services/toast.service';
 import { AuthService } from '../../../core/services/auth.service';
@@ -38,6 +39,11 @@ export class PlanillasComponent implements OnInit {
   // (GET/PATCH /planilla/config) — ya no viven en localStorage.
   esquemaPago: EsquemaPagoPlanilla = 'quincenal';
   regimenEmpresa: RegimenLaboral = 'micro';
+  // Gate de trámite para el pago de sobretiempo (GET/PATCH /planilla/config,
+  // persistido — decisión de negocio CON RIESGO LEGAL, default false: solo
+  // se paga sobretiempo respaldado por un trámite de Permanencia Extra
+  // aprobado; si es true, se paga todo el sobretiempo registrado).
+  pagarHorasExtraSinTramite = false;
 
   // Vista de período de pago: quincena (solo simulación, nunca genera una
   // Planilla real) o mes completo (la única que se puede calcular/aprobar/pagar).
@@ -113,6 +119,7 @@ export class PlanillasComponent implements OnInit {
       next: (cfg) => {
         this.regimenEmpresa = cfg.regimen_laboral;
         this.esquemaPago    = cfg.esquema_pago_planilla;
+        this.pagarHorasExtraSinTramite = cfg.pagar_horas_extra_sin_tramite;
         if (this.esquemaPago === 'mensual') this.periodoPago = 'mes';
         this.cargar();
       },
@@ -288,6 +295,31 @@ export class PlanillasComponent implements OnInit {
     return this.regimenEmpresa !== 'general';
   }
 
+  // ── Gate de trámite para el pago de sobretiempo (persistido, por empresa) ──
+  // DECISIÓN CON RIESGO LEGAL: en false (default), solo se paga el
+  // sobretiempo respaldado por un trámite de Permanencia Extra aprobado; en
+  // true, se paga TODO el sobretiempo registrado (SUNAFIL presume
+  // autorización tácita con el solo registro de asistencia).
+
+  setPagarHorasExtraSinTramite(val: boolean): void {
+    if (this.pagarHorasExtraSinTramite === val) return;
+    const anterior = this.pagarHorasExtraSinTramite;
+    this.pagarHorasExtraSinTramite = val;
+    this.svc.actualizarConfigPlanilla({ pagar_horas_extra_sin_tramite: val }).subscribe({
+      next: () => {
+        this.toast.mostrar(
+          val ? 'Ahora se paga todo el sobretiempo registrado, sin exigir trámite' : 'Ahora solo se paga el sobretiempo con trámite de Permanencia Extra aprobado',
+          'success',
+        );
+        this.cargar(); // los montos de hora extra de toda la tabla cambian con el gate
+      },
+      error: (err) => {
+        this.pagarHorasExtraSinTramite = anterior;
+        this.toast.mostrar(err?.error?.detail || 'Error al actualizar el gate de sobretiempo', 'error');
+      },
+    });
+  }
+
   // ── Modalidad del trabajador (viene de la BD: empleado.tipo) ────────────────
 
   esDependiente(emp: PlanillaPreviewEmpleadoDto): boolean {
@@ -400,6 +432,27 @@ export class PlanillasComponent implements OnInit {
       error: (err) => {
         emp.sistema_pension = anterior;
         this.toast.mostrar(err?.error?.detail || 'Error al actualizar el sistema de pensión', 'error');
+      },
+    });
+  }
+
+  // Esquema de comisión SPP: 'saldo' (default legal post-2013, NO se
+  // descuenta en planilla) o 'flujo' (SÍ se descuenta cada mes sobre la
+  // remuneración). Determina si la comisión editable de abajo tiene efecto.
+  readonly tiposComisionAfp: { value: TipoComisionAfp; label: string }[] = [
+    { value: 'saldo', label: 'Saldo (no se descuenta)' },
+    { value: 'flujo', label: 'Flujo (se descuenta cada mes)' },
+  ];
+
+  onTipoComisionAfpChange(emp: PlanillaPreviewEmpleadoDto, val: TipoComisionAfp): void {
+    const anterior = emp.tipo_comision_afp;
+    if (anterior === val) return;
+    emp.tipo_comision_afp = val;
+    this.svc.actualizarPensionEmpleado(emp.id, { tipo_comision_afp: val }).subscribe({
+      next: () => { this.toast.mostrar('Esquema de comisión AFP actualizado', 'success'); this.cargar(); },
+      error: (err) => {
+        emp.tipo_comision_afp = anterior;
+        this.toast.mostrar(err?.error?.detail || 'Error al actualizar el esquema de comisión', 'error');
       },
     });
   }

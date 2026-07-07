@@ -201,11 +201,20 @@ export type RegimenLaboral = 'micro' | 'pequena' | 'general';
 export type EsquemaPagoPlanilla = 'mensual' | 'quincenal';
 export type PeriodoPagoPlanilla = 'mes' | 'q1' | 'q2';
 export type EstadoPlanilla = 'borrador' | 'calculada' | 'aprobada' | 'pagada' | 'anulada';
+// Esquema de comisión SPP: 'saldo' (default legal desde 2013, ~0.78% anual
+// sobre el FONDO acumulado — NO se descuenta en planilla) o 'flujo' (sobre
+// la remuneración — SÍ se descuenta cada mes).
+export type TipoComisionAfp = 'flujo' | 'saldo';
 
 export interface ConfigPlanillaDto {
   descuento_tardanza_auto: boolean;
   regimen_laboral: RegimenLaboral;
   esquema_pago_planilla: EsquemaPagoPlanilla;
+  // Gate de trámite (decisión de negocio con riesgo legal, default false):
+  // si es false, solo se paga sobretiempo respaldado por un trámite de
+  // Permanencia Extra aprobado; si es true, se paga todo el sobretiempo
+  // registrado (SUNAFIL presume autorización tácita).
+  pagar_horas_extra_sin_tramite: boolean;
 }
 
 export interface PensionConfigDto {
@@ -214,6 +223,7 @@ export interface PensionConfigDto {
   entidad_afp: EntidadAfp | null;
   comision_afp_personalizada: number | null;
   tiene_asignacion_familiar: boolean;
+  tipo_comision_afp: TipoComisionAfp;
 }
 
 export interface PlanillaDto {
@@ -267,6 +277,7 @@ export interface PlanillaPreviewEmpleadoDto {
   entidad_afp: EntidadAfp | null;
   comision_afp_personalizada: number | null;
   comision_afp_pct: number;
+  tipo_comision_afp: TipoComisionAfp;
   tiene_asignacion_familiar: boolean;
 
   sueldo_base: number;
@@ -556,6 +567,7 @@ export class RrhhService {
     entidad_afp: EntidadAfp | null;
     comision_afp_personalizada: number | null;
     tiene_asignacion_familiar: boolean;
+    tipo_comision_afp: TipoComisionAfp;
   }>): Observable<PensionConfigDto> {
     return this.http.patch<PensionConfigDto>(`${this.api}/planilla/empleados/${empleadoId}/pension`, body);
   }
