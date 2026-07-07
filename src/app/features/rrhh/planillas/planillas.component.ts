@@ -596,10 +596,13 @@ export class PlanillasComponent implements OnInit {
     const totalNeto = this.empleados.reduce((s, e) => s + e.neto_a_pagar, 0);
     const totalDesc = this.empleados.reduce((s, e) => s + e.total_descuentos_legales, 0);
     const totalExt  = this.empleados.reduce((s, e) => s + e.pago_horas_extra, 0);
+    const totalDomingo = this.empleados.reduce((s, e) => s + e.pago_domingo, 0);
+    const horasSinTramite = this.empleados.reduce((s, e) => s + e.horas_extra_sin_tramite, 0);
+    const empleadosSinTramite = this.empleados.filter(e => e.horas_extra_sin_tramite > 0).length;
     const enPlanilla = this.empleados.filter(e => this.esDependiente(e)).length;
     const practicantes = this.empleados.filter(e => this.esPracticante(e)).length;
     const bajoRmvCount = this.empleados.filter(e => e.bajo_rmv).length;
-    return { totalEmpleados: this.totalRegistros, totalNeto, totalDesc, totalExt, sinSueldo, enPlanilla, practicantes, bajoRmvCount };
+    return { totalEmpleados: this.totalRegistros, totalNeto, totalDesc, totalExt, totalDomingo, horasSinTramite, empleadosSinTramite, sinSueldo, enPlanilla, practicantes, bajoRmvCount };
   }
 
   // ── Boleta individual ─────────────────────────────────────────────────────
@@ -833,10 +836,21 @@ export class PlanillasComponent implements OnInit {
 
     let filasIngresos = fila('Remuneración Básica', `Jornada ordinaria pactada — ${this.formatH(emp.meta_horas)}`, `${this.formatMonto(sueldo)}`);
     if (extra > 0) {
+      const horasPagadas = emp.horas_extra_pagables;
       const detalleExtra = dependiente
-        ? (emp.horas_extra <= 2 ? `Recargo 25% — ${this.formatH(emp.horas_extra)}` : `2h al 25% + ${this.formatH(emp.horas_extra - 2)} al 35%`)
-        : `Tarifa simple — ${this.formatH(emp.horas_extra)} (sin recargo, Ley N.° 28518)`;
-      filasIngresos += fila(`Trabajo en Sobretiempo (${this.formatH(emp.horas_extra)})`, detalleExtra, `+${this.formatMonto(extra)}`);
+        ? (horasPagadas <= 2 ? `Recargo 25% — ${this.formatH(horasPagadas)}` : `2h al 25% + ${this.formatH(horasPagadas - 2)} al 35%`)
+        : `Tarifa simple — ${this.formatH(horasPagadas)} (sin recargo, Ley N.° 28518)`;
+      const nota = emp.horas_extra > horasPagadas ? ` · trabajó ${this.formatH(emp.horas_extra)}, se paga la hora completa` : '';
+      filasIngresos += fila(`Trabajo en Sobretiempo (${this.formatH(horasPagadas)})`, detalleExtra + nota, `+${this.formatMonto(extra)}`);
+      if (emp.horas_extra_sin_tramite > 0) {
+        filasIngresos += filaSinMonto('⚠ Trámite de Permanencia Extra pendiente', `${this.formatH(emp.horas_extra_sin_tramite)} pagada(s) sin solicitud aprobada — regularizar en Trámites y Permisos`);
+      }
+    }
+    if (emp.pago_domingo > 0) {
+      const detalleDomingo = dependiente
+        ? `Sobretasa 100% — D.Leg. N.° 713 Art. 3 (día de descanso semanal)`
+        : `Tarifa simple — ${this.formatH(emp.horas_domingo)} (sin relación laboral, Ley N.° 28518)`;
+      filasIngresos += fila(`Trabajo en Día de Descanso (Domingo, ${this.formatH(emp.horas_domingo)})`, detalleDomingo, `+${this.formatMonto(emp.pago_domingo)}`);
     }
     if (asig > 0) {
       filasIngresos += fila('Asignación Familiar', `10% de la R.M.V. (S/ ${this.rmvVigente}) — Régimen General · D.S. N.° 035-90-TR`, `+${this.formatMonto(asig)}`);

@@ -282,7 +282,11 @@ export interface PlanillaPreviewEmpleadoDto {
   descuento_dominical: number;
   descuento_faltas: number;
 
+  horas_extra_pagables: number;    // horas COMPLETAS que sí se pagan (fracción no se paga)
+  horas_extra_sin_tramite: number; // alerta: de las pagables, cuántas sin Permanencia Extra aprobada
   pago_horas_extra: number;
+  horas_domingo: number;           // horas trabajadas el día de descanso semanal
+  pago_domingo: number;            // retribución + sobretasa 100% (D.Leg. 713 Art. 3)
   asignacion_familiar: number;
 
   es_afp: boolean;
