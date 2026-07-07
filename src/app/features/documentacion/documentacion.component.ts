@@ -95,17 +95,34 @@ export class DocumentacionComponent implements OnInit, OnDestroy {
 
   onSearch(): void { this.searchSubject.next(this.searchTerm); }
 
+  // El breadcrumb es la RUTA real de carpetas: cada entrada es una carpeta
+  // {id, nombre}, desde el primer nivel hasta la carpeta actual (la última
+  // entrada es donde estás parado). Antes guardaba el id del PADRE con
+  // nombres vacíos, por eso los botones para retroceder salían sin texto y
+  // no se podían clickear.
   abrirCarpeta(c: CarpetaOut): void {
-    this.breadcrumb.push({ id: this.carpetaActualId || '__root__', nombre: this.breadcrumb.length === 0 ? 'Inicio' : '' });
+    this.breadcrumb.push({ id: c.id, nombre: c.nombre });
     this.carpetaActualId = c.id;
     this.searchTerm = '';
     this.cargar();
   }
 
-  navegarBreadcrumb(idx: number): void {
-    const item = this.breadcrumb[idx];
-    this.breadcrumb = this.breadcrumb.slice(0, idx);
-    this.carpetaActualId = item.id === '__root__' ? '' : item.id;
+  // Salta a una carpeta ancestro tocándola en el breadcrumb: deja la ruta
+  // recortada hasta esa carpeta (inclusive).
+  navegar(idx: number): void {
+    this.breadcrumb = this.breadcrumb.slice(0, idx + 1);
+    this.carpetaActualId = this.breadcrumb[idx].id;
+    this.searchTerm = '';
+    this.cargar();
+  }
+
+  // Retrocede un nivel (carpeta padre); desde el primer nivel vuelve a la raíz.
+  volver(): void {
+    if (this.breadcrumb.length === 0) return;
+    this.breadcrumb.pop();
+    this.carpetaActualId = this.breadcrumb.length
+      ? this.breadcrumb[this.breadcrumb.length - 1].id
+      : '';
     this.searchTerm = '';
     this.cargar();
   }

@@ -10,26 +10,30 @@
         Nube de Planos
       </h2>
 
-      <!-- Breadcrumb -->
+      <!-- Breadcrumb estilo Drive: botón atrás + ruta con carpetas clickeables -->
       <nav class="breadcrumb">
-        <button class="bc-item bc-root" (click)="irRaiz()">Inicio</button>
-        @for (item of breadcrumb; track $index) {
-          @if (item.id !== '__root__') {
-            <span class="bc-sep">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-            </span>
-            <button class="bc-item" (click)="navegarBreadcrumb($index)">{{ item.nombre }}</button>
-          }
-        }
-        @if (breadcrumb.length > 0) {
+        <button class="bc-back" (click)="volver()" [disabled]="breadcrumb.length === 0" title="Carpeta anterior">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
+          </svg>
+        </button>
+        <button class="bc-item bc-root" [class.active]="breadcrumb.length === 0" (click)="irRaiz()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          Inicio
+        </button>
+        @for (item of breadcrumb; track item.id; let last = $last; let i = $index) {
           <span class="bc-sep">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <polyline points="9 18 15 12 9 6"/>
             </svg>
           </span>
-          <span class="bc-current">Carpeta actual</span>
+          @if (last) {
+            <span class="bc-current">{{ item.nombre }}</span>
+          } @else {
+            <button class="bc-item" (click)="navegar(i)">{{ item.nombre }}</button>
+          }
         }
       </nav>
     </div>

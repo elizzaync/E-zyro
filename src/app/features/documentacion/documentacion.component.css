@@ -32,15 +32,26 @@
 .tb-title svg { color: var(--brand-green); flex-shrink: 0; }
 
 .breadcrumb { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.bc-back {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; margin-right: 4px;
+  border: 1px solid var(--border-color, #e2e8f0); border-radius: 8px;
+  background: var(--card-bg, #fff); color: var(--text-muted, #64748b);
+  cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.bc-back:hover:not(:disabled) { background: rgba(145,211,55,0.1); color: var(--brand-green, #65a30d); border-color: var(--brand-green, #91d337); }
+.bc-back:disabled { opacity: 0.4; cursor: default; }
 .bc-item {
+  display: inline-flex; align-items: center; gap: 5px;
   background: none; border: none; padding: 2px 6px;
   font-size: 13px; font-weight: 600; color: var(--brand-green, #65a30d);
   cursor: pointer; border-radius: 6px; transition: background 0.2s;
 }
 .bc-item:hover { background: rgba(145,211,55,0.1); }
 .bc-root { color: var(--text-muted, #64748b); }
+.bc-root.active { color: var(--text-main, #0f172a); }
 .bc-sep { color: var(--text-muted, #94a3b8); display: flex; align-items: center; }
-.bc-current { font-size: 13px; font-weight: 600; color: var(--text-main, #0f172a); padding: 2px 6px; }
+.bc-current { display: inline-flex; align-items: center; font-size: 13px; font-weight: 700; color: var(--text-main, #0f172a); padding: 2px 6px; }
 
 .tb-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
@@ -298,7 +309,9 @@ textarea.field-input { resize: vertical; min-height: 70px; }
 :host-context([data-theme="dark"]) .folder-card,
 :host-context([data-theme="dark"]) .plano-card,
 :host-context([data-theme="dark"]) .list-table,
+:host-context([data-theme="dark"]) .bc-back,
 :host-context([data-theme="dark"]) .field-input { background: #0f172a; border-color: #1e293b; color: #f8fafc; }
+:host-context([data-theme="dark"]) .bc-root.active { color: #f8fafc; }
 :host-context([data-theme="dark"]) .tb-input,
 :host-context([data-theme="dark"]) .fc-name,
 :host-context([data-theme="dark"]) .pc-name,
