@@ -85,25 +85,38 @@
   background: var(--card-bg, #f8fafc); border: 1px solid var(--border-color, #e2e8f0);
 }
 
-.asist-timeline { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 8px; }
-.asist-timeline-item { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.asist-turno-header {
+  font-size: 12px; color: var(--text-muted, #64748b); margin: 0 0 10px;
+}
+.asist-turno-header strong { color: var(--text-main, #1e293b); }
+
+.asist-timeline { display: flex; flex-wrap: wrap; gap: 14px 18px; margin-bottom: 8px; }
+.asist-timeline-item { display: flex; align-items: center; gap: 6px; font-size: 12px; flex-wrap: wrap; }
 .asist-timeline-item.vacio { opacity: .45; }
 .asist-timeline-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .dot-green { background: #16a34a; } .dot-red { background: #dc2626; } .dot-amber { background: #d97706; }
 .asist-timeline-label { color: var(--text-muted, #64748b); }
 .asist-timeline-hora { font-weight: 700; color: var(--text-main, #1e293b); }
+.asist-timeline-comparacion { font-size: 10.5px; color: var(--text-muted, #94a3b8); }
+.asist-timeline-comparacion.tarde { color: #dc2626; font-weight: 600; }
 
 .asist-nota-error {
   font-size: 12px; color: #dc2626; background: rgba(239,68,68,0.08);
   border-radius: 7px; padding: 7px 10px; margin: 0 0 10px;
 }
 
+.asist-formula-titulo {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--text-muted, #94a3b8); margin: 10px 0 4px;
+}
 .asist-formula {
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 11.5px;
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12px;
   color: var(--text-muted, #64748b); margin-bottom: 10px;
 }
 .asist-formula-sep { opacity: .5; }
-.asist-formula .text-red { color: #dc2626; font-weight: 700; }
+.asist-formula .text-red { color: #dc2626; }
+.asist-formula .text-green { color: #16a34a; }
+.asist-formula strong { color: var(--text-main, #1e293b); }
 
 .asist-mapa { width: 100%; height: 220px; border-radius: 8px; overflow: hidden; z-index: 0; }
 .asist-sin-mapa { font-size: 12px; color: var(--text-muted, #94a3b8); font-style: italic; margin: 0; }

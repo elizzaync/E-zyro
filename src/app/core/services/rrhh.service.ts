@@ -365,6 +365,8 @@ export interface AsistDiaDetalleDto {
   es_justificado: boolean;
   motivo_justificacion: string | null;
   turno_nombre: string | null;
+  turno_hora_entrada: string | null;   // "HH:MM:SS" — hora de RELOJ pactada, no duración
+  turno_hora_salida: string | null;
   req_horas: string;             // Decimal-como-string
   marcaciones: AsistMarcacionesDiaDto;
   horas_reales: string;

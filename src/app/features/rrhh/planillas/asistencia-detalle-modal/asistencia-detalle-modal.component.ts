@@ -1,6 +1,6 @@
 import { Component, EventEmitter, HostListener, Input, OnChanges, OnDestroy, Output, SimpleChanges, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import type * as LType from 'leaflet';
+import * as L from 'leaflet';
 
 import { RrhhService, AsistenciaDetallePlanillaDto, AsistDiaDetalleDto, AsistMarcacionDto } from '../../../../core/services/rrhh.service';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
@@ -17,6 +17,13 @@ const DIA_LABEL: Record<string, string> = {
  * detalle día-por-día de cómo el backend llegó a horas_reales/extra/falta de
  * la fila. Solo lectura — consume GET /planilla/empleados/{id}/asistencia-detalle,
  * nunca recalcula nada en el cliente (los totales YA vienen sumados del backend).
+ *
+ * Leaflet se importa de forma ESTÁTICA (no dinámica): esta app no usa SSR, y
+ * el `import('leaflet')` dinámico rompía en producción (el bundler devolvía
+ * el namespace bajo `.default` en vez de plano, así que `L.map` quedaba
+ * `undefined` y el error salía recién dentro del constructor minificado de
+ * Leaflet — mensaje confuso, "o.map is not a function"). Mismo patrón que
+ * `asistencia-dashboard.component.ts`, que ya funciona en producción.
  */
 @Component({
   selector: 'app-asistencia-detalle-modal',
@@ -40,8 +47,7 @@ export class AsistenciaDetalleModalComponent implements OnChanges, OnDestroy {
   datos: AsistenciaDetallePlanillaDto | null = null;
   diaExpandido: string | null = null;
 
-  private L: typeof LType | null = null;
-  private leafletMap: LType.Map | null = null;
+  private leafletMap: L.Map | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['open'] && this.open && this.empleadoId && this.inicio && this.fin) {
@@ -90,14 +96,48 @@ export class AsistenciaDetalleModalComponent implements OnChanges, OnDestroy {
   }
 
   h(v: string | number | null | undefined): string {
-    const n = this.num(v);
-    return n > 0 ? `${n.toFixed(1)}h` : (n === 0 ? '0h' : `${n.toFixed(1)}h`);
+    return `${this.num(v).toFixed(1)}h`;
   }
 
   hora(v: string | null): string {
     if (!v) return '—';
     const d = new Date(v);
     return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  /** "08:00:00" o un ISO datetime -> "08:00" (solo lectura, sin timezone). */
+  horaCorta(v: string | null): string {
+    if (!v) return '—';
+    const m = v.match(/T?(\d{2}):(\d{2})/);
+    return m ? `${m[1]}:${m[2]}` : '—';
+  }
+
+  private minutosDelDia(v: string | null): number | null {
+    if (!v) return null;
+    const m = v.match(/T?(\d{2}):(\d{2})/);
+    if (!m) return null;
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  }
+
+  /** Compara la hora REAL de una marcación contra la hora PACTADA del turno
+   * y arma un texto legible: "15 min tarde", "puntual", "1h 30min antes". */
+  compararConTurno(horaReal: string | null, horaTurno: string | null, tipo: 'entrada' | 'salida'): string | null {
+    if (!horaReal || !horaTurno) return null;
+    const real = this.minutosDelDia(horaReal);
+    const turno = this.minutosDelDia(horaTurno);
+    if (real === null || turno === null) return null;
+
+    const diff = real - turno;
+    if (diff === 0) return 'puntual';
+
+    const abs = Math.abs(diff);
+    const horas = Math.floor(abs / 60), mins = abs % 60;
+    const dur = horas > 0 ? `${horas}h ${mins}min` : `${mins} min`;
+
+    if (tipo === 'entrada') {
+      return diff > 0 ? `${dur} tarde` : `${dur} antes de su hora`;
+    }
+    return diff > 0 ? `${dur} después de su hora` : `${dur} antes de su hora`;
   }
 
   // ── Reconciliación legible: horas_reales = meta - faltas + extra (por
@@ -135,27 +175,22 @@ export class AsistenciaDetalleModalComponent implements OnChanges, OnDestroy {
     setTimeout(() => this.initMapaDia(d), 80);
   }
 
-  marcacionesDelDia(d: AsistDiaDetalleDto): { label: string; m: AsistMarcacionDto | null; color: string }[] {
+  marcacionesDelDia(d: AsistDiaDetalleDto): { label: string; m: AsistMarcacionDto | null; color: string; turnoHora: string | null; tipo: 'entrada' | 'salida' | null }[] {
     return [
-      { label: 'Entrada',          m: d.marcaciones.entrada,         color: 'green'  },
-      { label: 'Almuerzo inicio',  m: d.marcaciones.almuerzo_inicio, color: 'amber'  },
-      { label: 'Almuerzo fin',     m: d.marcaciones.almuerzo_fin,    color: 'amber'  },
-      { label: 'Salida',           m: d.marcaciones.salida,          color: 'red'    },
+      { label: 'Entrada',          m: d.marcaciones.entrada,         color: 'green', turnoHora: d.turno_hora_entrada, tipo: 'entrada' },
+      { label: 'Almuerzo inicio',  m: d.marcaciones.almuerzo_inicio, color: 'amber', turnoHora: null,                 tipo: null       },
+      { label: 'Almuerzo fin',     m: d.marcaciones.almuerzo_fin,    color: 'amber', turnoHora: null,                 tipo: null       },
+      { label: 'Salida',           m: d.marcaciones.salida,          color: 'red',   turnoHora: d.turno_hora_salida,  tipo: 'salida'   },
     ];
   }
 
-  // ── Mapa (Leaflet + OpenStreetMap, sin API key, import dinámico) ────────
-  private async initMapaDia(d: AsistDiaDetalleDto): Promise<void> {
+  // ── Mapa (Leaflet + OpenStreetMap, sin API key) ─────────────────────────
+  private initMapaDia(d: AsistDiaDetalleDto): void {
     const puntos = this.marcacionesDelDia(d).filter(p => p.m && p.m.lat !== null && p.m.lng !== null);
     if (puntos.length === 0) return;
 
     const el = document.getElementById(`asist-mapa-${d.fecha}`);
     if (!el) return;
-
-    if (!this.L) {
-      this.L = await import('leaflet');
-    }
-    const L = this.L;
 
     const pinIcon = (color: string) => L.divIcon({
       html: `<div class="map-pin-${color}"><svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg></div>`,

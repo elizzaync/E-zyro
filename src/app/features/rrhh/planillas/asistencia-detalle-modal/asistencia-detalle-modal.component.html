@@ -93,43 +93,85 @@
             <td colspan="8">
               <div class="asist-detalle-dia">
 
-                <!-- Timeline de marcaciones -->
+                <!-- Turno esperado ese día -->
+                @if (d.turno_nombre || d.turno_hora_entrada) {
+                <p class="asist-turno-header">
+                  Turno <strong>{{ d.turno_nombre || 'asignado' }}</strong>:
+                  entra a las <strong>{{ horaCorta(d.turno_hora_entrada) }}</strong>,
+                  sale a las <strong>{{ horaCorta(d.turno_hora_salida) }}</strong>
+                  ({{ h(d.req_horas) }} netas de jornada).
+                </p>
+                } @else if (d.tipo_dia === 'no_laborable_turno') {
+                <p class="asist-turno-header">Este día NO le tocaba trabajar según su turno.</p>
+                } @else if (d.tipo_dia === 'domingo' || d.tipo_dia === 'feriado') {
+                <p class="asist-turno-header">{{ tipoDiaLabel(d.tipo_dia) }}: día de descanso, sin jornada exigida — lo trabajado aquí se paga aparte (sobretasa), no cuenta como falta ni extra por tramo.</p>
+                }
+
+                <!-- Timeline de marcaciones, cada una comparada contra el turno -->
                 <div class="asist-timeline">
                   @for (p of marcacionesDelDia(d); track p.label) {
                   <div class="asist-timeline-item" [class.vacio]="!p.m">
                     <span class="asist-timeline-dot" [class]="'dot-' + p.color"></span>
                     <span class="asist-timeline-label">{{ p.label }}</span>
-                    <span class="asist-timeline-hora">{{ p.m ? hora(p.m.hora) : '—' }}</span>
+                    <span class="asist-timeline-hora">{{ p.m ? hora(p.m.hora) : 'no marcó' }}</span>
+                    @if (p.tipo && p.turnoHora && p.m) {
+                    <span class="asist-timeline-comparacion"
+                      [class.tarde]="compararConTurno(p.m.hora, p.turnoHora, p.tipo)?.includes('tarde') || (p.tipo==='salida' && compararConTurno(p.m.hora, p.turnoHora, p.tipo)?.includes('antes'))">
+                      (turno {{ horaCorta(p.turnoHora) }} → {{ compararConTurno(p.m.hora, p.turnoHora, p.tipo) }})
+                    </span>
+                    }
                   </div>
                   }
                 </div>
                 @if (d.alerta === 'marcacion_incompleta') {
                 <p class="asist-nota-error">
-                  <strong>SALIDA NO REGISTRADA.</strong> Por eso este día cuenta 0h trabajadas
-                  aunque haya marcado entrada — causa típica de una falta "inflada".
+                  <strong>SALIDA NO REGISTRADA.</strong> Marcó entrada pero nunca marcó salida ese día — por
+                  eso el sistema cuenta <strong>0h trabajadas</strong> (no puede calcular una duración sin
+                  el segundo extremo), aunque haya estado presente. Es la causa más común de una "falta"
+                  que en realidad es un olvido de marcación.
+                </p>
+                }
+                @if (d.alerta === 'sin_tramite') {
+                <p class="asist-nota-error">
+                  Este día tiene sobretiempo pagado que <strong>todavía no tiene un trámite de Permanencia
+                  Extra aprobado</strong> que lo respalde — se sigue pagando igual, pero conviene regularizar
+                  el trámite en Trámites y Permisos.
                 </p>
                 }
 
-                <!-- Fórmula del día -->
+                <!-- Fórmula del día: de la duración real a lo que se paga -->
+                <div class="asist-formula-titulo">Cómo se calculó este día</div>
                 <div class="asist-formula">
-                  <span>Reales {{ h(d.horas_reales) }}</span>
-                  <span class="asist-formula-sep">·</span>
-                  <span>Extra bruto {{ h(d.horas_extra_bruto) }}</span>
-                  <span class="asist-formula-sep">·</span>
-                  <span>Extra pagable (floor) {{ h(d.horas_extra_pagable) }}</span>
-                  <span class="asist-formula-sep">=</span>
-                  <span>{{ h(d.extra_25) }} @ 25%</span>
-                  <span class="asist-formula-sep">+</span>
-                  <span>{{ h(d.extra_35) }} @ 35%</span>
-                  <span class="asist-formula-sep">·</span>
-                  <span [class.text-red]="num(d.falta) > 0">Falta {{ h(d.falta) }}</span>
+                  <span>Trabajó <strong>{{ h(d.horas_reales) }}</strong></span>
+                  <span class="asist-formula-sep">vs. jornada de</span>
+                  <span><strong>{{ h(d.req_horas) }}</strong></span>
+                  @if (num(d.falta) > 0) {
+                  <span class="asist-formula-sep">→</span>
+                  <span class="text-red">le faltaron <strong>{{ h(d.falta) }}</strong></span>
+                  } @else if (num(d.horas_extra_bruto) > 0) {
+                  <span class="asist-formula-sep">→</span>
+                  <span class="text-green">
+                    <strong>{{ h(d.horas_extra_bruto) }}</strong> de más
+                    @if (num(d.horas_extra_pagable) < num(d.horas_extra_bruto)) {
+                    (se paga solo la hora completa: <strong>{{ h(d.horas_extra_pagable) }}</strong>,
+                    la fracción de {{ h(num(d.horas_extra_bruto) - num(d.horas_extra_pagable)) }} no se paga)
+                    }
+                    @if (num(d.horas_extra_pagable) > 0) {
+                    → {{ h(d.extra_25) }} al 25% + {{ h(d.extra_35) }} al 35%
+                    }
+                  </span>
+                  } @else {
+                  <span class="asist-formula-sep">→</span>
+                  <span>jornada exacta, sin falta ni extra</span>
+                  }
                 </div>
 
-                <!-- Mapa -->
+                <!-- Mapa: entrada y salida (y almuerzo, si marcó) sobre OpenStreetMap -->
                 @if (tieneGeolocalizacion(d)) {
+                <div class="asist-formula-titulo">Ubicación de las marcaciones</div>
                 <div class="asist-mapa" [id]="'asist-mapa-' + d.fecha"></div>
                 } @else {
-                <p class="asist-sin-mapa">Sin datos de ubicación para este día.</p>
+                <p class="asist-sin-mapa">Sin datos de ubicación para este día (la marcación no guardó GPS, o no marcó).</p>
                 }
               </div>
             </td>
