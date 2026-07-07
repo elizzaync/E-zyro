@@ -576,13 +576,22 @@
             </td>
 
             <td class="text-center">
-              <button class="btn-boleta" (click)="verBoleta(emp)" [title]="esVistaMensual ? 'Ver boleta detallada' : 'Ver detalle del adelanto de quincena'">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round"
-                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-                </svg>
-                {{ esVistaMensual ? 'Ver' : 'Adelanto' }}
-              </button>
+              <div class="td-acciones">
+                <button class="btn-boleta" (click)="verBoleta(emp)" [title]="esVistaMensual ? 'Ver boleta detallada' : 'Ver detalle del adelanto de quincena'">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                  {{ esVistaMensual ? 'Ver' : 'Adelanto' }}
+                </button>
+                <button class="btn-boleta btn-ver-asistencia" (click)="abrirAsistenciaDetalle(emp)"
+                  title="Verificar día por día de dónde salen las horas, extra y faltas">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  Asistencia
+                </button>
+              </div>
             </td>
           </tr>
           }
@@ -1009,3 +1018,13 @@
     </div>
   </div>
 </app-modal>
+
+<!-- ═══ MODAL "VER ASISTENCIA" (detalle día por día, Fase 9) ═══ -->
+<app-asistencia-detalle-modal
+  [open]="asistDetalleOpen"
+  [empleadoId]="asistDetalleEmpId"
+  [nombreEmpleado]="asistDetalleNombre"
+  [inicio]="fechaInicio"
+  [fin]="fechaFin"
+  (cerrarModal)="cerrarAsistenciaDetalle()">
+</app-asistencia-detalle-modal>

@@ -337,6 +337,65 @@ export interface PlanillaPreviewDto {
   total_paginas: number;
 }
 
+// ── Detalle diario de asistencia (modal "Ver asistencia" de Planilla) ──────
+// Solo lectura. Decimal en el backend => llega como STRING en el wire
+// (mismo patrón que el resto de PlanillaPreviewEmpleadoDto): convertir con
+// Number() antes de cualquier suma/formateo en el componente.
+
+export interface AsistMarcacionDto {
+  hora: string | null;   // ISO datetime
+  lat: number | null;    // null si no hay geolocalización para esa marcación
+  lng: number | null;
+}
+
+export interface AsistMarcacionesDiaDto {
+  entrada: AsistMarcacionDto | null;
+  salida: AsistMarcacionDto | null;
+  almuerzo_inicio: AsistMarcacionDto | null;
+  almuerzo_fin: AsistMarcacionDto | null;
+}
+
+export type TipoDiaAsistencia = 'laborable' | 'domingo' | 'feriado' | 'no_laborable_turno';
+export type AlertaAsistenciaDia = 'marcacion_incompleta' | 'sin_tramite' | null;
+
+export interface AsistDiaDetalleDto {
+  fecha: string;
+  dia_semana: string;
+  tipo_dia: TipoDiaAsistencia;
+  es_justificado: boolean;
+  motivo_justificacion: string | null;
+  turno_nombre: string | null;
+  req_horas: string;             // Decimal-como-string
+  marcaciones: AsistMarcacionesDiaDto;
+  horas_reales: string;
+  horas_extra_bruto: string;
+  horas_extra_pagable: string;
+  extra_25: string;
+  extra_35: string;
+  falta: string;
+  alerta: AlertaAsistenciaDia;
+}
+
+export interface AsistTotalesDetalleDto {
+  meta_horas: string;
+  horas_reales: string;
+  horas_justificadas: string;
+  horas_faltantes: string;
+  horas_extra_bruto: string;
+  extra_25: string;
+  extra_35: string;
+  horas_domingo: string;
+  horas_feriado: string;
+  dias_laborados: number;
+}
+
+export interface AsistenciaDetallePlanillaDto {
+  empleado: { id: string; nombre_completo: string | null; codigo: string | null; tipo_contrato: string };
+  periodo: { inicio: string; fin: string };
+  totales: AsistTotalesDetalleDto;
+  detalle_dias: AsistDiaDetalleDto[];
+}
+
 export interface DetalleDiarioResponse {
   empleado_id: string;
   periodo: { fecha_inicio: string; fecha_fin: string };
@@ -574,6 +633,12 @@ export class RrhhService {
 
   guardarSueldoBase(empleadoId: string, monto: number): Observable<{ empleado_id: string; sueldo_base: string }> {
     return this.http.put<any>(`${this.api}/planilla/empleados/${empleadoId}/sueldo-base`, { monto });
+  }
+
+  obtenerAsistenciaDetalle(empleadoId: string, inicio: string, fin: string): Observable<AsistenciaDetallePlanillaDto> {
+    return this.http.get<AsistenciaDetallePlanillaDto>(
+      `${this.api}/planilla/empleados/${empleadoId}/asistencia-detalle?inicio=${inicio}&fin=${fin}`,
+    );
   }
 
   inicializarCatalogoEstandarPlanilla(): Observable<any[]> {

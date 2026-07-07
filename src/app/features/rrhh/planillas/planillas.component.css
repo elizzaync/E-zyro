@@ -627,6 +627,18 @@
   background:   rgba(34,197,94,0.06);
 }
 
+.td-acciones {
+  display:        flex;
+  flex-direction: column;
+  align-items:    center;
+  gap:            5px;
+}
+.btn-ver-asistencia:hover {
+  border-color: #2563eb;
+  color:        #2563eb;
+  background:   rgba(59,130,246,0.06);
+}
+
 /* ── Paginación ─────────────────────────────────────────────────────────── */
 .pagination-footer {
   display:         flex;

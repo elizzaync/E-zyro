@@ -1,0 +1,144 @@
+<app-modal
+  [open]="open"
+  title="Verificar asistencia"
+  [subtitle]="nombreEmpleado || ''"
+  maxWidth="920px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrar()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  </svg>
+
+  <div class="asist-body">
+    @if (cargando) {
+    <div class="asist-loading">
+      <div class="spinner"></div>
+      <span>Cargando asistencia…</span>
+    </div>
+    } @else if (error) {
+    <div class="asist-error">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <span>{{ error }}</span>
+      <button class="asist-retry-btn" type="button" (click)="cargar()">Reintentar</button>
+    </div>
+    } @else if (datos) {
+
+    <!-- ═══ Tarjetas de resumen ═══ -->
+    <div class="asist-resumen-grid">
+      <div class="asist-card">
+        <span class="asist-card-label">Meta</span>
+        <span class="asist-card-val">{{ h(datos.totales.meta_horas) }}</span>
+      </div>
+      <div class="asist-card">
+        <span class="asist-card-label">Reales</span>
+        <span class="asist-card-val">{{ h(datos.totales.horas_reales) }}</span>
+      </div>
+      <div class="asist-card extra">
+        <span class="asist-card-label">Extra</span>
+        <span class="asist-card-val">{{ h(datos.totales.horas_extra_bruto) }}</span>
+      </div>
+      <div class="asist-card falta">
+        <span class="asist-card-label">Faltantes</span>
+        <span class="asist-card-val">{{ h(datos.totales.horas_faltantes) }}</span>
+      </div>
+      <div class="asist-card morado">
+        <span class="asist-card-label">Domingo</span>
+        <span class="asist-card-val">{{ h(datos.totales.horas_domingo) }}</span>
+      </div>
+      <div class="asist-card morado">
+        <span class="asist-card-label">Feriado</span>
+        <span class="asist-card-val">{{ h(datos.totales.horas_feriado) }}</span>
+      </div>
+    </div>
+
+    <p class="asist-reconciliacion">{{ reconciliacionTexto }}</p>
+
+    <!-- ═══ Tabla de días ═══ -->
+    <div class="asist-tabla-wrap">
+      <table class="asist-tabla">
+        <thead>
+          <tr>
+            <th>Fecha</th><th>Día</th><th>Tipo</th><th class="text-center">Req</th>
+            <th class="text-center">Reales</th><th class="text-center">Extra</th>
+            <th class="text-center">Falta</th><th class="text-center">Alerta</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (d of datos.detalle_dias; track d.fecha) {
+          <tr [class]="filaClass(d)" (click)="toggleDia(d)">
+            <td>{{ d.fecha }}</td>
+            <td>{{ d.dia_semana }}</td>
+            <td>
+              <span class="asist-badge" [ngClass]="'badge-' + d.tipo_dia">{{ tipoDiaLabel(d.tipo_dia) }}</span>
+              @if (d.es_justificado) { <span class="asist-badge badge-justificado">Justificado</span> }
+            </td>
+            <td class="text-center">{{ h(d.req_horas) }}</td>
+            <td class="text-center">{{ h(d.horas_reales) }}</td>
+            <td class="text-center">{{ num(d.extra_25) + num(d.extra_35) > 0 ? h(num(d.extra_25) + num(d.extra_35)) : '—' }}</td>
+            <td class="text-center">{{ num(d.falta) > 0 ? h(d.falta) : '—' }}</td>
+            <td class="text-center">
+              @if (d.alerta === 'marcacion_incompleta') {
+              <span class="asist-alerta" title="Falta registrar la salida ese día">⚠</span>
+              } @else if (d.alerta === 'sin_tramite') {
+              <span class="asist-alerta" title="Sobretiempo sin trámite de Permanencia Extra aprobado">⚠</span>
+              }
+            </td>
+          </tr>
+          @if (diaExpandido === d.fecha) {
+          <tr class="asist-fila-expandida">
+            <td colspan="8">
+              <div class="asist-detalle-dia">
+
+                <!-- Timeline de marcaciones -->
+                <div class="asist-timeline">
+                  @for (p of marcacionesDelDia(d); track p.label) {
+                  <div class="asist-timeline-item" [class.vacio]="!p.m">
+                    <span class="asist-timeline-dot" [class]="'dot-' + p.color"></span>
+                    <span class="asist-timeline-label">{{ p.label }}</span>
+                    <span class="asist-timeline-hora">{{ p.m ? hora(p.m.hora) : '—' }}</span>
+                  </div>
+                  }
+                </div>
+                @if (d.alerta === 'marcacion_incompleta') {
+                <p class="asist-nota-error">
+                  <strong>SALIDA NO REGISTRADA.</strong> Por eso este día cuenta 0h trabajadas
+                  aunque haya marcado entrada — causa típica de una falta "inflada".
+                </p>
+                }
+
+                <!-- Fórmula del día -->
+                <div class="asist-formula">
+                  <span>Reales {{ h(d.horas_reales) }}</span>
+                  <span class="asist-formula-sep">·</span>
+                  <span>Extra bruto {{ h(d.horas_extra_bruto) }}</span>
+                  <span class="asist-formula-sep">·</span>
+                  <span>Extra pagable (floor) {{ h(d.horas_extra_pagable) }}</span>
+                  <span class="asist-formula-sep">=</span>
+                  <span>{{ h(d.extra_25) }} @ 25%</span>
+                  <span class="asist-formula-sep">+</span>
+                  <span>{{ h(d.extra_35) }} @ 35%</span>
+                  <span class="asist-formula-sep">·</span>
+                  <span [class.text-red]="num(d.falta) > 0">Falta {{ h(d.falta) }}</span>
+                </div>
+
+                <!-- Mapa -->
+                @if (tieneGeolocalizacion(d)) {
+                <div class="asist-mapa" [id]="'asist-mapa-' + d.fecha"></div>
+                } @else {
+                <p class="asist-sin-mapa">Sin datos de ubicación para este día.</p>
+                }
+              </div>
+            </td>
+          </tr>
+          }
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+  </div>
+</app-modal>

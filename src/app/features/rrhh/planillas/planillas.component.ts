@@ -9,6 +9,7 @@ import {
 import { ToastService } from '../../../core/services/toast.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
+import { AsistenciaDetalleModalComponent } from './asistencia-detalle-modal/asistencia-detalle-modal.component';
 import html2pdf from 'html2pdf.js';
 
 const PER_PAGE = 10;
@@ -21,7 +22,7 @@ const MESES_ES = [
 @Component({
   selector: 'app-planillas',
   standalone: true,
-  imports: [CommonModule, FormsModule, AppModalComponent],
+  imports: [CommonModule, FormsModule, AppModalComponent, AsistenciaDetalleModalComponent],
   templateUrl: './planillas.component.html',
   styleUrls: ['./planillas.component.css']
 })
@@ -92,6 +93,11 @@ export class PlanillasComponent implements OnInit {
   // ── Modal boleta individual ───────────────────────────────────────────────
   boletaEmp: PlanillaPreviewEmpleadoDto | null = null;
   generandoPdf = false;
+
+  // ── Modal "Ver asistencia" (verificación día-por-día, Fase 9) ──────────────
+  asistDetalleOpen = false;
+  asistDetalleEmpId: string | null = null;
+  asistDetalleNombre: string | null = null;
 
   // ── Envío masivo a Legajo Digital ─────────────────────────────────────────
   selectedLegajoMap: Record<string, boolean> = {};
@@ -667,6 +673,15 @@ export class PlanillasComponent implements OnInit {
 
   verBoleta(emp: PlanillaPreviewEmpleadoDto): void { this.boletaEmp = emp; }
   cerrarBoleta(): void { this.boletaEmp = null; }
+
+  // ── Modal "Ver asistencia": abre el detalle día-por-día del rango vigente
+  // (misma quincena/mes que la tabla) para el empleado seleccionado ─────────
+  abrirAsistenciaDetalle(emp: PlanillaPreviewEmpleadoDto): void {
+    this.asistDetalleEmpId  = emp.id;
+    this.asistDetalleNombre = emp.nombre_completo;
+    this.asistDetalleOpen   = true;
+  }
+  cerrarAsistenciaDetalle(): void { this.asistDetalleOpen = false; }
 
   // ── Ciclo real de la Planilla del mes: calcular → aprobar → pagar / anular ─
   // Solo tiene sentido en Vista Mensual (la quincena es una simulación, nunca
