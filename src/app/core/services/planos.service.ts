@@ -104,6 +104,10 @@ export class PlanosService {
     return this.http.delete<void>(`${this.base}/${id}`);
   }
 
+  moverPlano(id: string, carpetaId: string | null): Observable<PlanoOut> {
+    return this.http.patch<PlanoOut>(`${this.base}/${id}/mover`, { carpeta_id: carpetaId });
+  }
+
   formatBytes(bytes: number | null): string {
     if (!bytes) return '—';
     if (bytes < 1024) return `${bytes} B`;

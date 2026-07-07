@@ -1,4 +1,16 @@
-<div class="drive-layout fade-in">
+<div class="drive-layout fade-in" [class.drop-activa]="dropZoneActiva"
+     (dragover)="onZonaDragOver($event)" (dragleave)="onZonaDragLeave($event)" (drop)="onZonaDrop($event)">
+
+  <!-- Overlay al arrastrar un PDF desde el PC -->
+  @if (dropZoneActiva) {
+    <div class="drop-overlay">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/>
+        <path d="M20.39 18.39A5 5 0 0018 9h-1.26A8 8 0 103 16.3"/>
+      </svg>
+      <p>Suelta el PDF para subirlo aquí</p>
+    </div>
+  }
 
   <!-- ══ TOOLBAR ══════════════════════════════════════════════════════════════ -->
   <div class="drive-toolbar">
@@ -12,12 +24,18 @@
 
       <!-- Breadcrumb estilo Drive: botón atrás + ruta con carpetas clickeables -->
       <nav class="breadcrumb">
-        <button class="bc-back" (click)="volver()" [disabled]="breadcrumb.length === 0" title="Carpeta anterior">
+        <button class="bc-back" [class.drop-target]="carpetaDropId === '__back__'"
+                [disabled]="breadcrumb.length === 0" (click)="volver()" title="Carpeta anterior"
+                (dragover)="onDestinoDragOver($event, '__back__')" (dragleave)="onDestinoDragLeave('__back__')"
+                (drop)="soltarEn($event, carpetaPadreId)">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>
           </svg>
         </button>
-        <button class="bc-item bc-root" [class.active]="breadcrumb.length === 0" (click)="irRaiz()">
+        <button class="bc-item bc-root" [class.active]="breadcrumb.length === 0" [class.drop-target]="carpetaDropId === '__root__'"
+                (click)="irRaiz()"
+                (dragover)="onDestinoDragOver($event, '__root__')" (dragleave)="onDestinoDragLeave('__root__')"
+                (drop)="soltarEn($event, null)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
           </svg>
@@ -32,7 +50,9 @@
           @if (last) {
             <span class="bc-current">{{ item.nombre }}</span>
           } @else {
-            <button class="bc-item" (click)="navegar(i)">{{ item.nombre }}</button>
+            <button class="bc-item" [class.drop-target]="carpetaDropId === item.id" (click)="navegar(i)"
+                    (dragover)="onDestinoDragOver($event, item.id)" (dragleave)="onDestinoDragLeave(item.id)"
+                    (drop)="soltarEn($event, item.id)">{{ item.nombre }}</button>
           }
         }
       </nav>
@@ -113,7 +133,9 @@
         </h4>
         <div [class]="vistaLista ? 'items-list' : 'grid-cards'">
           @for (c of carpetas; track c.id) {
-            <div class="folder-card" (click)="abrirCarpeta(c)">
+            <div class="folder-card" [class.drop-target]="carpetaDropId === c.id" (click)="abrirCarpeta(c)"
+                 (dragover)="onDestinoDragOver($event, c.id)" (dragleave)="onDestinoDragLeave(c.id)"
+                 (drop)="soltarEn($event, c.id)">
               <div class="fc-icon">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" stroke="none">
                   <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
@@ -161,7 +183,10 @@
           <!-- ── GRID ── -->
           <div class="grid-cards">
             @for (p of planos; track p.id) {
-              <div class="plano-card" (click)="abrirPdf(p.url)">
+              <div class="plano-card" [class.arrastrando]="planoArrastrado?.id === p.id"
+                   [attr.draggable]="esGestor ? true : null"
+                   (dragstart)="onPlanoDragStart(p, $event)" (dragend)="onPlanoDragEnd()"
+                   (click)="abrirPdf(p.url)">
                 <div class="pc-preview">
                   <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -213,7 +238,10 @@
               <span>Nombre</span><span>Disciplina</span><span>Versión</span><span>Tamaño</span><span>Fecha</span><span></span>
             </div>
             @for (p of planos; track p.id) {
-              <div class="lt-row" (click)="abrirPdf(p.url)">
+              <div class="lt-row" [class.arrastrando]="planoArrastrado?.id === p.id"
+                   [attr.draggable]="esGestor ? true : null"
+                   (dragstart)="onPlanoDragStart(p, $event)" (dragend)="onPlanoDragEnd()"
+                   (click)="abrirPdf(p.url)">
                 <span class="lt-name">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>

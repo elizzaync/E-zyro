@@ -10,7 +10,25 @@
   max-width: 1400px;
   margin: 0 auto;
   font-family: 'Inter', sans-serif;
+  position: relative;
 }
+
+/* ══ DRAG & DROP tipo Drive ═══════════════════════════════════════════════ */
+/* Overlay al arrastrar un PDF desde el PC */
+.drive-layout.drop-activa { outline: 2px dashed var(--brand-green, #91d337); outline-offset: -10px; border-radius: 16px; }
+.drop-overlay {
+  position: absolute; inset: 0; z-index: 40;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+  background: rgba(145,211,55,0.08); backdrop-filter: blur(1px);
+  border-radius: 16px; color: var(--brand-green, #65a30d); pointer-events: none;
+}
+.drop-overlay p { font-size: 15px; font-weight: 700; margin: 0; }
+/* Destino resaltado al soltar un plano encima (carpeta / atrás / breadcrumb) */
+.drop-target { outline: 2px solid var(--brand-green, #91d337) !important; outline-offset: 1px;
+  background: rgba(145,211,55,0.12) !important; border-radius: 8px; }
+.folder-card.drop-target { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(145,211,55,0.25); }
+/* Plano mientras se arrastra */
+.plano-card.arrastrando, .lt-row.arrastrando { opacity: 0.4; }
 
 /* ══ TOOLBAR ═══════════════════════════════════════════════════════════════ */
 .drive-toolbar {

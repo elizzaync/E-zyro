@@ -179,13 +179,22 @@ export class DocumentacionComponent implements OnInit, OnDestroy {
 
   onFileSelected(ev: Event): void {
     const file = (ev.target as HTMLInputElement).files?.[0];
-    if (!file) return;
-    if (file.type !== 'application/pdf') { this.toastSvc.mostrar('Solo se permiten archivos PDF', 'error'); return; }
-    if (file.size > 30 * 1024 * 1024) { this.toastSvc.mostrar('El archivo supera los 30 MB', 'error'); return; }
+    if (file) this.procesarArchivoPdf(file);
+  }
+
+  // Valida y carga un PDF en el formulario de subida. Reusado por el input de
+  // archivo y por el arrastre de archivos desde el PC (drag & drop).
+  private procesarArchivoPdf(file: File): boolean {
+    if (file.type !== 'application/pdf') { this.toastSvc.mostrar('Solo se permiten archivos PDF', 'error'); return false; }
+    if (file.size > 30 * 1024 * 1024) { this.toastSvc.mostrar('El archivo supera los 30 MB', 'error'); return false; }
     this.uploadForm.filename = file.name;
+    if (!this.uploadForm.nombre.trim()) {
+      this.uploadForm.nombre = file.name.replace(/\.pdf$/i, '');
+    }
     const reader = new FileReader();
     reader.onload = (e: any) => { this.uploadForm.archivo_base64 = e.target.result; };
     reader.readAsDataURL(file);
+    return true;
   }
 
   subirPlano(): void {
@@ -250,6 +259,79 @@ export class DocumentacionComponent implements OnInit, OnDestroy {
 
   abrirPdf(url: string | null): void {
     if (url) window.open(url, '_blank');
+  }
+
+  // ── Drag & Drop tipo Drive ─────────────────────────────────────────────────
+  planoArrastrado: PlanoOut | null = null;   // plano que se está arrastrando
+  dropZoneActiva = false;                     // resalta la página al arrastrar un archivo del PC
+  carpetaDropId: string | null = null;        // destino resaltado (id carpeta | '__back__' | '__root__')
+  moviendoPlano = false;
+
+  private tieneArchivosOS(ev: DragEvent): boolean {
+    // El arrastre trae archivos del sistema (no un plano interno) si el
+    // dataTransfer declara el tipo 'Files'.
+    return Array.from(ev.dataTransfer?.types || []).includes('Files');
+  }
+
+  // Subir: arrastrar un PDF desde el PC sobre la página abre el modal ya cargado.
+  onZonaDragOver(ev: DragEvent): void {
+    if (this.planoArrastrado || !this.tieneArchivosOS(ev) || !this.esGestor) return;
+    ev.preventDefault();
+    this.dropZoneActiva = true;
+  }
+  onZonaDragLeave(ev: DragEvent): void {
+    if (ev.currentTarget === ev.target) this.dropZoneActiva = false;
+  }
+  onZonaDrop(ev: DragEvent): void {
+    this.dropZoneActiva = false;
+    if (this.planoArrastrado || !this.tieneArchivosOS(ev)) return;
+    ev.preventDefault();
+    if (!this.esGestor) { this.toastSvc.mostrar('No tienes permiso para subir planos', 'error'); return; }
+    const file = ev.dataTransfer?.files?.[0];
+    if (!file) return;
+    this.abrirModalSubir();            // resetea el formulario y abre el modal
+    this.procesarArchivoPdf(file);     // deja el archivo ya cargado
+  }
+
+  // Mover: arrastrar un plano y soltarlo sobre una carpeta / atrás / Inicio.
+  onPlanoDragStart(p: PlanoOut, ev: DragEvent): void {
+    if (!this.esGestor) return;
+    this.planoArrastrado = p;
+    ev.dataTransfer?.setData('text/plain', p.id);
+    if (ev.dataTransfer) ev.dataTransfer.effectAllowed = 'move';
+  }
+  onPlanoDragEnd(): void {
+    this.planoArrastrado = null;
+    this.carpetaDropId = null;
+  }
+  onDestinoDragOver(ev: DragEvent, key: string): void {
+    if (!this.planoArrastrado) return;   // solo destinos válidos para mover un plano
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (ev.dataTransfer) ev.dataTransfer.dropEffect = 'move';
+    this.carpetaDropId = key;
+  }
+  onDestinoDragLeave(key: string): void {
+    if (this.carpetaDropId === key) this.carpetaDropId = null;
+  }
+  soltarEn(ev: DragEvent, carpetaId: string | null): void {
+    if (!this.planoArrastrado) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const plano = this.planoArrastrado;
+    this.carpetaDropId = null;
+    this.planoArrastrado = null;
+    if ((carpetaId || null) === (plano.carpeta_id || null)) return;   // ya está ahí
+    this.moviendoPlano = true;
+    this.planosSvc.moverPlano(plano.id, carpetaId).subscribe({
+      next: () => { this.moviendoPlano = false; this.cargar(); this.toastSvc.mostrar('Plano movido', 'success'); },
+      error: (e) => { this.moviendoPlano = false; this.toastSvc.mostrar(e?.error?.detail || 'Error al mover el plano', 'error'); },
+    });
+  }
+
+  // Carpeta padre de la actual (destino del botón "atrás" al soltar un plano).
+  get carpetaPadreId(): string | null {
+    return this.breadcrumb.length <= 1 ? null : this.breadcrumb[this.breadcrumb.length - 2].id;
   }
 
   // ── Eliminar plano ──
