@@ -907,7 +907,37 @@ export class PlanillasComponent implements OnInit {
     const filaSinMonto = (label: string, motivo: string) => `
       <tr><td>${label}</td><td class="c-det na" colspan="2">${motivo}</td></tr>`;
 
-    let filasIngresos = fila('Remuneración Básica', `Jornada ordinaria pactada — ${this.formatH(emp.meta_horas)}`, `${this.formatMonto(sueldo)}`);
+    const devengado = emp.sueldo_devengado;
+
+    // ── Bloque A: Ajustes a la Remuneración ──────────────────────────────────
+    // Deriva la base computable a partir del sueldo pactado, mostrando de forma
+    // explícita el descuento por inasistencias (que ANTES quedaba escondido en
+    // el salto de "Remuneración Básica" a "Total Bruta"). Cuadra fila por fila:
+    // Básica − Inasistencias = Remuneración Computable (Devengada).
+    let filasAjustes = fila('Remuneración Básica', `Jornada ordinaria pactada — ${this.formatH(emp.meta_horas)}`, `${this.formatMonto(sueldo)}`);
+    if (descFaltas > 0) {
+      const diasAus  = emp.dias_faltantes;
+      const minsAus  = emp.minutos_tardanza;
+      const dominical = emp.descuento_dominical;
+      const vd = emp.valor_dia;
+      const vm = emp.valor_minuto;
+      let detalleAus = `Valor día S/ ${this.formatMonto(vd)} (sueldo / 30)`;
+      if (diasAus > 0 && minsAus > 0) {
+        detalleAus += ` · ${diasAus} día(s) + castigo dominical + ${minsAus} min. tardanza`;
+      } else if (diasAus > 0) {
+        detalleAus += ` · ${diasAus} día(s) ausente(s) + castigo dominical S/ ${this.formatMonto(dominical)}`;
+      } else {
+        detalleAus += ` · ${minsAus} min. tardanza × S/ ${this.formatMonto(vm)}/min`;
+      }
+      filasAjustes += fila('(−) Inasistencias / Tardanzas', detalleAus, `−${this.formatMonto(descFaltas)}`);
+    } else {
+      filasAjustes += filaSinMonto('(−) Inasistencias / Tardanzas', 'Sin faltas ni tardanzas registradas en el período');
+    }
+
+    // ── Bloque B: Ingresos ───────────────────────────────────────────────────
+    // Arrancan desde la Remuneración Computable (devengada), NO desde el sueldo
+    // pactado completo — así la suma de las filas coincide exacto con el total.
+    let filasIngresos = fila('Remuneración Computable (Devengada)', 'Base efectivamente ganada tras los ajustes por asistencia', `${this.formatMonto(devengado)}`);
     if (extra > 0) {
       const horasPagadas = emp.horas_extra_pagables;
       const detalleExtra = dependiente
@@ -935,25 +965,11 @@ export class PlanillasComponent implements OnInit {
       filasIngresos += fila('Asignación Familiar', `10% de la R.M.V. (S/ ${this.rmvVigente}) — Régimen General · D.S. N.° 035-90-TR`, `+${this.formatMonto(asig)}`);
     }
 
+    // ── Bloque C: Descuentos y Retenciones ───────────────────────────────────
+    // SOLO cargas del trabajador sobre la remuneración computable (pensiones,
+    // renta de 5ta). Las inasistencias NO van aquí: ya se restaron en el bloque
+    // de Ajustes. Así el "TOTAL DESCUENTOS" cuadra exacto con lo listado.
     let filasDescuentos = '';
-    if (descFaltas > 0) {
-      const diasAus  = emp.dias_faltantes;
-      const minsAus  = emp.minutos_tardanza;
-      const dominical = emp.descuento_dominical;
-      const vd = emp.valor_dia;
-      const vm = emp.valor_minuto;
-      let detalleAus = `Valor día S/ ${this.formatMonto(vd)} (sueldo / 30)`;
-      if (diasAus > 0 && minsAus > 0) {
-        detalleAus += ` · ${diasAus} día(s) + castigo dominical + ${minsAus} min. tardanza`;
-      } else if (diasAus > 0) {
-        detalleAus += ` · ${diasAus} día(s) ausente(s) + castigo dominical S/ ${this.formatMonto(dominical)}`;
-      } else {
-        detalleAus += ` · ${minsAus} min. tardanza × S/ ${this.formatMonto(vm)}/min`;
-      }
-      filasDescuentos += fila('Inasistencias (parte no devengada del sueldo)', detalleAus, `−${this.formatMonto(descFaltas)}`);
-    } else {
-      filasDescuentos += filaSinMonto('Inasistencias (parte no devengada del sueldo)', 'Sin faltas ni tardanzas registradas en el período');
-    }
     if (descPension > 0) {
       if (emp.es_afp) {
         // Desglose en 3 componentes (estándar de boleta peruana, D.L. N.° 25897).
@@ -1028,6 +1044,7 @@ export class PlanillasComponent implements OnInit {
       .bol-liq tr:first-child td { border-top: 1.5px solid #000; }
       .bol-liq .c-mon { text-align: right; font-weight: 700; white-space: nowrap; }
       .bol-liq-final td { border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; font-weight: 800; }
+      .bol-mininota { font-size: 8.5px; font-style: italic; color: #333; margin-top: 4px; line-height: 1.4; }
       .bol-nota { font-size: 9.5px; line-height: 1.5; border-left: 3px solid #000; padding: 8px 12px; margin-bottom: 18px; background: #f5f5f5; }
       .bol-pie { text-align: center; font-size: 9px; color: #333; border-top: 1px solid #000; padding-top: 8px; margin-top: 6px; line-height: 1.5; }
     </style>
@@ -1060,6 +1077,13 @@ export class PlanillasComponent implements OnInit {
         </tr>
       </table>
 
+      <div class="bol-sec-tit">Ajustes a la Remuneración</div>
+      <table class="bol-tabla" style="margin-bottom:14px;">
+        <thead><tr><th>Concepto</th><th class="c-det">Detalle</th><th class="c-mon">Importe S/.</th></tr></thead>
+        <tbody>${filasAjustes}</tbody>
+        <tfoot><tr class="bol-tot"><td colspan="2">REMUNERACIÓN COMPUTABLE (BASE DEVENGADA)</td><td class="c-mon">${this.formatMonto(devengado)}</td></tr></tfoot>
+      </table>
+
       <div class="bol-cols">
         <div class="bol-col">
           <div class="bol-sec-tit">Ingresos</div>
@@ -1068,6 +1092,7 @@ export class PlanillasComponent implements OnInit {
             <tbody>${filasIngresos}</tbody>
             <tfoot><tr class="bol-tot"><td colspan="2">TOTAL REMUNERACIÓN BRUTA</td><td class="c-mon">${this.formatMonto(emp.total_ingresos)}</td></tr></tfoot>
           </table>
+          <div class="bol-mininota">Parte de la Remuneración Computable + los conceptos afectos del período (sobretiempo, domingo/feriado, asignación familiar).</div>
         </div>
         <div class="bol-col">
           <div class="bol-sec-tit">Descuentos y Retenciones</div>
