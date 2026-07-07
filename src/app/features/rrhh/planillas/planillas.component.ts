@@ -596,7 +596,7 @@ export class PlanillasComponent implements OnInit {
     const totalNeto = this.empleados.reduce((s, e) => s + e.neto_a_pagar, 0);
     const totalDesc = this.empleados.reduce((s, e) => s + e.total_descuentos_legales, 0);
     const totalExt  = this.empleados.reduce((s, e) => s + e.pago_horas_extra, 0);
-    const totalDomingo = this.empleados.reduce((s, e) => s + e.pago_domingo, 0);
+    const totalDomingo = this.empleados.reduce((s, e) => s + e.pago_domingo + e.pago_feriado, 0);
     const horasSinTramite = this.empleados.reduce((s, e) => s + e.horas_extra_sin_tramite, 0);
     const empleadosSinTramite = this.empleados.filter(e => e.horas_extra_sin_tramite > 0).length;
     const enPlanilla = this.empleados.filter(e => this.esDependiente(e)).length;
@@ -851,6 +851,12 @@ export class PlanillasComponent implements OnInit {
         ? `Sobretasa 100% — D.Leg. N.° 713 Art. 3 (día de descanso semanal)`
         : `Tarifa simple — ${this.formatH(emp.horas_domingo)} (sin relación laboral, Ley N.° 28518)`;
       filasIngresos += fila(`Trabajo en Día de Descanso (Domingo, ${this.formatH(emp.horas_domingo)})`, detalleDomingo, `+${this.formatMonto(emp.pago_domingo)}`);
+    }
+    if (emp.pago_feriado > 0) {
+      const detalleFeriado = dependiente
+        ? `Sobretasa 100% — D.Leg. N.° 713 Art. 8/9 (feriado no laborable)`
+        : `Tarifa simple — ${this.formatH(emp.horas_feriado)} (sin relación laboral, Ley N.° 28518)`;
+      filasIngresos += fila(`Trabajo en Día Feriado (${this.formatH(emp.horas_feriado)})`, detalleFeriado, `+${this.formatMonto(emp.pago_feriado)}`);
     }
     if (asig > 0) {
       filasIngresos += fila('Asignación Familiar', `10% de la R.M.V. (S/ ${this.rmvVigente}) — Régimen General · D.S. N.° 035-90-TR`, `+${this.formatMonto(asig)}`);

@@ -287,6 +287,8 @@ export interface PlanillaPreviewEmpleadoDto {
   pago_horas_extra: number;
   horas_domingo: number;           // horas trabajadas el día de descanso semanal
   pago_domingo: number;            // retribución + sobretasa 100% (D.Leg. 713 Art. 3)
+  horas_feriado: number;           // horas trabajadas en día feriado no laborable
+  pago_feriado: number;            // retribución + sobretasa 100% (D.Leg. 713 Art. 8/9)
   asignacion_familiar: number;
 
   es_afp: boolean;

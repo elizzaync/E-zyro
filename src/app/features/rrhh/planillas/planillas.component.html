@@ -227,7 +227,7 @@
         </svg>
       </span>
       <div class="kpi-info">
-        <span class="kpi-label">Pago Domingo Trabajado</span>
+        <span class="kpi-label">Pago Domingo/Feriado Trabajado</span>
         <span class="kpi-value kpi-amber">{{ formatMonto(kpis.totalDomingo) }}</span>
         <span class="kpi-sub">Sobretasa 100% · D.Leg. N.° 713</span>
       </div>
@@ -396,8 +396,8 @@
             </td>
 
             <td class="text-center">
-              @if (emp.pago_horas_extra > 0 || emp.pago_domingo > 0) {
-              <span class="monto-green" [title]="emp.pago_domingo > 0 ? 'Incluye ' + formatMonto(emp.pago_domingo) + ' por domingo trabajado (sobretasa 100%)' : ''">+{{ formatMonto(emp.pago_horas_extra + emp.pago_domingo) }}</span>
+              @if (emp.pago_horas_extra > 0 || emp.pago_domingo > 0 || emp.pago_feriado > 0) {
+              <span class="monto-green" [title]="(emp.pago_domingo > 0 || emp.pago_feriado > 0) ? 'Incluye ' + formatMonto(emp.pago_domingo + emp.pago_feriado) + ' por domingo/feriado trabajado (sobretasa 100%)' : ''">+{{ formatMonto(emp.pago_horas_extra + emp.pago_domingo + emp.pago_feriado) }}</span>
               } @else {
               <span class="hrs-cero">—</span>
               }
@@ -684,6 +684,16 @@
             @else { Sobretasa 100% — D.Leg. N.° 713 Art. 3 }
           </td>
           <td class="col-monto text-green">+{{ formatMonto(boletaEmp.pago_domingo) }}</td>
+        </tr>
+        }
+        @if (boletaEmp.pago_feriado > 0) {
+        <tr class="row-ingreso">
+          <td>Feriado Trabajado ({{ formatH(boletaEmp.horas_feriado) }})</td>
+          <td class="col-detalle">
+            @if (esPracticante(boletaEmp)) { Tarifa simple (sin relación laboral, Ley N.° 28518) }
+            @else { Sobretasa 100% — D.Leg. N.° 713 Art. 8/9 }
+          </td>
+          <td class="col-monto text-green">+{{ formatMonto(boletaEmp.pago_feriado) }}</td>
         </tr>
         }
 
