@@ -53,6 +53,7 @@ COD_SUELDO_BASE = "SUELDO_BASE"
 CATALOGO_ESTANDAR: list[tuple[str, str, str, bool]] = [
     (COD_SUELDO_BASE,   "Remuneración Básica",                   "ingreso",          True),
     ("HRS_EXTRA",       "Trabajo en Sobretiempo",                 "ingreso",          False),
+    ("DOMINGO_TRABAJADO", "Trabajo en Día de Descanso (Domingo)", "ingreso",          False),
     ("ASIG_FAMILIAR",   "Asignación Familiar",                    "ingreso",          False),
     (COD_DESC_FALTA,    "Descuento por falta",                    "descuento",        False),
     ("DESC_DOMINICAL",  "Descuento dominical (D.S. 001-96-TR)",   "descuento",        False),
@@ -140,7 +141,7 @@ def get_planilla(db: Session, empresa_id: str, planilla_id: str) -> Planilla:
 # aplique como monto fijo a todos — esos códigos quedan reservados para
 # ajustes manuales puntuales vía editar_boleta_detalle).
 _CODIGOS_MOTOR_LEGAL = frozenset({
-    COD_SUELDO_BASE, "HRS_EXTRA", "ASIG_FAMILIAR",
+    COD_SUELDO_BASE, "HRS_EXTRA", "DOMINGO_TRABAJADO", "ASIG_FAMILIAR",
     "PENSION_ONP", "AFP_APORTE", "AFP_PRIMA", "AFP_COMISION",
     "RENTA_5TA", "ESSALUD",
     COD_DESC_FALTA, "DESC_DOMINICAL", COD_DESC_TARDANZA,
@@ -264,6 +265,8 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
             entidad_afp=(cfg.entidad_afp if cfg else None),
             comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
             tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+            horas_extra_aprobadas=Decimal(str(fila_asist.get("horas_extra_aprobadas", 0))),
+            horas_domingo=Decimal(str(fila_asist.get("horas_domingo", 0))),
         )
         desglose = calcular_boleta_empleado(
             insumo, regimen_empresa=regimen_empresa, periodo_pago="mes",
@@ -283,6 +286,7 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
 
         _agregar(COD_SUELDO_BASE, desglose.sueldo_devengado)
         _agregar("HRS_EXTRA", desglose.pago_horas_extra)
+        _agregar("DOMINGO_TRABAJADO", desglose.pago_domingo)
         _agregar("ASIG_FAMILIAR", desglose.asignacion_familiar)
         if insumo.sistema_pension == "onp":
             _agregar("PENSION_ONP", desglose.descuento_pension)

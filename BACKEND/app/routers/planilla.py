@@ -277,6 +277,8 @@ def preview_planilla(
             entidad_afp=(cfg.entidad_afp if cfg else None),
             comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
             tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+            horas_extra_aprobadas=Decimal(str(fila.get("horas_extra_aprobadas", 0))),
+            horas_domingo=Decimal(str(fila.get("horas_domingo", 0))),
         )
         desglose = calcular_boleta_empleado(
             insumo, regimen_empresa=regimen_empresa, periodo_pago=periodo_pago,
@@ -306,7 +308,11 @@ def preview_planilla(
             valor_minuto=desglose.valor_minuto, dias_faltantes=desglose.dias_faltantes,
             minutos_tardanza=desglose.minutos_tardanza,
             descuento_dominical=desglose.descuento_dominical,
-            descuento_faltas=desglose.descuento_faltas, pago_horas_extra=desglose.pago_horas_extra,
+            descuento_faltas=desglose.descuento_faltas,
+            horas_extra_pagables=desglose.horas_extra_pagables,
+            horas_extra_sin_tramite=desglose.horas_extra_sin_tramite,
+            pago_horas_extra=desglose.pago_horas_extra,
+            horas_domingo=desglose.horas_domingo, pago_domingo=desglose.pago_domingo,
             asignacion_familiar=desglose.asignacion_familiar, es_afp=desglose.es_afp,
             base_pension=desglose.base_pension, descuento_pension=desglose.descuento_pension,
             afp_aporte_obligatorio=desglose.afp_aporte_obligatorio,

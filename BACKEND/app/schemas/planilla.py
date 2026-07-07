@@ -194,7 +194,11 @@ class PlanillaPreviewEmpleadoOut(BaseModel):
     descuento_dominical: Decimal
     descuento_faltas: Decimal
 
+    horas_extra_pagables: Decimal    # horas COMPLETAS que sí se pagan (fracción no se paga)
+    horas_extra_sin_tramite: Decimal # alerta: de las pagables, cuántas sin Permanencia Extra aprobada
     pago_horas_extra: Decimal
+    horas_domingo: Decimal           # horas trabajadas el día de descanso semanal
+    pago_domingo: Decimal            # retribución + sobretasa 100% (D.Leg. 713 Art. 3)
     asignacion_familiar: Decimal
 
     es_afp: bool

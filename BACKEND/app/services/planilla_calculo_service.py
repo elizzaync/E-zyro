@@ -113,6 +113,17 @@ class InsumoEmpleado:
     entidad_afp: Optional[str] = None           # None ⇒ 'integra' (mismo default que el TS)
     comision_afp_personalizada: Optional[Decimal] = None
     tiene_asignacion_familiar: bool = False
+    # Horas de sobretiempo con trámite de "Permanencia Extra" APROBADO
+    # (SolicitudLaboral tipo=permanencia_extra, estado=aprobada) — solo para
+    # la alerta de documentación (horas_extra_sin_tramite). NO condiciona el
+    # pago: SUNAFIL presume autorización tácita con el solo registro de
+    # asistencia (el empleador debe probar lo contrario), así que TODA hora
+    # extra registrada se paga igual; esto solo avisa a RRHH qué parte del
+    # pago aún no tiene el trámite formal regularizado.
+    horas_extra_aprobadas: Decimal = field(default_factory=lambda: Decimal(0))
+    # Horas trabajadas en domingo (día de descanso semanal obligatorio,
+    # D.Leg. 713 Art. 3/4) — independientes de horas_reales/meta_horas.
+    horas_domingo: Decimal = field(default_factory=lambda: Decimal(0))
 
 
 @dataclass
@@ -127,8 +138,15 @@ class DesgloseBoleta:
     minutos_tardanza: int
     descuento_dominical: Decimal
     descuento_faltas: Decimal
-    horas_extra: Decimal
+    horas_extra: Decimal              # informativo: total de sobretiempo trabajado (sin redondear)
+    horas_extra_pagables: Decimal     # informativo: horas COMPLETAS que sí se pagan (D.S. 007-2002-TR
+                                       # exige pagar incluso la fracción de hora, pero a pedido explícito
+                                       # del usuario aquí solo se paga la hora ya completada)
+    horas_extra_sin_tramite: Decimal  # informativo: de las horas_extra_pagables, cuántas no tienen
+                                       # trámite de Permanencia Extra aprobado (alerta para RRHH)
     pago_horas_extra: Decimal
+    horas_domingo: Decimal            # informativo: horas trabajadas el día de descanso semanal
+    pago_domingo: Decimal             # retribución + sobretasa 100% (D.Leg. 713 Art. 3) — SÍ afecta el neto
     asignacion_familiar: Decimal
     es_afp: bool
     base_pension: Decimal
@@ -232,15 +250,40 @@ def calcular_boleta_empleado(
 
     # Horas extra: recargo legal 25%/35% (DL 854) solo para dependientes;
     # practicantes a tarifa simple (Ley 28518, sin "sobretiempo" legal).
+    #
+    # CORRECCIÓN DELIBERADA (a pedido explícito del usuario, 2026-07-06 — el
+    # D.S. 007-2002-TR en realidad exige pagar la parte proporcional aunque
+    # el sobretiempo sea menor a una hora; aquí, por decisión de negocio
+    # explícita, SOLO se paga la hora ya completada): `horas_extra` es el
+    # total informativo trabajado, `horas_extra_pagables` es el truncado a
+    # horas enteras que efectivamente se paga con el recargo 25%/35%.
     horas_extra = max(CERO, insumo.horas_reales - insumo.meta_horas)
-    if horas_extra <= CERO:
+    horas_extra_pagables = horas_extra.to_integral_value(rounding="ROUND_FLOOR")
+    if horas_extra_pagables <= CERO:
         pago_horas_extra = CERO
     elif practicante:
-        pago_horas_extra = horas_extra * valor_hora
+        pago_horas_extra = horas_extra_pagables * valor_hora
     else:
-        h1 = min(horas_extra, Decimal(2)) * valor_hora * Decimal("1.25")
-        h2 = max(CERO, horas_extra - Decimal(2)) * valor_hora * Decimal("1.35")
+        h1 = min(horas_extra_pagables, Decimal(2)) * valor_hora * Decimal("1.25")
+        h2 = max(CERO, horas_extra_pagables - Decimal(2)) * valor_hora * Decimal("1.35")
         pago_horas_extra = h1 + h2
+
+    # Alerta de documentación (NO condiciona el pago — ver nota en
+    # InsumoEmpleado.horas_extra_aprobadas): de las horas que SÍ se están
+    # pagando, cuántas superan lo respaldado por un trámite de Permanencia
+    # Extra aprobado. Toda la hora extra registrada se paga igual
+    # (presunción de autorización tácita, SUNAFIL); esto solo avisa a RRHH
+    # para que regularice el trámite antes de aprobar la planilla.
+    horas_extra_sin_tramite = max(CERO, horas_extra_pagables - insumo.horas_extra_aprobadas)
+
+    # Trabajo en el día de descanso semanal obligatorio (domingo, D.Leg. 713
+    # Art. 3/4): "retribución correspondiente a la labor efectuada MÁS una
+    # sobretasa del 100%" = doble. Independiente de horas_extra (no cuenta
+    # contra la meta ni contra el sobretiempo ordinario). Mismo criterio que
+    # horas extra para practicantes (Ley 28518: sin relación laboral, sin el
+    # beneficio de sobretasa — se reconoce a tarifa simple, 1x).
+    factor_domingo = Decimal(1) if practicante else Decimal(2)
+    pago_domingo = insumo.horas_domingo * valor_hora * factor_domingo
 
     # Asignación Familiar: 10% RMV, SOLO Régimen General, solo dependientes
     # con el flag activo (D.S. N.° 035-90-TR).
@@ -261,11 +304,13 @@ def calcular_boleta_empleado(
         asignacion_familiar = mensual * proporcion_asistencia
 
     # Base imponible para pensiones = remuneración computable del período
-    # (ya con sueldo_devengado, que refleja la asistencia real).
+    # (ya con sueldo_devengado, que refleja la asistencia real). Incluye el
+    # pago de domingo: es remuneración regular sujeta a aportes, no un
+    # concepto no computable.
     if not dependiente:
         base_pension = CERO
     else:
-        base = sueldo_devengado + pago_horas_extra + asignacion_familiar
+        base = sueldo_devengado + pago_horas_extra + asignacion_familiar + pago_domingo
         base_pension = max(CERO, base)
 
     es_afp = dependiente and insumo.sistema_pension == "afp"
@@ -341,7 +386,7 @@ def calcular_boleta_empleado(
     # asistencia real) — el descuento por faltas NO se resta de nuevo en
     # total_descuentos_legales (sería duplicarlo). Los únicos descuentos
     # "legales" reales son pensión y renta de 5ta.
-    total_ingresos = sueldo_devengado + pago_horas_extra + asignacion_familiar
+    total_ingresos = sueldo_devengado + pago_horas_extra + asignacion_familiar + pago_domingo
     total_descuentos_legales = descuento_pension + renta_5ta
     neto_a_pagar = CERO if sueldo_periodo <= CERO else max(CERO, total_ingresos - total_descuentos_legales)
 
@@ -352,7 +397,9 @@ def calcular_boleta_empleado(
         valor_dia=valor_dia, valor_hora=valor_hora, valor_minuto=valor_minuto,
         dias_faltantes=dias_faltantes, minutos_tardanza=minutos_tardanza,
         descuento_dominical=descuento_dominical, descuento_faltas=descuento_faltas,
-        horas_extra=horas_extra, pago_horas_extra=pago_horas_extra,
+        horas_extra=horas_extra, horas_extra_pagables=horas_extra_pagables,
+        horas_extra_sin_tramite=horas_extra_sin_tramite, pago_horas_extra=pago_horas_extra,
+        horas_domingo=insumo.horas_domingo, pago_domingo=pago_domingo,
         asignacion_familiar=asignacion_familiar,
         es_afp=es_afp, base_pension=base_pension, descuento_pension=descuento_pension,
         afp_aporte_obligatorio=afp_aporte_obligatorio, afp_prima_seguro=afp_prima_seguro,

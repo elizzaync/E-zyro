@@ -50,6 +50,18 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
     dias_lab_set = set(dias_lab)
     feriados     = _feriados_set(db, empresa_id, inicio, fin)
 
+    # Domingos del rango (día de descanso semanal obligatorio, D.Leg. 713 Art. 3
+    # y 4): _dias_laborables ya los excluye de dias_lab por construcción, así
+    # que se recorren aparte para detectar asistencia marcada en domingo —
+    # trabajo en el día de descanso, pagado con sobretasa (ver
+    # planilla_calculo_service.calcular_boleta_empleado).
+    domingos: list[date] = []
+    _cur = inicio
+    while _cur <= fin:
+        if _cur.weekday() == 6:
+            domingos.append(_cur)
+        _cur += timedelta(days=1)
+
     empleados = (
         db.query(Empleado, Usuario)
         .join(Usuario, Usuario.id == Empleado.usuario_id)
@@ -142,6 +154,11 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
         horas_justificadas = 0.0
         meta_horas_emp     = 0.0
         dias_laborados     = 0
+        horas_domingo      = 0.0
+
+        for dia in domingos:
+            regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
+            horas_domingo += _horas_dia(regs_dia)
 
         for dia in dias_lab:
             req_h, dias_turno = _info_turno_dia(emp.id, dia)
@@ -203,6 +220,7 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
             "horas_extra":           round(horas_extra,        2),
             "horas_extra_aprobadas": horas_extra_aprobadas,
             "horas_extra_no_autor":  horas_extra_no_autor,
+            "horas_domingo":         round(horas_domingo, 2),
             "dias_laborados":        dias_laborados,
             "meta_horas":            round(meta_horas_emp, 2),
             "porcentaje":            porcentaje,

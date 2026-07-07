@@ -292,3 +292,97 @@ def test_provision_vacaciones_siempre_positiva_para_dependiente(regimen):
     )
     assert d.provision_vacaciones > Decimal(0)
     assert d.dias_vacaciones == (30 if regimen == "general" else 15)
+
+
+# ── Caso K: fracción de hora extra menor a 1h — NO se paga (decisión de
+# negocio explícita del usuario; el D.S. 007-2002-TR en realidad exige pagar
+# la parte proporcional, pero aquí solo se paga la hora ya completada) ──────
+def test_caso_k_fraccion_de_hora_extra_no_se_paga():
+    """Escenario reportado: Harold trabajó 61.1h de una meta de 60.5h (0.6h de
+    sobretiempo). Al no completar la hora, no se paga nada — pero el total
+    trabajado (horas_extra) se sigue mostrando como informativo."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal("60.5") + Decimal("0.6"),
+        meta_horas=Decimal("60.5"), sistema_pension="onp", regimen_empresa="general",
+    )
+    assert q2(d.horas_extra) == Decimal("0.60")          # informativo: sí trabajó 0.6h de más
+    assert d.horas_extra_pagables == Decimal(0)           # pero no completó la hora
+    assert q2(d.pago_horas_extra) == Decimal("0.00")
+
+
+# ── Caso L: 2.6h extra — se pagan 2 horas completas al 25% ──────────────────
+def test_caso_l_horas_extra_pagables_trunca_a_entero_tramo_25pct():
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176) + Decimal("2.6"),
+        meta_horas=Decimal(176), sistema_pension="onp", regimen_empresa="general",
+    )
+    assert d.horas_extra_pagables == Decimal(2)
+    assert q2(d.pago_horas_extra) == Decimal("20.83")     # 2h × valor_hora(8.333) × 1.25
+
+
+# ── Caso M: 3.9h extra — 2h al 25% + 1h al 35% (la fracción .9 no se paga) ──
+def test_caso_m_horas_extra_pagables_tramo_25_y_35pct():
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176) + Decimal("3.9"),
+        meta_horas=Decimal(176), sistema_pension="onp", regimen_empresa="general",
+    )
+    assert d.horas_extra_pagables == Decimal(3)
+    assert q2(d.pago_horas_extra) == Decimal("32.08")     # 2h×1.25 + 1h×1.35, sobre valor_hora=8.333
+
+
+# ── Caso N: alerta de horas extra sin trámite de Permanencia Extra ──────────
+def test_caso_n_alerta_horas_extra_sin_tramite_no_reduce_el_pago():
+    """3.15h trabajadas de más (3 pagables), solo 1h con trámite de
+    Permanencia Extra aprobado. El pago sigue siendo por las 3h completas
+    (SUNAFIL presume autorización tácita con el registro de asistencia) —
+    la alerta es solo informativa, para que RRHH regularice el trámite."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176) + Decimal("3.15"),
+        meta_horas=Decimal(176), sistema_pension="onp", regimen_empresa="general",
+        horas_extra_aprobadas=Decimal(1),
+    )
+    assert d.horas_extra_pagables == Decimal(3)
+    assert q2(d.pago_horas_extra) == Decimal("32.08")     # SIN reducir por falta de trámite
+    assert d.horas_extra_sin_tramite == Decimal(2)         # alerta: 3 pagables - 1 aprobada
+
+
+# ── Caso O: domingo trabajado, dependiente — retribución + sobretasa 100% ───
+def test_caso_o_domingo_trabajado_dependiente_paga_doble():
+    """D.Leg. 713 Art. 3: trabajar el día de descanso semanal sin sustituirlo
+    da derecho a la retribución de la labor efectuada MÁS una sobretasa del
+    100% — es decir, el doble del valor hora normal."""
+    base_kwargs = dict(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+    )
+    sin_domingo = calc(**base_kwargs)
+    con_domingo = calc(**base_kwargs, horas_domingo=Decimal(8))
+
+    assert q2(con_domingo.pago_domingo) == Decimal("133.33")   # 8h × 8.333 × 2
+    # El pago de domingo entra a total_ingresos y a la base de pensión (es
+    # remuneración computable real, no informativa como CTS/gratificación).
+    assert q2(con_domingo.total_ingresos) == q2(sin_domingo.total_ingresos + con_domingo.pago_domingo)
+    assert q2(con_domingo.base_pension) == q2(sin_domingo.base_pension + con_domingo.pago_domingo)
+    # El neto SÍ sube frente al mismo caso sin domingo (aunque la pensión
+    # también crezca al ampliarse la base imponible, el neto extra siempre
+    # queda positivo porque ninguna tasa de pensión llega al 100%).
+    assert con_domingo.neto_a_pagar > sin_domingo.neto_a_pagar
+
+
+# ── Caso P: domingo trabajado, PRACTICANTE — tarifa simple (sin sobretasa) ──
+def test_caso_p_domingo_trabajado_practicante_tarifa_simple():
+    """Mismo criterio que horas extra: el practicante (Ley 28518, sin
+    relación laboral) no tiene el beneficio de sobretasa del D.Leg. 713 —
+    se le reconoce el trabajo de domingo a tarifa simple (1x), no doble."""
+    d = calc(
+        tipo_contrato="practicante", sueldo_base=Decimal(1200),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+        horas_domingo=Decimal(8),
+    )
+    assert q2(d.pago_domingo) == Decimal("40.00")          # 8h × 5.00 × 1 (SIN doblar)
