@@ -113,7 +113,15 @@ _SELECT_USUARIO = """
            EXISTS(SELECT 1 FROM empleado e WHERE e.usuario_id = u.id) AS tiene_ficha
       FROM usuario u
      WHERE u.empresa_id::text = :emp
+       -- Gestión es solo para trabajadores: las cuentas del portal cliente
+       -- (con fila en portal_acceso) no se listan ni se administran aquí.
+       AND NOT EXISTS (SELECT 1 FROM portal_acceso pa WHERE pa.usuario_id = u.id)
 """
+
+
+def _es_portal(db: Session, usuario_id: str) -> bool:
+    return bool(db.execute(text("SELECT 1 FROM portal_acceso WHERE usuario_id::text = :u"),
+                           {"u": usuario_id}).first())
 
 
 def _row_to_out(r) -> UsuarioOut:
@@ -218,6 +226,8 @@ def cambiar_rol(usuario_id: str, body: CambiarRolIn,
     if not db.execute(text("SELECT 1 FROM usuario WHERE id::text = :id AND empresa_id::text = :emp"),
                       {"id": usuario_id, "emp": empresa_id}).first():
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
+    if _es_portal(db, usuario_id):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     if not db.execute(text("SELECT 1 FROM rol WHERE id::text = :r AND empresa_id::text = :emp"),
                       {"r": body.rol_id, "emp": empresa_id}).first():
         raise HTTPException(status_code=404, detail="Rol no encontrado en la empresa")
@@ -242,7 +252,7 @@ def cambiar_activo(usuario_id: str, body: CambiarActivoIn,
         .filter(Usuario.id == usuario_id, Usuario.empresa_id == empresa_id)
         .first()
     )
-    if not usuario:
+    if not usuario or _es_portal(db, usuario_id):
         raise HTTPException(status_code=404, detail="Usuario no encontrado")
     usuario.activo = body.activo
     db.commit()
@@ -258,6 +268,8 @@ def reset_password(usuario_id: str, body: ResetPasswordIn,
     empresa_id = payload["empresa_id"]
     if len(body.password or "") < 6:
         raise HTTPException(status_code=422, detail="La contraseña debe tener al menos 6 caracteres")
+    if _es_portal(db, usuario_id):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
     res = db.execute(text("""
         UPDATE usuario
            SET password_hash = :p, debe_cambiar_password = true
