@@ -4520,7 +4520,11 @@ def crear_equipo_catalogo(
     if not nombre:
         raise HTTPException(status_code=422, detail="nombre requerido")
 
+    # El tipo es obligatorio: define la plantilla de procedimientos del
+    # mantenimiento. Sin tipo la inspección saldría con checklist vacío.
     tipo_id  = (body or {}).get("tipo_equipo_id")
+    if not tipo_id:
+        raise HTTPException(status_code=422, detail="tipo_equipo_id requerido")
     ubic_id  = (body or {}).get("ubicacion_id")
     zona_id  = (body or {}).get("zona_id")
     desc     = (body or {}).get("descripcion") or None
@@ -4541,6 +4545,12 @@ def crear_equipo_catalogo(
             prox_mtto = date.fromisoformat(str(_prox_raw)[:10])
         except ValueError:
             prox_mtto = None
+    # Frecuencia del ciclo preventivo en meses (opcional, default 6)
+    try:
+        frec_meses = int((body or {}).get("frecuencia_meses") or 6)
+    except (TypeError, ValueError):
+        frec_meses = 6
+    frec_meses = min(max(frec_meses, 1), 60)
 
     # Heredar ubicacion/zona/cliente del servicio si no vienen en el body.
     # Asi el equipo nuevo queda ligado a la misma ubicacion+zona del servicio.
@@ -4568,7 +4578,12 @@ def crear_equipo_catalogo(
                    f"Registra el mantenimiento sobre el equipo existente.",
         )
 
-    tipo = db.query(TipoEquipo).filter(TipoEquipo.id == tipo_id).first() if tipo_id else None
+    tipo = db.query(TipoEquipo).filter(
+        TipoEquipo.id == tipo_id,
+        TipoEquipo.empresa_id == empresa_id,
+    ).first()
+    if not tipo:
+        raise HTTPException(status_code=404, detail="Tipo de equipo no encontrado")
 
     # Codigo unico {PROV}-{TIPO}-{NNN}. El prefijo PROV se deriva de la ubicacion,
     # pero NO se mezcla con "Referencia": la ubicacion y la zona viven en sus
@@ -4613,6 +4628,7 @@ def crear_equipo_catalogo(
         modelo               = modelo,
         numero_serie         = numero_serie,
         proximo_mantenimiento = prox_mtto,
+        frecuencia_meses     = frec_meses,
         observaciones        = desc,
         estado               = estado_in,
         activo               = True,
@@ -4730,30 +4746,9 @@ def get_inspeccion_activa(
     if not ei:
         raise HTTPException(status_code=404, detail="EquipoIntervenido no encontrado")
 
+    # Desde el arranque en limpio (2026-07) todo equipo se crea con tipo
+    # obligatorio; ya no se infiere por nombre (muleta de la data legacy).
     tipo = db.query(TipoEquipo).filter(TipoEquipo.id == ei.tipo_equipo_id).first() if ei.tipo_equipo_id else None
-
-    # Fallback: si el activo no tiene tipo asignado, inferirlo por nombre
-    if tipo is None:
-        nombre_lower = (ei.nombre or "").lower()
-        if any(k in nombre_lower for k in ["pozo", "puesta a tierra", "pt -", "pt-", "puesta tierra"]):
-            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "POZOS").first()
-        elif any(k in nombre_lower for k in ["transformador", "trafo", "aislamiento"]):
-            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "TRANS. AISLAMIENTO").first()
-        elif any(k in nombre_lower for k in ["ups", "apc"]):
-            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "UPS").first()
-        elif any(k in nombre_lower for k in ["luminaria", "lm-", "lm "]):
-            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "LUMINARIAS").first()
-        elif any(k in nombre_lower for k in ["tomacorriente"]):
-            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "TOMACORRIENTES").first()
-        elif any(k in nombre_lower for k in ["pararrayo"]):
-            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "PARARRAYOS").first()
-        elif any(k in nombre_lower for k in ["tablero", " td", "td-", "td ", "tg-", "tg ", " tg"]):
-            tipo = db.query(TipoEquipo).filter(TipoEquipo.nombre == "TABLEROS").first()
-
-        # Si encontramos tipo por nombre, persistirlo en el activo para evitar futuras consultas
-        if tipo is not None:
-            ei.tipo_equipo_id = tipo.id
-            db.commit()
 
     plantilla = _get_plantilla_jsonb(tipo)
 
@@ -5072,6 +5067,14 @@ def finalizar_inspeccion(
             proxima_fecha = _date.fromisoformat(proxima_str)
         except ValueError:
             pass
+    if proxima_fecha is None:
+        # Default preventivo: hoy + frecuencia del equipo. El técnico puede
+        # sobreescribirla enviando proxima_fecha_mantenimiento explícita.
+        from .equipos_intervenidos import _sumar_meses
+        _ei_frec = db.query(EquipoIntervenido.frecuencia_meses).filter(
+            EquipoIntervenido.id == hi.equipo_intervenido_id
+        ).scalar()
+        proxima_fecha = _sumar_meses(_date.today(), int(_ei_frec or 6))
 
     hi.estado                       = "completado"
     hi.resultado                    = resultado
@@ -5312,6 +5315,20 @@ def actualizar_equipo_intervenido(
     if "estado" in body and body.get("estado"):
         ei.estado = body["estado"]
 
+    # Frecuencia del ciclo preventivo (meses). Recalcula el próximo
+    # mantenimiento desde el último realizado, si existe.
+    if "frecuencia_meses" in body:
+        try:
+            frec = int(body.get("frecuencia_meses"))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422, detail="frecuencia_meses inválida")
+        if not 1 <= frec <= 60:
+            raise HTTPException(status_code=422, detail="frecuencia_meses debe estar entre 1 y 60")
+        ei.frecuencia_meses = frec
+        if ei.ultimo_mantenimiento:
+            from .equipos_intervenidos import _sumar_meses
+            ei.proximo_mantenimiento = _sumar_meses(ei.ultimo_mantenimiento, frec)
+
     ei.updated_at = datetime.utcnow()
     db.commit()
 
@@ -5325,6 +5342,8 @@ def actualizar_equipo_intervenido(
         "modelo":               ei.modelo or None,
         "numero_serie":         ei.numero_serie or None,
         "observaciones":        ei.observaciones or None,
+        "frecuencia_meses":     ei.frecuencia_meses,
+        "proximo_mantenimiento": ei.proximo_mantenimiento.isoformat() if ei.proximo_mantenimiento else None,
     }
 
 
@@ -5448,6 +5467,31 @@ def precarga_informe_general(
     }
 
 
+def _exigir_equipos_completados(db: Session, empresa_id: str, ei_ids: list) -> None:
+    """Candado de entregables al cliente: todos los equipos seleccionados deben
+    tener su inspección completada (mismo criterio que los certificados)."""
+    if not ei_ids:
+        return
+    pendientes = (
+        db.query(EquipoIntervenido.nombre)
+        .filter(
+            EquipoIntervenido.id.in_([str(i) for i in ei_ids]),
+            EquipoIntervenido.empresa_id == empresa_id,
+            EquipoIntervenido.estado_intervencion != "completado",
+        )
+        .all()
+    )
+    if pendientes:
+        nombres = ", ".join(n for (n,) in pendientes[:5])
+        if len(pendientes) > 5:
+            nombres += f" y {len(pendientes) - 5} más"
+        raise HTTPException(
+            status_code=400,
+            detail=(f"Hay equipos con inspección sin completar: {nombres}. "
+                    f"Completa sus procedimientos antes de generar el documento."),
+        )
+
+
 @router.post("/servicio/{servicio_id}/informe/generar")
 def generar_informe_general(
     servicio_id: str,
@@ -5510,6 +5554,14 @@ def generar_informe_general(
                     status_code=403,
                     detail="Como Jefe de Operaciones, solo puedes generar el pre-informe si tienes tareas asignadas a tu nombre en este servicio",
                 )
+
+    # Informe FINAL (no pre-informe de técnico/jefe): todos los equipos
+    # seleccionados deben tener su inspección completada. Los procedimientos
+    # completos son el sustento del documento que se entrega al cliente.
+    if not es_tecnico(payload) and not es_jefe_operaciones(payload):
+        _exigir_equipos_completados(
+            db, empresa_id, [eq.get("id") for eq in equipos_payload if eq.get("id")]
+        )
 
     epps_payload        = body.get("epps", []) or []
     herramientas_payload= body.get("herramientas", []) or []
@@ -5651,6 +5703,10 @@ def generar_carta_garantia(
 
     body = body or {}
     equipos               = body.get("equipos", []) or []
+    # La carta de garantía es entregable al cliente: exige inspecciones completas.
+    _exigir_equipos_completados(
+        db, empresa_id, [eq.get("id") for eq in equipos if isinstance(eq, dict) and eq.get("id")]
+    )
     fecha_operatividad    = str(body.get("fechaOperatividad", "") or "")
     vigencia_garantia     = str(body.get("vigenciaGarantia", "") or "")
     lugar                 = str(body.get("lugar", "") or "")

@@ -152,9 +152,6 @@ def _alertas_mantenimiento_equipos():
     db: Session = SessionLocal()
     try:
         hoy = date.today()
-        equipos = db.query(Equipo).filter(Equipo.requiere_mantenimiento.is_(True)).all()
-        if not equipos:
-            return
 
         # Destinatarios Admin/JefeOp por empresa (cache).
         dest_por_empresa: dict[str, list[str]] = {}
@@ -174,32 +171,24 @@ def _alertas_mantenimiento_equipos():
             return dest_por_empresa[empresa_id]
 
         enviados = 0
-        for e in equipos:
-            # Próxima fecha efectiva: calibración (certificado) > equipo.
-            calib = (
-                db.query(Calibracion)
-                .filter(Calibracion.empresa_id == e.empresa_id,
-                        Calibracion.equipo_id == str(e.id))
-                .order_by(Calibracion.fecha_proxima.desc().nullslast())
-                .first()
-            )
-            prox = (calib.fecha_proxima if calib and calib.fecha_proxima
-                    else e.proxima_fecha_mantenimiento)
-            if not prox:
-                continue
+
+        def _avisar(e, prox, pref: str) -> bool:
+            """Emite el aviso 30/15/7/vencido para un equipo (logística o
+            intervenido: ambos tienen nombre/empresa_id/cliente_id/proyecto_id).
+            Idempotente por (prefijo, equipo, fecha objetivo, umbral)."""
             umbral = _umbral((prox - hoy).days)
             if not umbral:
-                continue
+                return False
 
             # Clave de idempotencia COMPLETA en referencia_tabla (varchar 100).
             # referencia_id es uuid en BD: no admite strings compuestos.
-            ref_tabla = f"eqmant:{e.id}:{prox.isoformat()}:{umbral}"  # ≤ 100
+            ref_tabla = f"{pref}:{e.id}:{prox.isoformat()}:{umbral}"  # ≤ 100
 
             ya = db.query(Notificacion.id).filter(
                 Notificacion.referencia_tabla == ref_tabla,
             ).first()
             if ya:
-                continue  # ya avisado este ciclo/umbral
+                return False  # ya avisado este ciclo/umbral
 
             # Cliente (para el texto): directo o vía proyecto.
             cliente_nombre = ""
@@ -221,9 +210,9 @@ def _alertas_mantenimiento_equipos():
             mensaje = (f"{e.nombre}{ref_cli}: {cuando}. "
                        f"Contactar al cliente para coordinar la recontratación del mantenimiento.")
 
-            destinatarios = _destinatarios(e.empresa_id)
+            destinatarios = _destinatarios(str(e.empresa_id))
             if not destinatarios:
-                continue
+                return False
             for uid in destinatarios:
                 db.add(Notificacion(
                     id=str(_uuid.uuid4()), empresa_id=e.empresa_id, usuario_id=uid,
@@ -238,9 +227,37 @@ def _alertas_mantenimiento_equipos():
                                           referencia_tabla=ref_tabla)
                 except Exception:
                     pass
-            enviados += 1
+            return True
             # TODO (futuro): notificar a la empresa solicitante (cliente con su
             # propia empresa_id, multi-tenant) y/o enviar correo automático.
+
+        # ── Pasada 1: equipos PROPIOS (logística) con mantenimiento ──────────
+        for e in db.query(Equipo).filter(Equipo.requiere_mantenimiento.is_(True)).all():
+            # Próxima fecha efectiva: calibración (certificado) > equipo.
+            calib = (
+                db.query(Calibracion)
+                .filter(Calibracion.empresa_id == e.empresa_id,
+                        Calibracion.equipo_id == str(e.id))
+                .order_by(Calibracion.fecha_proxima.desc().nullslast())
+                .first()
+            )
+            prox = (calib.fecha_proxima if calib and calib.fecha_proxima
+                    else e.proxima_fecha_mantenimiento)
+            if prox and _avisar(e, prox, "eqmant"):
+                enviados += 1
+
+        # ── Pasada 2: EQUIPOS INTERVENIDOS (activos instalados en el cliente,
+        # ciclo preventivo). Es el aviso anticipado a la empresa para
+        # recontratar antes del vencimiento.
+        from app.models.equipo_intervenido import EquipoIntervenido
+        for e in (
+            db.query(EquipoIntervenido)
+            .filter(EquipoIntervenido.activo.is_(True),
+                    EquipoIntervenido.proximo_mantenimiento.isnot(None))
+            .all()
+        ):
+            if _avisar(e, e.proximo_mantenimiento, "eimant"):
+                enviados += 1
 
         db.commit()
         print(f"[Scheduler] 🔧 Alertas de mantenimiento emitidas: {enviados}")
@@ -930,6 +947,12 @@ def _generar_servicios_mantenimiento():
             nombres_eq = ", ".join(e.nombre for e in eqs[:5])
             if len(eqs) > 5:
                 nombres_eq += f" y {len(eqs) - 5} más"
+            # Heredar sede al servicio si todos los equipos comparten la misma
+            # (habilita el filtro geográfico y el alta de equipos en el tab).
+            _ubics = {str(e.ubicacion_id) for e in eqs if e.ubicacion_id}
+            _zonas = {str(e.zona_id) for e in eqs if e.zona_id}
+            _ubic_srv = _ubics.pop() if len(_ubics) == 1 else None
+            _zona_srv = (_zonas.pop() if len(_zonas) == 1 else None) if _ubic_srv else None
             servicio = ProyectoServicio(
                 proyecto_id=proyecto_id, empresa_id=empresa_id,
                 catalogo_servicio_id=str(cat.id),
@@ -940,6 +963,8 @@ def _generar_servicios_mantenimiento():
                 lider_id=p.jefe_operaciones_id,
                 fecha_programada=fecha_prog,
                 tiene_equipos_intervenidos=True,
+                ubicacion_id=_ubic_srv,
+                zona_id=_zona_srv,
             )
             db.add(servicio)
             db.flush()
