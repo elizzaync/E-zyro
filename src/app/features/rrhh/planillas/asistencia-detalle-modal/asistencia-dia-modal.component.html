@@ -24,6 +24,8 @@
 
   <div class="dia-body">
 
+    <!-- ═══ Sección 1: resumen del turno + línea de tiempo ═══ -->
+    <div class="dia-seccion">
     <p class="dia-turno-header">{{ turnoLineText(dia) }}</p>
 
     <!-- Línea de tiempo proporcional (siempre presente, con tooltips) -->
@@ -78,59 +80,70 @@
         }
       </div>
     </div>
+    </div>
+    <!-- ═══ fin Sección 1 ═══ -->
 
     @if (sinMarcacionesEnAbsoluto(dia)) {
-    <p class="dia-nota-warning">{{ calcLines(dia)[0] }}</p>
+    <!-- ═══ Sección 2 (caso ausencia total): sin marcaciones ═══ -->
+    <div class="dia-seccion">
+      <p class="dia-nota-warning">{{ calcLines(dia)[0] }}</p>
+    </div>
     } @else {
 
-    <!-- Marcaciones -->
-    <div class="dia-marcaciones">
-      @for (p of marcacionesDelDia(dia); track p.label) {
-      <div class="dia-marc-item" [class.vacio]="!p.m">
-        <span class="dia-marc-dot" [class]="'dot-' + p.color"></span>
-        <span class="dia-marc-label">{{ p.label }}</span>
-        <span class="dia-marc-hora">{{ p.m ? hora(p.m.hora) : 'no marcó' }}</span>
-        @if (p.tipo && p.turnoHora && p.m) {
-        <span class="dia-marc-nota">turno {{ horaCorta(p.turnoHora) }} → {{ compararConTurno(p.m.hora, p.turnoHora, p.tipo) }}</span>
+    <!-- ═══ Sección 2: lista de marcaciones (Entrada/Almuerzo/Salida) ═══ -->
+    <div class="dia-seccion">
+      <div class="dia-marcaciones">
+        @for (p of marcacionesDelDia(dia); track p.label) {
+        <div class="dia-marc-item" [class.vacio]="!p.m">
+          <span class="dia-marc-dot" [class]="'dot-' + p.color"></span>
+          <span class="dia-marc-label">{{ p.label }}</span>
+          <span class="dia-marc-hora">{{ p.m ? hora(p.m.hora) : 'no marcó' }}</span>
+          @if (p.tipo && p.turnoHora && p.m) {
+          <span class="dia-marc-nota">turno {{ horaCorta(p.turnoHora) }} → {{ compararConTurno(p.m.hora, p.turnoHora, p.tipo) }}</span>
+          }
+        </div>
         }
+      </div>
+
+      @if (dia.alerta === 'marcacion_incompleta') {
+      <p class="dia-nota-error">
+        <strong>SALIDA NO REGISTRADA.</strong> Marcó entrada pero nunca marcó salida ese día — por
+        eso el sistema cuenta <strong>0h trabajadas</strong>, aunque haya estado presente. Es la
+        causa más común de una "falta" que en realidad es un olvido de marcación.
+      </p>
+      }
+      @if (dia.alerta === 'sin_tramite') {
+      <p class="dia-nota-warning" style="margin-top:16px;">
+        Este día tiene sobretiempo pagado que <strong>todavía no tiene un trámite de Permanencia
+        Extra aprobado</strong> que lo respalde — se sigue pagando igual, pero conviene regularizar
+        el trámite en Trámites y Permisos.
+      </p>
+      }
+    </div>
+
+    <!-- ═══ Sección 3: cómo se calculó este día ═══ -->
+    <div class="dia-seccion">
+      <div class="dia-formula-titulo">Cómo se calculó este día</div>
+      <div class="dia-formula">
+        @for (linea of calcLines(dia); track $index) {
+        <div [innerHTML]="linea"></div>
+        }
+      </div>
+    </div>
+    }
+
+    <!-- ═══ Sección final: ubicación de las marcaciones ═══ -->
+    <div class="dia-seccion dia-seccion-final">
+      <div class="dia-formula-titulo">Ubicación de las marcaciones</div>
+      @if (tieneGeolocalizacion(dia)) {
+      <div class="dia-mapa" id="asist-dia-mapa"></div>
+      } @else {
+      <div class="dia-sin-mapa">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1114 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+        Sin marcaciones — no hay ubicación registrada
       </div>
       }
     </div>
-
-    @if (dia.alerta === 'marcacion_incompleta') {
-    <p class="dia-nota-error">
-      <strong>SALIDA NO REGISTRADA.</strong> Marcó entrada pero nunca marcó salida ese día — por
-      eso el sistema cuenta <strong>0h trabajadas</strong>, aunque haya estado presente. Es la
-      causa más común de una "falta" que en realidad es un olvido de marcación.
-    </p>
-    }
-    @if (dia.alerta === 'sin_tramite') {
-    <p class="dia-nota-warning">
-      Este día tiene sobretiempo pagado que <strong>todavía no tiene un trámite de Permanencia
-      Extra aprobado</strong> que lo respalde — se sigue pagando igual, pero conviene regularizar
-      el trámite en Trámites y Permisos.
-    </p>
-    }
-
-    <!-- Fórmula del día -->
-    <div class="dia-formula-titulo">Cómo se calculó este día</div>
-    <div class="dia-formula">
-      @for (linea of calcLines(dia); track $index) {
-      <div [innerHTML]="linea"></div>
-      }
-    </div>
-    }
-
-    <!-- Mapa -->
-    <div class="dia-formula-titulo">Ubicación de las marcaciones</div>
-    @if (tieneGeolocalizacion(dia)) {
-    <div class="dia-mapa" id="asist-dia-mapa"></div>
-    } @else {
-    <div class="dia-sin-mapa">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1114 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
-      Sin marcaciones — no hay ubicación registrada
-    </div>
-    }
   </div>
 </app-modal>
 }

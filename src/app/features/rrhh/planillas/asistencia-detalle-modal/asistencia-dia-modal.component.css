@@ -1,4 +1,15 @@
-.dia-body { max-height: 74vh; overflow-y: auto; padding: 4px 2px 8px; }
+.dia-body { max-height: 74vh; overflow-y: auto; padding: 22px 26px 28px; }
+
+/* ── Secciones con separador (header del día → turno → marcaciones →
+   cálculo → ubicación): cada bloque cierra con un borde sutil, así ningún
+   grupo de contenido queda "flotando" sin límite visual. La última sección
+   (mapa) no lleva separador propio. ─────────────────────────────────────── */
+.dia-seccion {
+  padding-bottom: 22px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid #E5E7EB;
+}
+.dia-seccion-final { padding-bottom: 4px; margin-bottom: 0; border-bottom: none; }
 
 /* ── Navegación anterior/siguiente (inyectada en el header de app-modal) ── */
 .dia-nav-actions { display: flex; align-items: center; gap: 6px; }
@@ -11,10 +22,10 @@
 .dia-nav-btn:disabled { opacity: .35; cursor: default; }
 .dia-nav-divider { width: 1px; height: 20px; background: var(--border-color, #e2e8f0); margin: 0 4px; }
 
-.dia-turno-header { font-size: 12.5px; color: var(--text-muted, #64748b); margin: 0 0 16px; line-height: 1.5; }
+.dia-turno-header { font-size: 12.5px; color: var(--text-muted, #64748b); margin: 0 0 18px; line-height: 1.6; }
 
 /* ── Línea de tiempo proporcional ────────────────────────────────────────── */
-.dia-timeline-wrap { margin-bottom: 18px; }
+.dia-timeline-wrap { margin-bottom: 0; }
 .dia-timeline-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted, #94a3b8); margin-bottom: 6px; }
 .dia-timeline-bar { position: relative; height: 10px; border-radius: 6px; background: var(--border-color, #eef1f6); margin: 26px 4px 8px; }
 
@@ -40,38 +51,53 @@
 .tl-leyenda-item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-muted, #64748b); }
 .tl-dot-leyenda { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; display: inline-block; }
 
-/* ── Marcaciones ─────────────────────────────────────────────────────────── */
-.dia-marcaciones { display: flex; flex-direction: column; margin-bottom: 12px; }
+/* ── Marcaciones: grid de 4 columnas (punto | etiqueta | hora | nota),
+   filas bien delimitadas — no texto suelto uno al lado del otro. ────────── */
+.dia-marcaciones { display: flex; flex-direction: column; }
 .dia-marc-item {
-  display: flex; align-items: center; gap: 10px; padding: 9px 0; font-size: 13px;
-  border-bottom: 1px solid var(--border-color, #f1f5f9);
+  display: grid;
+  grid-template-columns: 14px minmax(110px, 130px) minmax(80px, 100px) 1fr;
+  align-items: center;
+  column-gap: 14px;
+  padding: 14px 4px;
+  font-size: 13px;
+  border-bottom: 1px solid #F0F0F0;
 }
 .dia-marc-item.vacio { opacity: .5; }
-.dia-marc-item:last-child { border-bottom: none; }
-.dia-marc-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.dia-marc-item:last-child { border-bottom: none; padding-bottom: 6px; }
+.dia-marc-item:first-child { padding-top: 4px; }
+.dia-marc-dot { width: 9px; height: 9px; border-radius: 50%; justify-self: center; align-self: center; }
 .dot-green { background: #16a34a; } .dot-red { background: #dc2626; } .dot-amber { background: #f59e0b; } .dot-gris { background: #cbd5e1; }
-.dia-marc-label { color: var(--text-muted, #64748b); width: 110px; flex-shrink: 0; }
-.dia-marc-hora { font-weight: 700; color: var(--text-main, #0f172a); width: 90px; flex-shrink: 0; }
-.dia-marc-nota { color: var(--text-muted, #94a3b8); font-size: 12px; margin-left: auto; text-align: right; }
+.dia-marc-label { color: var(--text-muted, #64748b); }
+.dia-marc-hora { font-weight: 700; color: var(--text-main, #0f172a); }
+.dia-marc-nota { color: var(--text-muted, #94a3b8); font-size: 12px; text-align: right; }
 
 .dia-nota-error {
   font-size: 12px; color: #dc2626; background: rgba(239,68,68,0.08);
-  border-radius: 10px; padding: 12px 14px; margin: 4px 0 12px;
+  border-radius: 10px; padding: 14px 16px; margin: 16px 0 0;
+  line-height: 1.6;
 }
 .dia-nota-warning {
   font-size: 13px; color: #c2410c; background: #fff7ed; border: 1px solid #fed7aa;
-  border-radius: 10px; padding: 12px 14px; margin: 4px 0 18px;
+  border-radius: 10px; padding: 14px 16px; margin: 0;
+  line-height: 1.6;
+}
+.dia-marcaciones + .dia-nota-warning,
+.dia-nota-error + .dia-nota-warning { margin-top: 16px; }
+
+/* Títulos de sección: más peso (semibold) y separación clara del contenido */
+.dia-formula-titulo {
+  font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted, #94a3b8); margin: 0 0 12px;
 }
 
-.dia-formula-titulo {
-  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
-  color: var(--text-muted, #94a3b8); margin: 18px 0 10px;
-}
+/* "Cómo se calculó este día": tarjeta diferenciada, no texto plano */
 .dia-formula {
-  background: var(--card-bg, #f8fafc); border-radius: 10px; padding: 14px 16px;
-  font-size: 13px; color: #334155; line-height: 1.7; margin-bottom: 4px;
+  background: #F9FAFB; border-radius: 8px; padding: 16px;
+  font-size: 13px; color: #334155; line-height: 1.75;
 }
 .dia-formula strong { color: var(--text-main, #0f172a); }
+.dia-formula > div + div { margin-top: 6px; }
 
 .dia-mapa { width: 100%; height: 220px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color, #e2e8f0); z-index: 0; }
 .dia-sin-mapa {
@@ -88,7 +114,8 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  .dia-marc-item { border-color: rgba(255,255,255,0.08); }
+  .dia-seccion { border-bottom-color: rgba(255,255,255,0.08); }
+  .dia-marc-item { border-bottom-color: rgba(255,255,255,0.08); }
   .dia-formula { background: rgba(255,255,255,0.04); }
   .dia-nav-btn { background: rgba(255,255,255,0.04); }
 }
