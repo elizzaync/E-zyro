@@ -22,3 +22,4 @@ opencv-python-headless
 numpy
 pymupdf
 openpyxl
+pytest  # motor de calculo de Planilla (Fase 8): pruebas de las formulas legales

@@ -27,3 +27,14 @@ class Empresa(Base):
     # Si está activo, el cálculo de planilla descuenta las tardanzas por minutos;
     # si se desactiva, las tardanzas solo se registran (descuento manual).
     descuento_tardanza_auto = Column(Boolean, nullable=False, default=True)
+    # ── Planilla (Fase 8): régimen LABORAL (micro/pequeña/general, Ley 32353)
+    # y esquema de pago de nómina. Distinto de `regimen_tributario` (SUNAT).
+    regimen_laboral = Column(String(20), nullable=False, default="micro")
+    esquema_pago_planilla = Column(String(20), nullable=False, default="quincenal")
+    # ── Planilla (2026-07-07): gate de pago de sobretiempo sin trámite ──
+    # Decisión de negocio CON RIESGO LEGAL, configurable por empresa (default
+    # False): si está en False, solo se paga el sobretiempo cubierto por un
+    # trámite de Permanencia Extra APROBADO; el resto queda como alerta sin
+    # pagar. Si está en True, se paga TODO el sobretiempo registrado (SUNAFIL
+    # presume autorización tácita) y el trámite queda solo como alerta.
+    pagar_horas_extra_sin_tramite = Column(Boolean, nullable=False, default=False)
