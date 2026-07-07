@@ -618,3 +618,26 @@ def test_boleta_cuadra_practicante_y_bajo_rmv_y_quincena():
             sistema_pension="onp", **kw,
         )
         _assert_boleta_cuadra(d)
+
+
+# ── FIX 2026-07-08 — Asignación Familiar: gate legal por régimen ────────────
+# La Asignación Familiar (10% RMV, D.S. 035-90-TR) aplica SOLO al Régimen
+# Laboral General. En MYPE (micro/pequeña) NO corresponde aunque el trabajador
+# tenga hijos a cargo. Este test fija esa regla para que no se "arregle" por
+# error haciendo que sume siempre.
+def test_asignacion_familiar_solo_en_regimen_general():
+    base = dict(
+        tipo_contrato="planilla", sueldo_base=Decimal(3000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp",
+    )
+    # Régimen General + tiene hijos a cargo → 10% RMV (113) y suma al total.
+    con = calc(**base, tiene_asignacion_familiar=True, regimen_empresa="general")
+    sin = calc(**base, tiene_asignacion_familiar=False, regimen_empresa="general")
+    assert q2(con.asignacion_familiar) == Decimal("113.00")
+    assert q2(sin.asignacion_familiar) == Decimal("0.00")
+    assert q2(con.total_ingresos - sin.total_ingresos) == Decimal("113.00")
+    # MYPE (pequeña/micro): NO aplica por ley, aunque el flag esté en true.
+    for reg in ("pequena", "micro"):
+        d = calc(**base, tiene_asignacion_familiar=True, regimen_empresa=reg)
+        assert q2(d.asignacion_familiar) == Decimal("0.00")

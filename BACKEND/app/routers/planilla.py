@@ -201,6 +201,85 @@ def actualizar_config(
     )
 
 
+def _construir_preview_empleado(
+    fila: dict, cfg, sueldo_base: Decimal, *,
+    regimen_empresa: str, periodo_pago: str,
+    descuento_tardanza_auto: bool, pagar_horas_extra_sin_tramite: bool,
+) -> PlanillaPreviewEmpleadoOut:
+    """Arma el desglose de boleta de UN empleado (insumo → motor legal →
+    schema de salida). Compartido por `GET /preview` (lista completa) y
+    `GET /empleados/{id}/preview-boleta` (recálculo de una sola fila para el
+    update optimista del frontend, sin re-traer toda la planilla)."""
+    emp_id = str(fila["id"])
+    insumo = InsumoEmpleado(
+        empleado_id=emp_id,
+        tipo_contrato=fila["tipo_contrato"],
+        sueldo_base=Decimal(sueldo_base),
+        horas_reales=Decimal(str(fila["horas_reales"])),
+        horas_faltantes=Decimal(str(fila["horas_faltantes"])),
+        meta_horas=Decimal(str(fila["meta_horas"])),
+        sistema_pension=(cfg.sistema_pension if cfg else "onp"),
+        entidad_afp=(cfg.entidad_afp if cfg else None),
+        comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
+        tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+        tipo_comision_afp=(cfg.tipo_comision_afp if cfg else "saldo"),
+        horas_extra_aprobadas=Decimal(str(fila.get("horas_extra_aprobadas", 0))),
+        horas_domingo=Decimal(str(fila.get("horas_domingo", 0))),
+        horas_feriado=Decimal(str(fila.get("horas_feriado", 0))),
+        horas_extra=Decimal(str(fila.get("horas_extra", 0))),
+        horas_extra_25=Decimal(str(fila.get("horas_extra_25", 0))),
+        horas_extra_35=Decimal(str(fila.get("horas_extra_35", 0))),
+    )
+    desglose = calcular_boleta_empleado(
+        insumo, regimen_empresa=regimen_empresa, periodo_pago=periodo_pago,
+        descuento_tardanza_auto=descuento_tardanza_auto,
+        pagar_horas_extra_sin_tramite=pagar_horas_extra_sin_tramite,
+    )
+    return PlanillaPreviewEmpleadoOut(
+        id=emp_id, nombre_completo=fila.get("nombreCompleto"), cargo=fila.get("cargo"),
+        area=fila.get("area"), iniciales=fila.get("iniciales", "?"),
+        foto_url=fila.get("fotoUrl", ""), tipo_contrato=fila["tipo_contrato"],
+        codigo=fila.get("codigo"), tipo_documento=fila.get("tipo_documento"),
+        numero_documento=fila.get("numero_documento"), cuspp=fila.get("cuspp"),
+        fecha_ingreso=fila.get("fecha_ingreso"),
+        horas_reales=fila["horas_reales"], horas_justificadas=fila["horas_justificadas"],
+        horas_total=fila["horas_total"], horas_faltantes=fila["horas_faltantes"],
+        horas_extra=fila["horas_extra"], horas_extra_aprobadas=fila["horas_extra_aprobadas"],
+        horas_extra_no_autor=fila["horas_extra_no_autor"], dias_laborados=fila["dias_laborados"],
+        meta_horas=fila["meta_horas"], porcentaje=fila["porcentaje"],
+        advertencias=fila["advertencias"],
+        sistema_pension=insumo.sistema_pension, entidad_afp=insumo.entidad_afp,
+        comision_afp_personalizada=insumo.comision_afp_personalizada,
+        comision_afp_pct=desglose.comision_afp_pct,
+        tipo_comision_afp=insumo.tipo_comision_afp,
+        tiene_asignacion_familiar=insumo.tiene_asignacion_familiar,
+        sueldo_base=insumo.sueldo_base, sueldo_periodo=desglose.sueldo_periodo,
+        sueldo_devengado=desglose.sueldo_devengado,
+        valor_dia=desglose.valor_dia, valor_hora=desglose.valor_hora,
+        valor_minuto=desglose.valor_minuto, dias_faltantes=desglose.dias_faltantes,
+        minutos_tardanza=desglose.minutos_tardanza,
+        descuento_dominical=desglose.descuento_dominical,
+        descuento_faltas=desglose.descuento_faltas,
+        horas_extra_25=desglose.horas_extra_25, horas_extra_35=desglose.horas_extra_35,
+        horas_extra_pagables=desglose.horas_extra_pagables,
+        horas_extra_sin_tramite=desglose.horas_extra_sin_tramite,
+        pago_horas_extra=desglose.pago_horas_extra,
+        horas_domingo=desglose.horas_domingo, pago_domingo=desglose.pago_domingo,
+        horas_feriado=desglose.horas_feriado, pago_feriado=desglose.pago_feriado,
+        asignacion_familiar=desglose.asignacion_familiar, es_afp=desglose.es_afp,
+        base_pension=desglose.base_pension, descuento_pension=desglose.descuento_pension,
+        afp_aporte_obligatorio=desglose.afp_aporte_obligatorio,
+        afp_prima_seguro=desglose.afp_prima_seguro, afp_comision=desglose.afp_comision,
+        renta_5ta=desglose.renta_5ta, total_ingresos=desglose.total_ingresos,
+        total_descuentos_legales=desglose.total_descuentos_legales,
+        neto_a_pagar=desglose.neto_a_pagar, aporte_essalud=desglose.aporte_essalud,
+        provision_cts=desglose.provision_cts,
+        provision_gratificacion=desglose.provision_gratificacion,
+        provision_vacaciones=desglose.provision_vacaciones,
+        dias_vacaciones=desglose.dias_vacaciones, bajo_rmv=desglose.bajo_rmv,
+    )
+
+
 # ── Vista previa (Fase 8) — NO persiste nada ─────────────────────────────────
 @router.get("/preview", response_model=PlanillaPreviewOut)
 def preview_planilla(
@@ -272,74 +351,11 @@ def preview_planilla(
         emp_id = str(fila["id"])
         cfg = config_por_emp.get(emp_id)
         sueldo_base = sueldos_por_emp.get(emp_id, Decimal("0"))
-
-        insumo = InsumoEmpleado(
-            empleado_id=emp_id,
-            tipo_contrato=fila["tipo_contrato"],
-            sueldo_base=Decimal(sueldo_base),
-            horas_reales=Decimal(str(fila["horas_reales"])),
-            horas_faltantes=Decimal(str(fila["horas_faltantes"])),
-            meta_horas=Decimal(str(fila["meta_horas"])),
-            sistema_pension=(cfg.sistema_pension if cfg else "onp"),
-            entidad_afp=(cfg.entidad_afp if cfg else None),
-            comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
-            tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
-            tipo_comision_afp=(cfg.tipo_comision_afp if cfg else "saldo"),
-            horas_extra_aprobadas=Decimal(str(fila.get("horas_extra_aprobadas", 0))),
-            horas_domingo=Decimal(str(fila.get("horas_domingo", 0))),
-            horas_feriado=Decimal(str(fila.get("horas_feriado", 0))),
-            horas_extra=Decimal(str(fila.get("horas_extra", 0))),
-            horas_extra_25=Decimal(str(fila.get("horas_extra_25", 0))),
-            horas_extra_35=Decimal(str(fila.get("horas_extra_35", 0))),
-        )
-        desglose = calcular_boleta_empleado(
-            insumo, regimen_empresa=regimen_empresa, periodo_pago=periodo_pago,
+        empleados_out.append(_construir_preview_empleado(
+            fila, cfg, Decimal(sueldo_base),
+            regimen_empresa=regimen_empresa, periodo_pago=periodo_pago,
             descuento_tardanza_auto=descuento_tardanza_auto,
             pagar_horas_extra_sin_tramite=pagar_horas_extra_sin_tramite,
-        )
-
-        empleados_out.append(PlanillaPreviewEmpleadoOut(
-            id=emp_id, nombre_completo=fila.get("nombreCompleto"), cargo=fila.get("cargo"),
-            area=fila.get("area"), iniciales=fila.get("iniciales", "?"),
-            foto_url=fila.get("fotoUrl", ""), tipo_contrato=fila["tipo_contrato"],
-            codigo=fila.get("codigo"), tipo_documento=fila.get("tipo_documento"),
-            numero_documento=fila.get("numero_documento"), cuspp=fila.get("cuspp"),
-            fecha_ingreso=fila.get("fecha_ingreso"),
-            horas_reales=fila["horas_reales"], horas_justificadas=fila["horas_justificadas"],
-            horas_total=fila["horas_total"], horas_faltantes=fila["horas_faltantes"],
-            horas_extra=fila["horas_extra"], horas_extra_aprobadas=fila["horas_extra_aprobadas"],
-            horas_extra_no_autor=fila["horas_extra_no_autor"], dias_laborados=fila["dias_laborados"],
-            meta_horas=fila["meta_horas"], porcentaje=fila["porcentaje"],
-            advertencias=fila["advertencias"],
-            sistema_pension=insumo.sistema_pension, entidad_afp=insumo.entidad_afp,
-            comision_afp_personalizada=insumo.comision_afp_personalizada,
-            comision_afp_pct=desglose.comision_afp_pct,
-            tipo_comision_afp=insumo.tipo_comision_afp,
-            tiene_asignacion_familiar=insumo.tiene_asignacion_familiar,
-            sueldo_base=insumo.sueldo_base, sueldo_periodo=desglose.sueldo_periodo,
-            sueldo_devengado=desglose.sueldo_devengado,
-            valor_dia=desglose.valor_dia, valor_hora=desglose.valor_hora,
-            valor_minuto=desglose.valor_minuto, dias_faltantes=desglose.dias_faltantes,
-            minutos_tardanza=desglose.minutos_tardanza,
-            descuento_dominical=desglose.descuento_dominical,
-            descuento_faltas=desglose.descuento_faltas,
-            horas_extra_25=desglose.horas_extra_25, horas_extra_35=desglose.horas_extra_35,
-            horas_extra_pagables=desglose.horas_extra_pagables,
-            horas_extra_sin_tramite=desglose.horas_extra_sin_tramite,
-            pago_horas_extra=desglose.pago_horas_extra,
-            horas_domingo=desglose.horas_domingo, pago_domingo=desglose.pago_domingo,
-            horas_feriado=desglose.horas_feriado, pago_feriado=desglose.pago_feriado,
-            asignacion_familiar=desglose.asignacion_familiar, es_afp=desglose.es_afp,
-            base_pension=desglose.base_pension, descuento_pension=desglose.descuento_pension,
-            afp_aporte_obligatorio=desglose.afp_aporte_obligatorio,
-            afp_prima_seguro=desglose.afp_prima_seguro, afp_comision=desglose.afp_comision,
-            renta_5ta=desglose.renta_5ta, total_ingresos=desglose.total_ingresos,
-            total_descuentos_legales=desglose.total_descuentos_legales,
-            neto_a_pagar=desglose.neto_a_pagar, aporte_essalud=desglose.aporte_essalud,
-            provision_cts=desglose.provision_cts,
-            provision_gratificacion=desglose.provision_gratificacion,
-            provision_vacaciones=desglose.provision_vacaciones,
-            dias_vacaciones=desglose.dias_vacaciones, bajo_rmv=desglose.bajo_rmv,
         ))
 
     # Mismo criterio de orden que /rrhh/asistencia/resumen (déficit de horas
@@ -360,6 +376,73 @@ def preview_planilla(
         rmv_vigente=RMV_VIGENTE,
         empleados=pagina, total=total, page=page, limit=limit,
         total_paginas=max(1, -(-total // limit)),
+    )
+
+
+@router.get("/empleados/{empleado_id}/preview-boleta", response_model=PlanillaPreviewEmpleadoOut)
+def preview_boleta_empleado(
+    empleado_id: str,
+    fecha_inicio: Optional[date] = Query(None),
+    fecha_fin:    Optional[date] = Query(None),
+    periodo_pago: str            = Query("mes", description="mes | q1 | q2"),
+    payload:      dict           = Depends(verificar_token),
+    db:           Session        = Depends(get_db),
+):
+    """Recalcula la boleta de UN solo empleado (sin persistir), para que el
+    frontend actualice esa fila tras un cambio de config (asignación familiar,
+    pensión, sueldo, modalidad…) SIN re-traer toda la planilla. Devuelve el
+    mismo contrato que cada elemento de `GET /preview`."""
+    exigir_permiso(db, payload, "planilla", "ver")
+    empresa_id = payload["empresa_id"]
+
+    if periodo_pago not in PERIODOS_PAGO_VALIDOS:
+        raise HTTPException(status_code=422, detail=f"periodo_pago debe ser uno de {sorted(PERIODOS_PAGO_VALIDOS)}")
+
+    hoy = date.today()
+    if fecha_inicio is None or fecha_fin is None:
+        ultimo_dia = _cal.monthrange(hoy.year, hoy.month)[1]
+        fecha_inicio = fecha_inicio or date(hoy.year, hoy.month, 1)
+        fecha_fin = fecha_fin or date(hoy.year, hoy.month, ultimo_dia)
+    if fecha_fin < fecha_inicio:
+        raise HTTPException(status_code=400, detail="fecha_fin debe ser >= fecha_inicio")
+
+    empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
+    if not empresa:
+        raise HTTPException(status_code=404, detail="Empresa no encontrada.")
+    regimen_empresa = getattr(empresa, "regimen_laboral", None) or "micro"
+    descuento_tardanza_auto = bool(getattr(empresa, "descuento_tardanza_auto", True))
+    pagar_horas_extra_sin_tramite = bool(getattr(empresa, "pagar_horas_extra_sin_tramite", False))
+
+    fila = next(
+        (f for f in resumen_horas_periodo(db, empresa_id, fecha_inicio, fecha_fin)
+         if str(f["id"]) == empleado_id),
+        None,
+    )
+    if fila is None:
+        raise HTTPException(status_code=404, detail="Empleado sin asistencia en el período.")
+
+    cfg = db.query(EmpleadoPlanillaConfig).filter(
+        EmpleadoPlanillaConfig.empleado_id == empleado_id).first()
+
+    concepto_base = db.query(ConceptoRemunerativo).filter(
+        ConceptoRemunerativo.empresa_id == empresa_id,
+        ConceptoRemunerativo.codigo == planilla_svc.COD_SUELDO_BASE,
+    ).first()
+    sueldo_base = Decimal("0")
+    if concepto_base:
+        ec = db.query(EmpleadoConcepto).filter(
+            EmpleadoConcepto.empresa_id == empresa_id,
+            EmpleadoConcepto.empleado_id == empleado_id,
+            EmpleadoConcepto.concepto_id == concepto_base.id,
+        ).first()
+        if ec:
+            sueldo_base = Decimal(ec.monto)
+
+    return _construir_preview_empleado(
+        fila, cfg, sueldo_base,
+        regimen_empresa=regimen_empresa, periodo_pago=periodo_pago,
+        descuento_tardanza_auto=descuento_tardanza_auto,
+        pagar_horas_extra_sin_tramite=pagar_horas_extra_sin_tramite,
     )
 
 
