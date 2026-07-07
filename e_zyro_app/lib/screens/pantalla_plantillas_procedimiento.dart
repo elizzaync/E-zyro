@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../models/intervencion_models.dart';
 import '../models/proyecto_models.dart';
+import '../services/intervencion_service.dart';
 import '../services/proyecto_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/ui_insets.dart';
@@ -21,20 +23,35 @@ class PantallaPlantillasProcedimiento extends StatefulWidget {
 }
 
 class _PantallaPlantillasProcedimientoState
-    extends State<PantallaPlantillasProcedimiento> {
+    extends State<PantallaPlantillasProcedimiento>
+    with SingleTickerProviderStateMixin {
   ProyectoService? _service;
+  IntervencionService? _intSvc;
   bool _cargando = true;
   List<CatalogoServicio> _catalogos = [];
   List<Map<String, dynamic>> _plantillas = [];
+  // Tipos de equipo intervenido: id, nombre + conteo de pasos de su plantilla
+  List<CatalogoItemSimple> _tiposEquipo = [];
+  final Map<String, List<Map<String, dynamic>>> _pasosPorTipo = {};
+  late final TabController _tabCtrl;
 
   @override
   void initState() {
     super.initState();
+    _tabCtrl = TabController(length: 2, vsync: this)
+      ..addListener(() => setState(() {}));
     _init();
+  }
+
+  @override
+  void dispose() {
+    _tabCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _init() async {
     _service = await getProyectoService();
+    _intSvc = await getIntervencionService();
     await _cargar();
   }
 
@@ -44,13 +61,30 @@ class _PantallaPlantillasProcedimientoState
     final results = await Future.wait([
       s.getCatalogoServicios(incluirInactivos: true),
       s.getPlantillas(),
+      _intSvc!.getTiposEquipo(),
     ]);
     if (!mounted) return;
-    setState(() {
-      _catalogos = results[0] as List<CatalogoServicio>;
-      _plantillas = results[1] as List<Map<String, dynamic>>;
-      _cargando = false;
-    });
+    _catalogos = results[0] as List<CatalogoServicio>;
+    _plantillas = results[1] as List<Map<String, dynamic>>;
+    _tiposEquipo = results[2] as List<CatalogoItemSimple>;
+    // Cargar las plantillas de cada tipo (pocas: una llamada por tipo).
+    _pasosPorTipo.clear();
+    await Future.wait([
+      for (final t in _tiposEquipo)
+        _intSvc!.getProcedimientosTipoEquipo(t.id).then((r) {
+          _pasosPorTipo[t.id] = r.data ?? [];
+        }),
+    ]);
+    if (!mounted) return;
+    setState(() => _cargando = false);
+  }
+
+  /// Placeholder = plantilla vacía o pasos genéricos "Procedimiento N".
+  bool _esPlaceholder(String tipoId) {
+    final pasos = _pasosPorTipo[tipoId] ?? [];
+    if (pasos.isEmpty) return true;
+    return pasos.every((p) => RegExp(r'^Procedimiento \d+$')
+        .hasMatch((p['nombre'] as String? ?? '').trim()));
   }
 
   Map<String, dynamic>? _plantillaDe(String catalogoId) {
@@ -122,68 +156,243 @@ class _PantallaPlantillasProcedimientoState
         elevation: 0,
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         foregroundColor: Theme.of(context).colorScheme.onSurface,
+        bottom: TabBar(
+          controller: _tabCtrl,
+          labelColor: _green,
+          indicatorColor: _green,
+          tabs: const [
+            Tab(text: 'Equipos intervenidos'),
+            Tab(text: 'Tipos de servicio'),
+          ],
+        ),
       ),
       floatingActionButton: _cargando
           ? null
           : FloatingActionButton.extended(
               backgroundColor: _green,
               foregroundColor: Colors.white,
-              onPressed: _nuevoTipoServicio,
+              onPressed:
+                  _tabCtrl.index == 0 ? _nuevoTipoEquipo : _nuevoTipoServicio,
               icon: const Icon(Icons.add),
-              label: const Text('Tipo de servicio'),
+              label: Text(
+                  _tabCtrl.index == 0 ? 'Tipo de equipo' : 'Tipo de servicio'),
             ),
       body: _cargando
           ? const Center(
               child: CircularProgressIndicator(
                   valueColor: AlwaysStoppedAnimation<Color>(_green)))
-          : _catalogos.isEmpty
-              ? _vacio()
-              : RefreshIndicator(
-                  onRefresh: _cargar,
-                  child: ListView(
-                    padding: bottomSafePadding(context, extra: 90),
-                    children: [
-                      const Padding(
-                        padding:
-                            EdgeInsets.fromLTRB(16, 12, 16, 4),
-                        child: Text(
-                          'Cada tipo de servicio tiene un único estándar de '
-                          'procedimientos. Tócalo para verlo o editarlo.',
-                          style: TextStyle(fontSize: 12.5, color: Colors.grey),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      for (final c in _catalogos) ...[
-                        Padding(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 16),
-                          child: _catalogoCard(c),
-                        ),
-                        const SizedBox(height: 10),
-                      ],
-                      if (_plantillasHuerfanas.isNotEmpty) ...[
-                        const Padding(
-                          padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-                          child: Text(
-                            'Sin tipo de servicio vinculado (revisar)',
-                            style: TextStyle(
-                                fontSize: 12.5,
-                                color: _amber,
-                                fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                        for (final p in _plantillasHuerfanas) ...[
-                          Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 16),
-                            child: _legacyCard(p),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-                      ],
-                    ],
+          : TabBarView(
+              controller: _tabCtrl,
+              children: [
+                _tabEquipos(),
+                _tabServicios(),
+              ],
+            ),
+    );
+  }
+
+  // ── Tab: plantillas por tipo de EQUIPO intervenido (mantenimiento) ─────────
+
+  Widget _tabEquipos() {
+    if (_tiposEquipo.isEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Text(
+            'Sin tipos de equipo. Crea uno con el botón + y define los '
+            'procedimientos de su mantenimiento.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          ),
+        ),
+      );
+    }
+    return RefreshIndicator(
+      onRefresh: _cargar,
+      child: ListView(
+        padding: bottomSafePadding(context, extra: 90),
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'Checklist de mantenimiento por tipo de equipo. Estos pasos se '
+              'cargan al inspeccionar un equipo de ese tipo.',
+              style: TextStyle(fontSize: 12.5, color: Colors.grey),
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final t in _tiposEquipo) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _tipoEquipoCard(t),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _tipoEquipoCard(CatalogoItemSimple t) {
+    final surface = Theme.of(context).colorScheme.surface;
+    final pasos = _pasosPorTipo[t.id] ?? [];
+    final placeholder = _esPlaceholder(t.id);
+    final color = placeholder ? _amber : _green;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () => _editarPasosEquipo(t),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                placeholder
+                    ? Icons.warning_amber_rounded
+                    : Icons.assignment_turned_in_outlined,
+                color: color,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(t.nombre,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 3),
+                  Text(
+                    placeholder
+                        ? (pasos.isEmpty
+                            ? 'Sin procedimientos: defínelos'
+                            : '${pasos.length} pasos genéricos: redactar contenido real')
+                        : '${pasos.length} paso${pasos.length == 1 ? '' : 's'}',
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: placeholder ? _amber : Colors.grey),
                   ),
-                ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _editarPasosEquipo(CatalogoItemSimple t) async {
+    final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _EditorPasosEquipo(
+          service: _intSvc!,
+          tipo: t,
+          pasos: _pasosPorTipo[t.id] ?? [],
+        ),
+      ),
+    );
+    if (ok == true) await _cargar();
+  }
+
+  Future<void> _nuevoTipoEquipo() async {
+    final ctrl = TextEditingController();
+    final nombre = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nuevo tipo de equipo'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.characters,
+          decoration: const InputDecoration(
+              hintText: 'p. ej. GRUPOS ELECTRÓGENOS'),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+              style: ElevatedButton.styleFrom(backgroundColor: _green),
+              child:
+                  const Text('Crear', style: TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+    if (nombre == null || nombre.isEmpty || !mounted) return;
+    final res = await _intSvc!.crearTipoEquipo(nombre);
+    if (!mounted) return;
+    if (res.ok) {
+      await _cargar();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res.errorMessage.isEmpty
+              ? 'No se pudo crear el tipo.'
+              : res.errorMessage),
+          backgroundColor: _danger));
+    }
+  }
+
+  // ── Tab: plantillas por tipo de SERVICIO (lo previo, sin cambios) ──────────
+
+  Widget _tabServicios() {
+    if (_catalogos.isEmpty) return _vacio();
+    return RefreshIndicator(
+      onRefresh: _cargar,
+      child: ListView(
+        padding: bottomSafePadding(context, extra: 90),
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Text(
+              'Cada tipo de servicio tiene un único estándar de '
+              'procedimientos. Tócalo para verlo o editarlo.',
+              style: TextStyle(fontSize: 12.5, color: Colors.grey),
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final c in _catalogos) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _catalogoCard(c),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (_plantillasHuerfanas.isNotEmpty) ...[
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+              child: Text(
+                'Sin tipo de servicio vinculado (revisar)',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    color: _amber,
+                    fontWeight: FontWeight.w700),
+              ),
+            ),
+            for (final p in _plantillasHuerfanas) ...[
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _legacyCard(p),
+              ),
+              const SizedBox(height: 10),
+            ],
+          ],
+        ],
+      ),
     );
   }
 
@@ -883,6 +1092,216 @@ class _EditorPlantillaState extends State<_EditorPlantilla> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Editor de pasos por TIPO DE EQUIPO intervenido ───────────────────────────
+// Edita tipo_equipo.procedimientos_template: el checklist que se instancia al
+// inspeccionar un equipo de este tipo en un servicio de mantenimiento.
+
+class _EditorPasosEquipo extends StatefulWidget {
+  final IntervencionService service;
+  final CatalogoItemSimple tipo;
+  final List<Map<String, dynamic>> pasos;
+
+  const _EditorPasosEquipo({
+    required this.service,
+    required this.tipo,
+    required this.pasos,
+  });
+
+  @override
+  State<_EditorPasosEquipo> createState() => _EditorPasosEquipoState();
+}
+
+class _EditorPasosEquipoState extends State<_EditorPasosEquipo> {
+  late List<TextEditingController> _ctrls;
+  bool _guardando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final ordenados = [...widget.pasos]
+      ..sort((a, b) =>
+          (a['orden'] as int? ?? 0).compareTo(b['orden'] as int? ?? 0));
+    _ctrls = [
+      for (final p in ordenados)
+        TextEditingController(text: p['nombre'] as String? ?? ''),
+    ];
+    if (_ctrls.isEmpty) _ctrls.add(TextEditingController());
+  }
+
+  @override
+  void dispose() {
+    for (final c in _ctrls) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  void _mover(int i, int delta) {
+    final j = i + delta;
+    if (j < 0 || j >= _ctrls.length) return;
+    setState(() {
+      final tmp = _ctrls[i];
+      _ctrls[i] = _ctrls[j];
+      _ctrls[j] = tmp;
+    });
+  }
+
+  Future<void> _guardar() async {
+    final pasos = <Map<String, dynamic>>[];
+    var orden = 0;
+    for (final c in _ctrls) {
+      final txt = c.text.trim();
+      if (txt.isEmpty) continue;
+      orden++;
+      pasos.add({'orden': orden, 'nombre': txt, 'descripcion': ''});
+    }
+    if (pasos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Escribe al menos un procedimiento'),
+          backgroundColor: _danger));
+      return;
+    }
+    setState(() => _guardando = true);
+    final res = await widget.service
+        .guardarProcedimientosTipoEquipo(widget.tipo.id, pasos);
+    if (!mounted) return;
+    setState(() => _guardando = false);
+    if (res.ok) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res.errorMessage.isEmpty
+              ? 'No se pudo guardar.'
+              : res.errorMessage),
+          backgroundColor: _danger));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = Theme.of(context).colorScheme.surface;
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text(widget.tipo.nombre,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        elevation: 0,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        foregroundColor: Theme.of(context).colorScheme.onSurface,
+      ),
+      body: ListView(
+        padding: bottomSafePadding(context, extra: 90),
+        children: [
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              'Un paso por tarjeta, en el orden en que se ejecutan. '
+              'Incluye la norma de referencia si aplica (CNE/RNE/NTP).',
+              style: TextStyle(fontSize: 12.5, color: Colors.grey),
+            ),
+          ),
+          for (var i = 0; i < _ctrls.length; i++)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _green.withValues(alpha: 0.25)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text('PASO ${i + 1}',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: _green)),
+                        const Spacer(),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.arrow_upward, size: 16),
+                          onPressed: i == 0 ? null : () => _mover(i, -1),
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.arrow_downward, size: 16),
+                          onPressed: i == _ctrls.length - 1
+                              ? null
+                              : () => _mover(i, 1),
+                        ),
+                        IconButton(
+                          visualDensity: VisualDensity.compact,
+                          icon: const Icon(Icons.delete_outline,
+                              size: 16, color: _danger),
+                          onPressed: () => setState(() {
+                            _ctrls.removeAt(i).dispose();
+                            if (_ctrls.isEmpty) {
+                              _ctrls.add(TextEditingController());
+                            }
+                          }),
+                        ),
+                      ],
+                    ),
+                    TextField(
+                      controller: _ctrls[i],
+                      maxLines: null,
+                      style: const TextStyle(fontSize: 13),
+                      decoration: const InputDecoration(
+                        hintText: 'Describe el procedimiento…',
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: OutlinedButton.icon(
+              onPressed: () =>
+                  setState(() => _ctrls.add(TextEditingController())),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: _green),
+                foregroundColor: _green,
+              ),
+              icon: const Icon(Icons.add),
+              label: const Text('Añadir paso'),
+            ),
+          ),
+        ],
+      ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          child: ElevatedButton(
+            onPressed: _guardando ? null : _guardar,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _green,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+            ),
+            child: _guardando
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Text('Guardar checklist',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
+          ),
         ),
       ),
     );

@@ -149,6 +149,35 @@ class IntervencionService {
     return [];
   }
 
+  // GET /logistica/tipos-equipo/{id}/procedimientos — plantilla del checklist
+  Future<ApiResult<List<Map<String, dynamic>>>> getProcedimientosTipoEquipo(
+          String tipoId) =>
+      _run(
+        () => _client.get('/logistica/tipos-equipo/$tipoId/procedimientos'),
+        (r) => ((jsonDecode(r.body) as Map<String, dynamic>)['procedimientos']
+                    as List? ??
+                [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList(),
+      );
+
+  // PATCH /logistica/tipos-equipo/{id}/procedimientos — reemplaza la plantilla
+  Future<ApiResult<bool>> guardarProcedimientosTipoEquipo(
+          String tipoId, List<Map<String, dynamic>> pasos) =>
+      _run(
+        () => _client.patch(
+            '/logistica/tipos-equipo/$tipoId/procedimientos',
+            {'procedimientos': pasos}),
+        (_) => true,
+      );
+
+  // POST /logistica/tipos-equipo — crea (o devuelve) un tipo por nombre
+  Future<ApiResult<CatalogoItemSimple>> crearTipoEquipo(String nombre) => _run(
+        () => _client.post('/logistica/tipos-equipo', {'nombre': nombre}),
+        (r) => CatalogoItemSimple.fromJson(
+            jsonDecode(r.body) as Map<String, dynamic>),
+      );
+
   // GET /epp — catálogo de EPPs para el selector del informe
   Future<List<CatalogoItemSimple>> getEppCatalogo() async {
     try {
