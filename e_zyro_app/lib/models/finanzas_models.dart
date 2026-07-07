@@ -575,11 +575,16 @@ class CobroCliente {
 class RegistroTributarioFila {
   final String fecha, tipoDocumento, numeroDocumento, tercero;
   final String? ruc;
+  // Montos SIEMPRE en PEN (el backend convierte al TC de emisión del doc);
+  // moneda/tipoCambio/totalOriginal describen el documento origen.
   final double baseImponible, igv, total;
+  final String moneda;
+  final double tipoCambio, totalOriginal;
   RegistroTributarioFila({
     required this.fecha, required this.tipoDocumento, required this.numeroDocumento,
     required this.tercero, this.ruc, required this.baseImponible,
     required this.igv, required this.total,
+    this.moneda = 'PEN', this.tipoCambio = 1, this.totalOriginal = 0,
   });
   factory RegistroTributarioFila.fromJson(Map<String, dynamic> j) => RegistroTributarioFila(
         fecha: j['fecha']?.toString() ?? '',
@@ -590,6 +595,9 @@ class RegistroTributarioFila {
         baseImponible: _toD(j['base_imponible']),
         igv: _toD(j['igv']),
         total: _toD(j['total']),
+        moneda: j['moneda']?.toString() ?? 'PEN',
+        tipoCambio: _toD(j['tipo_cambio'] ?? 1),
+        totalOriginal: _toD(j['total_original']),
       );
 }
 

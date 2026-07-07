@@ -24,6 +24,7 @@
 
 # ÍNDICE
 
+0. Empezar aquí — cómo pensar Finanzas y en qué orden usarla
 1. Plan de cuentas (Periodos y Asiento manual)
 2. Cuentas por Pagar — registrar facturas de proveedores y pagos
 3. Cuentas por Cobrar — emitir comprobantes a clientes y registrar cobros
@@ -34,6 +35,92 @@
 8. Inventario valorizado — registrar ingresos y salidas de almacén
 9. Reportes financieros — cómo leer lo que generaron tus acciones
 10. Checklist mensual recomendado (orden sugerido de tareas)
+
+---
+
+# 0. Empezar aquí — cómo pensar Finanzas y en qué orden usarla
+### La idea central, los 4 conceptos mínimos y el orden lógico de todo el módulo
+
+## 0.A — La idea central (léela dos veces)
+
+**Todo movimiento de valor genera un asiento contable, y todo lo que ves
+(dashboard, reportes) se deriva en vivo de esos asientos.** Nada se digita
+dos veces: cuando facturas un servicio, cuando logística compra, cuando
+pagas la planilla, el sistema escribe la contabilidad solo. Tu trabajo no
+es "hacer contabilidad" — es registrar las operaciones donde ocurren, y
+Finanzas se cuadra sola.
+
+## 0.B — Los 4 conceptos mínimos
+
+1. **Asiento**: anotación de doble entrada. Cada operación mueve al menos
+   2 cuentas y siempre suma igual en ambos lados. Ejemplo: facturas un
+   servicio por S/ 2,055.56 con IGV → cuenta 12 "clientes" +2,055.56 (te
+   deben) / cuenta 70 "ventas" +1,742.00 / cuenta 40 "IGV" +313.56.
+2. **Plan de cuentas (PCGE)**: el catálogo peruano de "cajones" donde caen
+   los montos. Los que más verás: **10** caja y bancos (tu plata), **12**
+   clientes te deben, **20** mercadería en almacén, **33** activos fijos,
+   **40** impuestos por pagar, **42** debes a proveedores, **6x** gastos,
+   **7x** ingresos.
+3. **Devengado vs. caja**: la venta se registra cuando facturas
+   (devengado), no cuando cobras. Por eso el resultado del mes puede ser
+   positivo aunque aún no haya entrado un sol. "Disponible" sí es caja real.
+4. **Periodo contable**: cada mes se abre, se registra y se cierra, para
+   que nadie toque números de meses ya reportados (capítulo 1).
+
+## 0.C — Cómo leer el dashboard (pantalla inicial de Finanzas)
+
+- **Disponible hoy**: saldo real de caja y bancos (cuentas 10). Si nunca
+  cargaste saldos iniciales, marca S/ 0 aunque tengas plata en el banco.
+- **Te deben / Debes**: suma de facturas de clientes (CxC) y de
+  proveedores (CxP) aún no cobradas/pagadas. Las facturas en dólares se
+  convierten al **tipo de cambio de emisión** (el del asiento), no al del
+  día — así el card siempre cuadra con el libro contable.
+- **Mes**: resultado del mes en curso = ingresos (cuentas 7x) menos gastos
+  (cuentas 6x), **sin IGV** (el IGV no es ingreso tuyo, es deuda con
+  SUNAT). Es ganancia devengada, no efectivo.
+- **Caja proyectada 30/60/90**: disponible hoy + cobros que vencen en el
+  horizonte − pagos comprometidos. Lo vencido cuenta como exigible ya.
+
+## 0.D — El orden lógico de uso
+
+**Configurar (una sola vez):**
+
+1. Cargar **saldos iniciales** de caja y bancos (y deudas existentes). Sin
+   esto, "Disponible" y "Caja proyectada" no reflejan tu realidad.
+2. Verificar tasa de IGV y régimen (capítulo 6) y que el periodo del mes
+   esté abierto (capítulo 1).
+3. Dar de alta los activos fijos existentes (capítulo 4) — la depreciación
+   mensual luego corre sola.
+
+**Ciclo del INGRESO (cada venta):**
+
+1. Operaciones completa el servicio.
+2. Cuentas por Cobrar → "Facturar servicio" → factura + asiento
+   automático (capítulo 3.A). Sube "Te deben" y "Mes".
+3. El cliente paga → registrar el cobro (capítulo 3.C). Baja "Te deben",
+   sube "Disponible".
+
+**Ciclo del COSTO (cada gasto):**
+
+- Compra de materiales/equipos → nace en **Logística** (requerimiento /
+  carta de compra) → cae sola en CxP → la pagas ahí (capítulo 2.C).
+- Factura suelta (alquiler, luz, servicios) → CxP manual eligiendo la
+  cuenta de gasto (capítulo 2.A).
+- Gasto menor en efectivo → **Caja chica**.
+- Sueldos → **Planilla** mensual (capítulo 5).
+- Depreciación e inventario → automáticos, no haces nada.
+
+**Rutina mensual** (1-2 horas): conciliación bancaria, leer el estado de
+resultados y el top de gastos, comparar presupuesto y rentabilidad, y
+cerrar el periodo. El paso a paso completo está en el **capítulo 10
+(Checklist mensual)**.
+
+**Rutina anual**: cierre de ejercicio + export PLE para SUNAT, con tu
+contador (capítulos 1 y 6).
+
+> Regla de oro: si una operación movió plata o valor y no pasó por uno de
+> estos circuitos, la contabilidad quedó incompleta. Todo entra por su
+> pantalla — nunca "de memoria" al final del mes.
 
 ---
 

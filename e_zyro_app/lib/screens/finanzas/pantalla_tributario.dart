@@ -366,7 +366,9 @@ class _PantallaTributarioState extends State<PantallaTributario> {
                                 dense: true,
                                 title: Text('${f.tipoDocumento.toUpperCase()} ${f.numeroDocumento}',
                                     style: const TextStyle(fontSize: 13)),
-                                subtitle: Text('${f.fecha} · ${f.tercero}${f.ruc != null ? ' · ${f.ruc}' : ''}',
+                                subtitle: Text(
+                                    '${f.fecha} · ${f.tercero}${f.ruc != null ? ' · ${f.ruc}' : ''}'
+                                    '${f.moneda != 'PEN' ? '\n${f.moneda} ${f.totalOriginal.toStringAsFixed(2)} · TC ${f.tipoCambio.toStringAsFixed(3)}' : ''}',
                                     style: const TextStyle(fontSize: 11)),
                                 trailing: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,

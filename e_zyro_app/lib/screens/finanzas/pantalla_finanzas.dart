@@ -64,6 +64,16 @@ class _PantallaFinanzasState extends State<PantallaFinanzas> {
     });
   }
 
+  /// Abre un módulo y, al volver, refresca el resumen en silencio (sin
+  /// spinner): lo registrado adentro (una factura, un cobro) se ve al salir.
+  Future<void> _abrirModulo(WidgetBuilder builder) async {
+    await Navigator.push(context, MaterialPageRoute(builder: builder));
+    if (!mounted || _svc == null || !_puedeVerResumen) return;
+    final r = await _svc!.resumenFinanciero();
+    if (!mounted) return;
+    if (r.ok) setState(() => _res = r.data);
+  }
+
   String _s(double v) => 'S/ ${_fmt.format(v)}';
   String _sCorto(double v) {
     final a = v.abs();
@@ -271,8 +281,7 @@ class _PantallaFinanzasState extends State<PantallaFinanzas> {
         borderRadius: BorderRadius.circular(18),
         onTap: modulo == null
             ? null
-            : () => Navigator.push(
-                context, MaterialPageRoute(builder: modulo.builder)),
+            : () => _abrirModulo(modulo.builder),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
@@ -351,10 +360,7 @@ class _PantallaFinanzasState extends State<PantallaFinanzas> {
               borderRadius: BorderRadius.circular(16),
               onTap: () {
                 final m = moduloFinanzasPorId(s, visibles[i].$3);
-                if (m != null) {
-                  Navigator.push(
-                      context, MaterialPageRoute(builder: m.builder));
-                }
+                if (m != null) _abrirModulo(m.builder);
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
@@ -591,8 +597,7 @@ class _PantallaFinanzasState extends State<PantallaFinanzas> {
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () =>
-              Navigator.push(context, MaterialPageRoute(builder: m.builder)),
+          onTap: () => _abrirModulo(m.builder),
           child: Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
