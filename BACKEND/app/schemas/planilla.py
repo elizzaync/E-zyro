@@ -199,6 +199,8 @@ class PlanillaPreviewEmpleadoOut(BaseModel):
     pago_horas_extra: Decimal
     horas_domingo: Decimal           # horas trabajadas el día de descanso semanal
     pago_domingo: Decimal            # retribución + sobretasa 100% (D.Leg. 713 Art. 3)
+    horas_feriado: Decimal           # horas trabajadas en día feriado no laborable
+    pago_feriado: Decimal            # retribución + sobretasa 100% (D.Leg. 713 Art. 8/9)
     asignacion_familiar: Decimal
 
     es_afp: bool

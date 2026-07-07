@@ -62,6 +62,12 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
             domingos.append(_cur)
         _cur += timedelta(days=1)
 
+    # Feriados trabajados (D.Leg. 713 Art. 8/9): mismo tratamiento legal que
+    # el domingo (sobretasa 100% si no hay descanso sustitutorio). Se excluyen
+    # los feriados que caen en domingo para no pagar la sobretasa dos veces
+    # (ya cubiertos arriba por el bloque de domingos).
+    feriados_trabajables = [d for d in feriados if d.weekday() != 6]
+
     empleados = (
         db.query(Empleado, Usuario)
         .join(Usuario, Usuario.id == Empleado.usuario_id)
@@ -155,10 +161,15 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
         meta_horas_emp     = 0.0
         dias_laborados     = 0
         horas_domingo      = 0.0
+        horas_feriado      = 0.0
 
         for dia in domingos:
             regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
             horas_domingo += _horas_dia(regs_dia)
+
+        for dia in feriados_trabajables:
+            regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
+            horas_feriado += _horas_dia(regs_dia)
 
         for dia in dias_lab:
             req_h, dias_turno = _info_turno_dia(emp.id, dia)
@@ -221,6 +232,7 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
             "horas_extra_aprobadas": horas_extra_aprobadas,
             "horas_extra_no_autor":  horas_extra_no_autor,
             "horas_domingo":         round(horas_domingo, 2),
+            "horas_feriado":         round(horas_feriado, 2),
             "dias_laborados":        dias_laborados,
             "meta_horas":            round(meta_horas_emp, 2),
             "porcentaje":            porcentaje,

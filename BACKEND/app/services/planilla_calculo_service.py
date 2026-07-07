@@ -124,6 +124,12 @@ class InsumoEmpleado:
     # Horas trabajadas en domingo (día de descanso semanal obligatorio,
     # D.Leg. 713 Art. 3/4) — independientes de horas_reales/meta_horas.
     horas_domingo: Decimal = field(default_factory=lambda: Decimal(0))
+    # Horas trabajadas en un feriado no laborable sin descanso sustitutorio
+    # (D.Leg. 713 Art. 8/9) — mismo tratamiento legal que el domingo, pero
+    # ya excluye los feriados que caen en domingo (ver
+    # planilla_asistencia_service._feriados_trabajables, evita duplicar la
+    # sobretasa) — independientes de horas_reales/meta_horas.
+    horas_feriado: Decimal = field(default_factory=lambda: Decimal(0))
 
 
 @dataclass
@@ -147,6 +153,8 @@ class DesgloseBoleta:
     pago_horas_extra: Decimal
     horas_domingo: Decimal            # informativo: horas trabajadas el día de descanso semanal
     pago_domingo: Decimal             # retribución + sobretasa 100% (D.Leg. 713 Art. 3) — SÍ afecta el neto
+    horas_feriado: Decimal            # informativo: horas trabajadas en feriado no laborable
+    pago_feriado: Decimal             # retribución + sobretasa 100% (D.Leg. 713 Art. 8/9) — SÍ afecta el neto
     asignacion_familiar: Decimal
     es_afp: bool
     base_pension: Decimal
@@ -285,6 +293,13 @@ def calcular_boleta_empleado(
     factor_domingo = Decimal(1) if practicante else Decimal(2)
     pago_domingo = insumo.horas_domingo * valor_hora * factor_domingo
 
+    # Trabajo en feriado no laborable sin descanso sustitutorio (D.Leg. 713
+    # Art. 8/9): idéntico tratamiento legal que el domingo — "retribución
+    # correspondiente a la labor efectuada MÁS una sobretasa del 100%" para
+    # dependientes; tarifa simple para practicantes (Ley 28518).
+    factor_feriado = Decimal(1) if practicante else Decimal(2)
+    pago_feriado = insumo.horas_feriado * valor_hora * factor_feriado
+
     # Asignación Familiar: 10% RMV, SOLO Régimen General, solo dependientes
     # con el flag activo (D.S. N.° 035-90-TR).
     #
@@ -305,12 +320,12 @@ def calcular_boleta_empleado(
 
     # Base imponible para pensiones = remuneración computable del período
     # (ya con sueldo_devengado, que refleja la asistencia real). Incluye el
-    # pago de domingo: es remuneración regular sujeta a aportes, no un
-    # concepto no computable.
+    # pago de domingo/feriado: es remuneración regular sujeta a aportes, no
+    # un concepto no computable.
     if not dependiente:
         base_pension = CERO
     else:
-        base = sueldo_devengado + pago_horas_extra + asignacion_familiar + pago_domingo
+        base = sueldo_devengado + pago_horas_extra + asignacion_familiar + pago_domingo + pago_feriado
         base_pension = max(CERO, base)
 
     es_afp = dependiente and insumo.sistema_pension == "afp"
@@ -386,7 +401,7 @@ def calcular_boleta_empleado(
     # asistencia real) — el descuento por faltas NO se resta de nuevo en
     # total_descuentos_legales (sería duplicarlo). Los únicos descuentos
     # "legales" reales son pensión y renta de 5ta.
-    total_ingresos = sueldo_devengado + pago_horas_extra + asignacion_familiar + pago_domingo
+    total_ingresos = sueldo_devengado + pago_horas_extra + asignacion_familiar + pago_domingo + pago_feriado
     total_descuentos_legales = descuento_pension + renta_5ta
     neto_a_pagar = CERO if sueldo_periodo <= CERO else max(CERO, total_ingresos - total_descuentos_legales)
 
@@ -400,6 +415,7 @@ def calcular_boleta_empleado(
         horas_extra=horas_extra, horas_extra_pagables=horas_extra_pagables,
         horas_extra_sin_tramite=horas_extra_sin_tramite, pago_horas_extra=pago_horas_extra,
         horas_domingo=insumo.horas_domingo, pago_domingo=pago_domingo,
+        horas_feriado=insumo.horas_feriado, pago_feriado=pago_feriado,
         asignacion_familiar=asignacion_familiar,
         es_afp=es_afp, base_pension=base_pension, descuento_pension=descuento_pension,
         afp_aporte_obligatorio=afp_aporte_obligatorio, afp_prima_seguro=afp_prima_seguro,

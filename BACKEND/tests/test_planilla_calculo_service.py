@@ -386,3 +386,51 @@ def test_caso_p_domingo_trabajado_practicante_tarifa_simple():
         horas_domingo=Decimal(8),
     )
     assert q2(d.pago_domingo) == Decimal("40.00")          # 8h × 5.00 × 1 (SIN doblar)
+
+
+# ── Caso Q: feriado trabajado, DEPENDIENTE — paga doble ─────────────────────
+def test_caso_q_feriado_trabajado_dependiente_paga_doble():
+    """D.Leg. 713 Art. 8/9: trabajar un feriado no laborable sin descanso
+    sustitutorio da el mismo derecho que el domingo — retribución de la
+    labor efectuada MÁS sobretasa del 100%."""
+    base_kwargs = dict(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+    )
+    sin_feriado = calc(**base_kwargs)
+    con_feriado = calc(**base_kwargs, horas_feriado=Decimal(8))
+
+    assert q2(con_feriado.pago_feriado) == Decimal("133.33")   # 8h × 8.333 × 2
+    assert q2(con_feriado.total_ingresos) == q2(sin_feriado.total_ingresos + con_feriado.pago_feriado)
+    assert q2(con_feriado.base_pension) == q2(sin_feriado.base_pension + con_feriado.pago_feriado)
+    assert con_feriado.neto_a_pagar > sin_feriado.neto_a_pagar
+
+
+# ── Caso R: feriado trabajado, PRACTICANTE — tarifa simple (sin sobretasa) ──
+def test_caso_r_feriado_trabajado_practicante_tarifa_simple():
+    d = calc(
+        tipo_contrato="practicante", sueldo_base=Decimal(1200),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+        horas_feriado=Decimal(8),
+    )
+    assert q2(d.pago_feriado) == Decimal("40.00")          # 8h × 5.00 × 1 (SIN doblar)
+
+
+# ── Caso S: domingo y feriado no se suman doble cuando coinciden ────────────
+def test_caso_s_domingo_y_feriado_no_se_solapan():
+    """planilla_asistencia_service excluye del cómputo de horas_feriado los
+    feriados que caen en domingo (ya cubiertos por horas_domingo) — el motor
+    de cálculo en sí no deduplica, así que esta prueba fija el contrato: si
+    ambos insumos llegan con horas > 0, cada uno se paga por separado (la
+    deduplicación es responsabilidad de la capa de asistencia, no de este
+    motor puro)."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+        horas_domingo=Decimal(8), horas_feriado=Decimal(8),
+    )
+    assert q2(d.pago_domingo) == Decimal("133.33")
+    assert q2(d.pago_feriado) == Decimal("133.33")
