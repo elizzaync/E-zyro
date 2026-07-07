@@ -69,3 +69,9 @@ class VersionIn(BaseModel):
     archivo_base64: str
     filename: str
     version: Optional[str] = None
+
+
+class PlanoMover(BaseModel):
+    """Mueve un plano a otra carpeta (drag & drop tipo Drive). carpeta_id=None
+    lo mueve a la raíz."""
+    carpeta_id: Optional[str] = None

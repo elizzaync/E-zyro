@@ -26,7 +26,7 @@ from ..services.cloudinary_service import (
 from ..services.cloudinary_paths import carpeta_planos
 from ..schemas.planos import (
     CarpetaIn, CarpetaRename, CarpetaOut,
-    PlanoIn, PlanoOut, PlanoDetalleOut, VersionIn, VersionOut,
+    PlanoIn, PlanoOut, PlanoDetalleOut, VersionIn, VersionOut, PlanoMover,
 )
 
 def _dep_bloquear_tecnico_planos(payload: dict = Depends(verificar_token)) -> None:
@@ -278,6 +278,30 @@ def _plano_detalle(db: Session, pl: Plano) -> PlanoDetalleOut:
         ) for v in vers
     ]
     return PlanoDetalleOut(**base.model_dump(), versiones=versiones)
+
+
+@router.patch("/{plano_id}/mover", response_model=PlanoOut)
+def mover_plano(plano_id: str, body: PlanoMover,
+                payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Mueve un plano a otra carpeta (drag & drop tipo Drive). carpeta_id=None
+    lo lleva a la raíz. Valida que el plano y la carpeta destino sean de la
+    misma empresa."""
+    _exigir_gestion(payload, db)
+    e = payload["empresa_id"]
+    pl = db.query(Plano).filter(Plano.id == plano_id, Plano.empresa_id == e).first()
+    if not pl:
+        raise HTTPException(status_code=404, detail="Plano no encontrado")
+
+    destino = (body.carpeta_id or "").strip() or None
+    if destino is not None:
+        carpeta = db.query(CarpetaDocumental).filter(
+            CarpetaDocumental.id == destino, CarpetaDocumental.empresa_id == e).first()
+        if not carpeta:
+            raise HTTPException(status_code=404, detail="Carpeta destino no encontrada")
+
+    pl.carpeta_id = destino
+    db.commit()
+    return _plano_out(db, pl)
 
 
 @router.get("/{plano_id}", response_model=PlanoDetalleOut)
