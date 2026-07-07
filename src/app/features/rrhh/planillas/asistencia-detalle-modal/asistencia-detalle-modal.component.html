@@ -2,7 +2,7 @@
   [open]="open"
   title="Verificar asistencia"
   [subtitle]="nombreEmpleado || ''"
-  maxWidth="920px"
+  maxWidth="880px"
   iconBg="rgba(59,130,246,0.12)"
   iconColor="#2563eb"
   (closeModal)="cerrar()">
@@ -30,32 +30,42 @@
     <!-- ═══ Tarjetas de resumen ═══ -->
     <div class="asist-resumen-grid">
       <div class="asist-card">
+        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
         <span class="asist-card-label">Meta</span>
         <span class="asist-card-val">{{ h(datos.totales.meta_horas) }}</span>
       </div>
       <div class="asist-card">
+        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
         <span class="asist-card-label">Reales</span>
         <span class="asist-card-val">{{ h(datos.totales.horas_reales) }}</span>
       </div>
       <div class="asist-card extra">
+        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
         <span class="asist-card-label">Extra</span>
         <span class="asist-card-val">{{ h(datos.totales.horas_extra_bruto) }}</span>
       </div>
       <div class="asist-card falta">
+        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span class="asist-card-label">Faltantes</span>
         <span class="asist-card-val">{{ h(datos.totales.horas_faltantes) }}</span>
       </div>
       <div class="asist-card morado">
+        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
         <span class="asist-card-label">Domingo</span>
         <span class="asist-card-val">{{ h(datos.totales.horas_domingo) }}</span>
       </div>
       <div class="asist-card morado">
+        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
         <span class="asist-card-label">Feriado</span>
         <span class="asist-card-val">{{ h(datos.totales.horas_feriado) }}</span>
       </div>
     </div>
 
     <p class="asist-reconciliacion">{{ reconciliacionTexto }}</p>
+    <p class="asist-hint">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+      Solo cuenta como hora extra el tiempo trabajado <strong>después</strong> de la hora de salida del turno — llegar antes de la entrada no suma ni resta nada. Click en un día para ver el detalle.
+    </p>
 
     <!-- ═══ Tabla de días ═══ -->
     <div class="asist-tabla-wrap">
@@ -64,12 +74,12 @@
           <tr>
             <th>Fecha</th><th>Día</th><th>Tipo</th><th class="text-center">Req</th>
             <th class="text-center">Reales</th><th class="text-center">Extra</th>
-            <th class="text-center">Falta</th><th class="text-center">Alerta</th>
+            <th class="text-center">Falta</th><th class="text-center">Alerta</th><th></th>
           </tr>
         </thead>
         <tbody>
           @for (d of datos.detalle_dias; track d.fecha) {
-          <tr [class]="filaClass(d)" (click)="toggleDia(d)">
+          <tr [class]="filaClass(d)" (click)="abrirDia(d)">
             <td>{{ d.fecha }}</td>
             <td>{{ d.dia_semana }}</td>
             <td>
@@ -87,96 +97,10 @@
               <span class="asist-alerta" title="Sobretiempo sin trámite de Permanencia Extra aprobado">⚠</span>
               }
             </td>
-          </tr>
-          @if (diaExpandido === d.fecha) {
-          <tr class="asist-fila-expandida">
-            <td colspan="8">
-              <div class="asist-detalle-dia">
-
-                <!-- Turno esperado ese día -->
-                @if (d.turno_nombre || d.turno_hora_entrada) {
-                <p class="asist-turno-header">
-                  Turno <strong>{{ d.turno_nombre || 'asignado' }}</strong>:
-                  entra a las <strong>{{ horaCorta(d.turno_hora_entrada) }}</strong>,
-                  sale a las <strong>{{ horaCorta(d.turno_hora_salida) }}</strong>
-                  ({{ h(d.req_horas) }} netas de jornada).
-                </p>
-                } @else if (d.tipo_dia === 'no_laborable_turno') {
-                <p class="asist-turno-header">Este día NO le tocaba trabajar según su turno.</p>
-                } @else if (d.tipo_dia === 'domingo' || d.tipo_dia === 'feriado') {
-                <p class="asist-turno-header">{{ tipoDiaLabel(d.tipo_dia) }}: día de descanso, sin jornada exigida — lo trabajado aquí se paga aparte (sobretasa), no cuenta como falta ni extra por tramo.</p>
-                }
-
-                <!-- Timeline de marcaciones, cada una comparada contra el turno -->
-                <div class="asist-timeline">
-                  @for (p of marcacionesDelDia(d); track p.label) {
-                  <div class="asist-timeline-item" [class.vacio]="!p.m">
-                    <span class="asist-timeline-dot" [class]="'dot-' + p.color"></span>
-                    <span class="asist-timeline-label">{{ p.label }}</span>
-                    <span class="asist-timeline-hora">{{ p.m ? hora(p.m.hora) : 'no marcó' }}</span>
-                    @if (p.tipo && p.turnoHora && p.m) {
-                    <span class="asist-timeline-comparacion"
-                      [class.tarde]="compararConTurno(p.m.hora, p.turnoHora, p.tipo)?.includes('tarde') || (p.tipo==='salida' && compararConTurno(p.m.hora, p.turnoHora, p.tipo)?.includes('antes'))">
-                      (turno {{ horaCorta(p.turnoHora) }} → {{ compararConTurno(p.m.hora, p.turnoHora, p.tipo) }})
-                    </span>
-                    }
-                  </div>
-                  }
-                </div>
-                @if (d.alerta === 'marcacion_incompleta') {
-                <p class="asist-nota-error">
-                  <strong>SALIDA NO REGISTRADA.</strong> Marcó entrada pero nunca marcó salida ese día — por
-                  eso el sistema cuenta <strong>0h trabajadas</strong> (no puede calcular una duración sin
-                  el segundo extremo), aunque haya estado presente. Es la causa más común de una "falta"
-                  que en realidad es un olvido de marcación.
-                </p>
-                }
-                @if (d.alerta === 'sin_tramite') {
-                <p class="asist-nota-error">
-                  Este día tiene sobretiempo pagado que <strong>todavía no tiene un trámite de Permanencia
-                  Extra aprobado</strong> que lo respalde — se sigue pagando igual, pero conviene regularizar
-                  el trámite en Trámites y Permisos.
-                </p>
-                }
-
-                <!-- Fórmula del día: de la duración real a lo que se paga -->
-                <div class="asist-formula-titulo">Cómo se calculó este día</div>
-                <div class="asist-formula">
-                  <span>Trabajó <strong>{{ h(d.horas_reales) }}</strong></span>
-                  <span class="asist-formula-sep">vs. jornada de</span>
-                  <span><strong>{{ h(d.req_horas) }}</strong></span>
-                  @if (num(d.falta) > 0) {
-                  <span class="asist-formula-sep">→</span>
-                  <span class="text-red">le faltaron <strong>{{ h(d.falta) }}</strong></span>
-                  } @else if (num(d.horas_extra_bruto) > 0) {
-                  <span class="asist-formula-sep">→</span>
-                  <span class="text-green">
-                    <strong>{{ h(d.horas_extra_bruto) }}</strong> de más
-                    @if (num(d.horas_extra_pagable) < num(d.horas_extra_bruto)) {
-                    (se paga solo la hora completa: <strong>{{ h(d.horas_extra_pagable) }}</strong>,
-                    la fracción de {{ h(num(d.horas_extra_bruto) - num(d.horas_extra_pagable)) }} no se paga)
-                    }
-                    @if (num(d.horas_extra_pagable) > 0) {
-                    → {{ h(d.extra_25) }} al 25% + {{ h(d.extra_35) }} al 35%
-                    }
-                  </span>
-                  } @else {
-                  <span class="asist-formula-sep">→</span>
-                  <span>jornada exacta, sin falta ni extra</span>
-                  }
-                </div>
-
-                <!-- Mapa: entrada y salida (y almuerzo, si marcó) sobre OpenStreetMap -->
-                @if (tieneGeolocalizacion(d)) {
-                <div class="asist-formula-titulo">Ubicación de las marcaciones</div>
-                <div class="asist-mapa" [id]="'asist-mapa-' + d.fecha"></div>
-                } @else {
-                <p class="asist-sin-mapa">Sin datos de ubicación para este día (la marcación no guardó GPS, o no marcó).</p>
-                }
-              </div>
+            <td class="text-center">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="asist-fila-chevron"><polyline points="9 18 15 12 9 6"/></svg>
             </td>
           </tr>
-          }
           }
         </tbody>
       </table>
@@ -184,3 +108,9 @@
     }
   </div>
 </app-modal>
+
+<app-asistencia-dia-modal
+  [open]="diaModalOpen"
+  [dia]="diaSeleccionado"
+  (cerrarModal)="cerrarDiaModal()">
+</app-asistencia-dia-modal>

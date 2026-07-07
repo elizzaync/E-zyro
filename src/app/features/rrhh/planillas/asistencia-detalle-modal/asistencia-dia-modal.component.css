@@ -1,0 +1,81 @@
+.dia-body { max-height: 76vh; overflow-y: auto; padding: 4px 2px 8px; }
+
+.dia-turno-header { font-size: 12.5px; color: var(--text-muted, #64748b); margin: 0 0 16px; line-height: 1.5; }
+.dia-turno-header strong { color: var(--text-main, #1e293b); }
+
+/* ── Línea de tiempo proporcional ────────────────────────────────────────── */
+.dia-timeline-wrap { margin-bottom: 30px; }
+.dia-timeline-bar {
+  position: relative; height: 10px; border-radius: 6px;
+  background: var(--border-color, #e2e8f0); margin: 26px 6px 8px;
+}
+.tl-zona { position: absolute; top: 0; height: 100%; border-radius: 4px; }
+.tl-turno    { background: rgba(59,130,246,0.35); }
+.tl-temprano { background: repeating-linear-gradient(45deg, rgba(148,163,184,0.5), rgba(148,163,184,0.5) 3px, rgba(148,163,184,0.25) 3px, rgba(148,163,184,0.25) 6px); }
+.tl-extra    { background: rgba(34,197,94,0.55); }
+
+.tl-marcador { position: absolute; top: -18px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
+.tl-marcador::after {
+  content: ''; width: 2px; height: 26px; background: var(--text-main, #1e293b); opacity: .55; margin-top: 2px;
+}
+.tl-entrada::after { background: #16a34a; opacity: 1; }
+.tl-salida::after { background: #dc2626; opacity: 1; }
+.tl-marcador-etiqueta {
+  font-size: 9.5px; font-weight: 700; text-align: center; line-height: 1.25;
+  color: var(--text-main, #1e293b); white-space: nowrap;
+}
+
+.dia-timeline-leyenda { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
+.tl-leyenda-item { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text-muted, #64748b); }
+.tl-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
+.tl-dot-turno { background: rgba(59,130,246,0.6); }
+.tl-dot-temprano { background: repeating-linear-gradient(45deg, #94a3b8, #94a3b8 2px, #cbd5e1 2px, #cbd5e1 4px); }
+.tl-dot-extra { background: #22c55e; }
+
+/* ── Marcaciones ─────────────────────────────────────────────────────────── */
+.dia-marcaciones { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.dia-marc-item {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px;
+  padding: 6px 10px; border-radius: 8px; background: var(--card-bg, #f8fafc);
+}
+.dia-marc-item.vacio { opacity: .5; }
+.dia-marc-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.dot-green { background: #16a34a; } .dot-red { background: #dc2626; } .dot-amber { background: #d97706; }
+.dia-marc-texto { display: flex; gap: 8px; align-items: baseline; min-width: 150px; }
+.dia-marc-label { color: var(--text-muted, #64748b); }
+.dia-marc-hora { font-weight: 700; color: var(--text-main, #1e293b); }
+.dia-marc-comparacion { font-size: 11px; color: var(--text-muted, #94a3b8); margin-left: auto; text-align: right; }
+.dia-marc-comparacion.negativo { color: #dc2626; font-weight: 600; }
+
+.dia-nota-error {
+  font-size: 12px; color: #dc2626; background: rgba(239,68,68,0.08);
+  border-radius: 7px; padding: 8px 11px; margin: 0 0 12px;
+}
+
+.dia-formula-titulo {
+  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
+  color: var(--text-muted, #94a3b8); margin: 14px 0 6px;
+}
+.dia-formula {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px;
+  color: var(--text-muted, #64748b); background: var(--card-bg, #f8fafc);
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 4px;
+}
+.dia-formula-sep { opacity: .5; }
+.dia-formula .text-red { color: #dc2626; }
+.dia-formula .text-green { color: #16a34a; }
+.dia-formula strong { color: var(--text-main, #1e293b); }
+
+.dia-mapa { width: 100%; height: 240px; border-radius: 10px; overflow: hidden; z-index: 0; }
+.dia-sin-mapa { font-size: 12px; color: var(--text-muted, #94a3b8); font-style: italic; margin: 4px 0 0; }
+
+::ng-deep .map-pin-green svg { fill: #16a34a; }
+::ng-deep .map-pin-red svg   { fill: #dc2626; }
+::ng-deep .map-pin-amber svg { fill: #d97706; }
+::ng-deep .map-pin-green, ::ng-deep .map-pin-red, ::ng-deep .map-pin-amber {
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
+}
+
+@media (prefers-color-scheme: dark) {
+  .dia-marc-item, .dia-formula { background: rgba(255,255,255,0.04); }
+}
