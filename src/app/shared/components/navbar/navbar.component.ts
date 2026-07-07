@@ -54,9 +54,15 @@ export class NavbarComponent implements OnInit, OnDestroy {
     return this.rolNombre.trim() === 'Soporte';
   }
 
-  /** Puede ver la sección Nube de Planos */
+  /** Puede ver la sección Nube de Planos.
+   * Alineado con el backend (`/planos` solo bloquea a Técnico) y con el gating
+   * de gestión del propio módulo (`esGestor` incluye Jefe de Operaciones y
+   * Logística, que en la BD tienen `planos:gestionar`). Antes se excluía por
+   * error a Jefe de Operaciones y Logística — eran justo los dos roles que SÍ
+   * pueden gestionar planos, así que no veían ni el menú. Soporte lo ve como
+   * solo-lectura (monitoreo): `esGestor` no lo incluye, así que no puede subir. */
   get puedeVerPlanos(): boolean {
-    return !this.isTecnico && !this.isJefeOperaciones && !this.isLogistica && !this.isClienteExterno;
+    return !this.isTecnico && !this.isClienteExterno;
   }
 
   /** Puede ver Requerimientos y Compras en logística */
