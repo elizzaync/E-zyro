@@ -116,8 +116,10 @@ def test_detalle_dias_reconcilia_exacto_con_los_totales(db):
     empresa_id, empleado_id = _setup_empleado_con_turno(db)
 
     registros = [
-        # Lunes 6/1: entrada 08:00, salida 19:00, SIN marcar almuerzo -> 11h
-        # crudas sin descuento -> 3h de sobretiempo (2h@25% + 1h@35%).
+        # Lunes 6/1: entrada 08:00 (a tiempo), salida 19:00 -> ancladas al
+        # turno (08:00-17:00): 2h de sobretiempo, TODAS después de la salida
+        # pactada (2h@25%, el "trabajar sin marcar almuerzo" NO genera extra
+        # porque cae DENTRO de la ventana [08:00,17:00], solo informa reales=9h).
         _reg(empresa_id, empleado_id, "entrada", date(2026, 6, 1), 8, 0),
         _reg(empresa_id, empleado_id, "salida",  date(2026, 6, 1), 19, 0),
         # Martes 6/2: entrada sin salida -> _horas_dia da 0h -> falta 8h
@@ -148,9 +150,9 @@ def test_detalle_dias_reconcilia_exacto_con_los_totales(db):
     # ── Totales esperados (calculados a mano, ver docstring del caso) ──────
     assert fila["meta_horas"]      == 40.0   # 5 días laborables x 8h (sábado y domingo no meten meta)
     assert fila["horas_faltantes"] == 17.0   # 0 + 8 + 8 + 1 + 0
-    assert fila["horas_extra"]     == 3.0    # solo el lunes
+    assert fila["horas_extra"]     == 2.0    # solo el lunes, solo lo de DESPUÉS de las 17:00
     assert fila["horas_extra_25"]  == 2.0
-    assert fila["horas_extra_35"]  == 1.0
+    assert fila["horas_extra_35"]  == 0.0
     assert fila["horas_domingo"]   == 0.0
     assert fila["horas_feriado"]   == 0.0
 
@@ -159,8 +161,9 @@ def test_detalle_dias_reconcilia_exacto_con_los_totales(db):
 
     por_fecha = {d["fecha"]: d for d in detalle}
     assert por_fecha[date(2026, 6, 1)]["tipo_dia"] == "laborable"
+    assert por_fecha[date(2026, 6, 1)]["horas_reales"] == 9.0   # 08:00-17:00, sin descontar almuerzo (no lo marcó)
     assert por_fecha[date(2026, 6, 1)]["extra_25"] == 2.0
-    assert por_fecha[date(2026, 6, 1)]["extra_35"] == 1.0
+    assert por_fecha[date(2026, 6, 1)]["extra_35"] == 0.0
     assert por_fecha[date(2026, 6, 2)]["falta"] == 8.0
     assert por_fecha[date(2026, 6, 2)]["alerta"] == "marcacion_incompleta"
     assert por_fecha[date(2026, 6, 3)]["falta"] == 8.0
@@ -190,9 +193,60 @@ def test_sin_incluir_detalle_dias_no_arma_el_detalle(db):
 
     filas = resumen_horas_periodo(db, empresa_id, date(2026, 6, 1), date(2026, 6, 7))
     assert filas[0]["detalle_dias"] == []
-    assert filas[0]["horas_extra"] == 3.0
+    assert filas[0]["horas_extra"] == 2.0
     assert filas[0]["horas_extra_25"] == 2.0
-    assert filas[0]["horas_extra_35"] == 1.0
+    assert filas[0]["horas_extra_35"] == 0.0
+
+
+# ── FIX 2026-07-08 — hora extra ANCLADA al horario pactado del turno ───────
+def test_llegar_temprano_no_cuenta_como_extra_ni_reduce_falta(db):
+    """Escenario reportado: turno 08:00-17:00, el empleado marca entrada
+    07:00 (1h antes) y sale puntual a las 17:00. Esa hora temprana NO debe
+    contar para nada — ni como sobretiempo, ni agrandando 'horas_reales' más
+    allá de la jornada. Antes del fix (span crudo) esto daba 10h reales y
+    podía generar 1h de extra fantasma; ahora debe dar exactamente la
+    jornada pactada, sin extra."""
+    empresa_id, empleado_id = _setup_empleado_con_turno(db)
+    db.add_all([
+        _reg(empresa_id, empleado_id, "entrada",          date(2026, 6, 1), 7, 0),
+        _reg(empresa_id, empleado_id, "entrada_almuerzo", date(2026, 6, 1), 12, 0),
+        _reg(empresa_id, empleado_id, "salida_almuerzo",  date(2026, 6, 1), 13, 0),
+        _reg(empresa_id, empleado_id, "salida",           date(2026, 6, 1), 17, 0),
+    ])
+    db.commit()
+
+    filas = resumen_horas_periodo(
+        db, empresa_id, date(2026, 6, 1), date(2026, 6, 1), incluir_detalle_dias=True,
+    )
+    dia = filas[0]["detalle_dias"][0]
+    assert dia["horas_reales"] == 8.0     # 08:00-17:00 menos 1h de almuerzo, NO 9h (07:00-17:00-1h)
+    assert dia["horas_extra_bruto"] == 0.0
+    assert dia["falta"] == 0.0
+    assert filas[0]["horas_extra"] == 0.0
+
+
+def test_quedarse_despues_de_la_salida_si_cuenta_como_extra(db):
+    """Mismo turno (08:00-17:00), entrada puntual, pero se queda hasta las
+    18:30 -> 1.5h de sobretiempo, TODAS después de la hora de salida pactada
+    (floor a 1h pagable, tramo 25%)."""
+    empresa_id, empleado_id = _setup_empleado_con_turno(db)
+    db.add_all([
+        _reg(empresa_id, empleado_id, "entrada",          date(2026, 6, 1), 8, 0),
+        _reg(empresa_id, empleado_id, "entrada_almuerzo", date(2026, 6, 1), 12, 0),
+        _reg(empresa_id, empleado_id, "salida_almuerzo",  date(2026, 6, 1), 13, 0),
+        _reg(empresa_id, empleado_id, "salida",           date(2026, 6, 1), 18, 30),
+    ])
+    db.commit()
+
+    filas = resumen_horas_periodo(
+        db, empresa_id, date(2026, 6, 1), date(2026, 6, 1), incluir_detalle_dias=True,
+    )
+    dia = filas[0]["detalle_dias"][0]
+    assert dia["horas_reales"] == 8.0
+    assert round(dia["horas_extra_bruto"], 2) == 1.5   # informativo, sin truncar
+    assert dia["horas_extra_pagable"] == 1.0           # floor(1.5) = 1h
+    assert dia["extra_25"] == 1.0
+    assert dia["falta"] == 0.0
 
 
 def test_marcacion_incompleta_no_pisa_alerta_sin_geolocalizacion(db):

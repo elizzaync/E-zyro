@@ -36,13 +36,72 @@ solo con `incluir_detalle_dias=True` (los dos consumidores existentes,
 `/rrhh/asistencia/resumen` y `/planilla/preview`/`calcular_planilla`, NO lo
 piden — no pagan el costo extra de armar el detalle día-por-día con
 geolocalización de cada empleado en cada carga de la tabla).
+
+FIX 2026-07-08 (hora extra ANCLADA al horario pactado, decisión de negocio
+explícita del usuario): antes, `horas_reales` era el SPAN crudo
+(salida − entrada − almuerzo) sin importar en qué momento del día ocurrió, así
+que llegar 1h ANTES de la hora de entrada del turno podía contar como
+sobretiempo si el total superaba las horas requeridas — igual que quedarse
+1h después de la salida. Esto NO es lo que el negocio quiere: "las horas
+extra son fuera de tu hora de trabajo" — específicamente, DESPUÉS de la hora
+de salida pactada. Llegar temprano ya NO cuenta para nada (ni resta falta ni
+suma extra); el sobretiempo ahora se calcula EXCLUSIVAMENTE como tiempo
+trabajado después de `turno_hora_salida` (`_horas_dia_ancladas`). Si el
+empleado no tiene un turno con horario de reloj definido (turno_hora_entrada/
+salida=None — cae al default de 8h sin turno asignado), no hay ancla contra
+la cual comparar y se preserva el cálculo anterior por SPAN total.
 """
 from __future__ import annotations
 
 import math
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as _time, timedelta
 
 from sqlalchemy.orm import Session
+
+
+def _horas_dia_ancladas(
+    regs_dia: list, dia: date,
+    turno_hora_entrada: "_time | None", turno_hora_salida: "_time | None",
+) -> tuple[float, float]:
+    """(horas_regulares, horas_extra_bruto) ancladas al horario PACTADO del
+    turno — ver FIX 2026-07-08 en el docstring del módulo. `horas_regulares`
+    es el tiempo trabajado DENTRO de [turno_hora_entrada, turno_hora_salida]
+    (llegar antes no lo agranda); `horas_extra_bruto` es SOLO el tiempo
+    trabajado después de `turno_hora_salida` (llegar antes nunca genera
+    extra, sin importar cuánto se quede después)."""
+    entrada = next((r.fecha_hora for r in regs_dia if r.tipo == "entrada"),          None)
+    salida  = next((r.fecha_hora for r in regs_dia if r.tipo == "salida"),           None)
+    ini_alm = next((r.fecha_hora for r in regs_dia if r.tipo == "entrada_almuerzo"), None)
+    fin_alm = next((r.fecha_hora for r in regs_dia if r.tipo == "salida_almuerzo"),  None)
+
+    if not entrada or not salida:
+        return 0.0, 0.0
+
+    if turno_hora_entrada is None or turno_hora_salida is None:
+        # Sin turno con horario de reloj (cae al default sin turno asignado):
+        # no hay ancla contra la cual comparar — se preserva el SPAN total.
+        horas = (salida - entrada).total_seconds() / 3600.0
+        if ini_alm and fin_alm and fin_alm > ini_alm:
+            horas -= (fin_alm - ini_alm).total_seconds() / 3600.0
+        return max(0.0, horas), 0.0
+
+    turno_entrada_dt = datetime.combine(dia, turno_hora_entrada)
+    turno_salida_dt  = datetime.combine(dia, turno_hora_salida)
+
+    inicio_regular = max(entrada, turno_entrada_dt)   # llegar temprano NO cuenta
+    fin_regular    = min(salida, turno_salida_dt)      # el tramo regular no pasa de la salida pactada
+    horas_regulares = max(0.0, (fin_regular - inicio_regular).total_seconds() / 3600.0)
+
+    if ini_alm and fin_alm and fin_alm > ini_alm:
+        alm_ini_ov = max(ini_alm, inicio_regular)
+        alm_fin_ov = min(fin_alm, fin_regular)
+        if alm_fin_ov > alm_ini_ov:
+            horas_regulares -= (alm_fin_ov - alm_ini_ov).total_seconds() / 3600.0
+    horas_regulares = max(0.0, horas_regulares)
+
+    horas_extra_bruto = max(0.0, (salida - turno_salida_dt).total_seconds() / 3600.0)
+
+    return horas_regulares, horas_extra_bruto
 
 
 def resumen_horas_periodo(
@@ -283,15 +342,19 @@ def resumen_horas_periodo(
                         horas_justificadas += req_h
                         h = _horas_dia(regs_dia)  # informativo: no genera falta ni extra
                     else:
-                        h = _horas_dia(regs_dia)
+                        # Ancladas al horario PACTADO del turno (FIX
+                        # 2026-07-08): llegar antes de turno_hora_entrada NO
+                        # cuenta para nada; el sobretiempo es EXCLUSIVAMENTE
+                        # tiempo trabajado después de turno_hora_salida.
+                        h, extra_bruto_dia = _horas_dia_ancladas(
+                            regs_dia, dia, turno_hora_entrada, turno_hora_salida)
                         horas_reales += h
                         if h > 0:
                             dias_laborados += 1
                         falta_dia = max(0.0, req_h - h)
-                        extra_bruto_dia = max(0.0, h - req_h)
                         extra_pag_dia = float(math.floor(extra_bruto_dia))  # solo la hora YA completada
-                        extra25_dia = min(extra_pag_dia, 2.0)               # primeras 2h del día → 25%
-                        extra35_dia = max(0.0, extra_pag_dia - 2.0)         # resto del día → 35%
+                        extra25_dia = min(extra_pag_dia, 2.0)               # primeras 2h después de salida → 25%
+                        extra35_dia = max(0.0, extra_pag_dia - 2.0)         # resto → 35%
 
                         horas_faltantes += falta_dia
                         horas_extra      += extra_bruto_dia
