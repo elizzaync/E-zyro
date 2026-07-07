@@ -557,3 +557,64 @@ def test_gate_true_sin_tramite_paga_completo():
     )
     assert q2(d.pago_horas_extra) == Decimal("20.83")
     assert d.horas_extra_sin_tramite == Decimal(2)
+
+
+# ── FIX 2026-07-08 — Consistencia de la Boleta de Pago (PDF) ────────────────
+# La boleta agrupa los conceptos en 3 bloques que DEBEN cuadrar fila por fila
+# con su subtotal; si esto se rompe, el documento muestra un "TOTAL" que no
+# coincide con lo listado (bug reportado: las inasistencias aparecían en
+# "Descuentos" pero el total de descuentos no las incluía). Este test fija las
+# 4 identidades de las que depende la plantilla `construirVoucherHtml`.
+def _assert_boleta_cuadra(d) -> None:
+    # Bloque A — Ajustes: Remuneración Básica − Inasistencias = Computable.
+    assert d.sueldo_devengado == d.sueldo_periodo - d.descuento_faltas
+    # Bloque B — Ingresos: las filas suman EXACTO el Total Remuneración Bruta.
+    assert d.total_ingresos == (
+        d.sueldo_devengado + d.pago_horas_extra + d.asignacion_familiar
+        + d.pago_domingo + d.pago_feriado
+    )
+    # Bloque C — Descuentos: SOLO pensión + renta (las inasistencias NO van
+    # aquí, ya se restaron en el bloque de Ajustes).
+    assert d.total_descuentos_legales == d.descuento_pension + d.renta_5ta
+    # AFP: el desglose de 3 componentes suma el descuento total de pensión.
+    if d.es_afp:
+        assert q2(d.afp_aporte_obligatorio + d.afp_prima_seguro + d.afp_comision) == q2(d.descuento_pension)
+    # Resumen de Liquidación: Neto = Bruta − Descuentos (piso 0).
+    if d.sueldo_periodo > Decimal(0):
+        assert d.neto_a_pagar == max(Decimal(0), d.total_ingresos - d.total_descuentos_legales)
+
+
+def test_boleta_cuadra_dependiente_onp_con_faltas_y_extras():
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2500),
+        horas_faltantes=Decimal(10), horas_reales=Decimal(180), meta_horas=Decimal(176),
+        sistema_pension="onp", tiene_asignacion_familiar=True, regimen_empresa="general",
+        horas_extra=Decimal(4), horas_extra_25=Decimal(2), horas_extra_35=Decimal(2),
+        pagar_horas_extra_sin_tramite=True,
+    )
+    _assert_boleta_cuadra(d)
+
+
+def test_boleta_cuadra_afp_flujo_con_domingo_y_feriado():
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(3000),
+        horas_faltantes=Decimal(6), horas_reales=Decimal(170), meta_horas=Decimal(176),
+        sistema_pension="afp", entidad_afp="prima", tipo_comision_afp="flujo",
+        tiene_asignacion_familiar=True, regimen_empresa="general",
+        horas_domingo=Decimal(8), horas_feriado=Decimal(8),
+    )
+    _assert_boleta_cuadra(d)
+
+
+def test_boleta_cuadra_practicante_y_bajo_rmv_y_quincena():
+    for kw in (
+        dict(tipo_contrato="practicante", sueldo_base=Decimal(1200), regimen_empresa="general"),
+        dict(tipo_contrato="planilla", sueldo_base=Decimal(900), regimen_empresa="micro"),
+        dict(tipo_contrato="planilla", sueldo_base=Decimal(6000), tiene_asignacion_familiar=True,
+             regimen_empresa="general", periodo_pago="q1"),
+    ):
+        d = calc(
+            horas_faltantes=Decimal(4), horas_reales=Decimal(172), meta_horas=Decimal(176),
+            sistema_pension="onp", **kw,
+        )
+        _assert_boleta_cuadra(d)
