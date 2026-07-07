@@ -87,6 +87,25 @@ def _periodo_rango(periodo: str) -> tuple[date, date]:
         raise HTTPException(status_code=422, detail="periodo inválido; use 'YYYY-MM'.")
 
 
+def _montos_pen(f) -> dict:
+    """Montos del documento en PEN para el registro SUNAT (los libros van en
+    moneda funcional): un doc en moneda extranjera se convierte con SU tipo de
+    cambio de emisión — el mismo del asiento — y se conserva el total origen
+    y el TC para poder mostrarlos."""
+    moneda = (getattr(f, "moneda", None) or "PEN").upper()
+    tc = Decimal(str(f.tipo_cambio)) if moneda != "PEN" and f.tipo_cambio else Decimal("1")
+
+    def pen(v):
+        v = Decimal(str(v or 0))
+        return (v * tc).quantize(Q2)
+
+    return {
+        "base_imponible": pen(f.subtotal), "igv": pen(f.igv), "total": pen(f.total),
+        "moneda": moneda, "tipo_cambio": tc,
+        "total_original": Decimal(str(f.total or 0)).quantize(Q2),
+    }
+
+
 def registro_compras(db: Session, empresa_id: str, periodo: str) -> list[dict]:
     from app.models.cuentas_por_pagar import FacturaProveedor
     from app.models.proveedor import Proveedor
@@ -105,7 +124,7 @@ def registro_compras(db: Session, empresa_id: str, periodo: str) -> list[dict]:
         {
             "fecha": f.fecha_emision, "ruc": ruc, "proveedor": razon,
             "tipo_documento": f.tipo_documento, "numero_documento": f.numero_documento,
-            "base_imponible": f.subtotal, "igv": f.igv, "total": f.total,
+            **_montos_pen(f),
         }
         for f, razon, ruc in filas
     ]
@@ -129,7 +148,7 @@ def registro_ventas(db: Session, empresa_id: str, periodo: str) -> list[dict]:
         {
             "fecha": f.fecha_emision, "ruc": ruc, "cliente": razon,
             "tipo_documento": f.tipo_documento, "numero_documento": f.numero_documento,
-            "base_imponible": f.subtotal, "igv": f.igv, "total": f.total,
+            **_montos_pen(f),
         }
         for f, razon, ruc in filas
     ]
@@ -214,9 +233,9 @@ def registro_compras_ple(db: Session, empresa_id: str, periodo: str) -> dict:
             "0.00",                                    # 21 ISC
             "0.00",                                    # 22 ICBPER
             "0.00",                                    # 23 otros tributos
-            _f(r["total"]),                            # 24 importe total
-            "PEN",                                     # 25 moneda
-            "1.000",                                   # 26 tipo de cambio
+            _f(r["total"]),                            # 24 importe total (PEN)
+            r["moneda"],                               # 25 moneda de emisión
+            f"{r['tipo_cambio']:.3f}",                 # 26 tipo de cambio
             "", "", "", "",                            # 27-30 doc modificado
             "", "",                                    # 31-32 detracción
             "",                                        # 33 marca retención
@@ -267,9 +286,9 @@ def registro_ventas_ple(db: Session, empresa_id: str, periodo: str) -> dict:
             "0.00",                                    # 22 imp. arroz pilado
             "0.00",                                    # 23 ICBPER
             "0.00",                                    # 24 otros cargos
-            _f(r["total"]),                            # 25 importe total
-            "PEN",                                     # 26 moneda
-            "1.000",                                   # 27 tipo de cambio
+            _f(r["total"]),                            # 25 importe total (PEN)
+            r["moneda"],                               # 26 moneda de emisión
+            f"{r['tipo_cambio']:.3f}",                 # 27 tipo de cambio
             "", "", "", "",                            # 28-31 doc modificado
             "",                                        # 32 contrato
             "",                                        # 33 error tipo 1

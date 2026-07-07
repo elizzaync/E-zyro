@@ -14,7 +14,7 @@ from collections import defaultdict
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import case, func
+from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.contabilidad import AsientoContable, AsientoLinea, CentroCosto
@@ -128,9 +128,17 @@ def _ingresos_por_proyecto(
     """proyecto_id → ingresos netos (subtotal sin IGV; notas de crédito restan)."""
     from app.models.cuentas_por_cobrar import FacturaCliente
 
+    # Multimoneda: los ingresos se agregan en PEN convirtiendo cada doc en
+    # moneda extranjera con SU tipo de cambio de emisión (el del asiento).
+    tc = case(
+        (or_(FacturaCliente.moneda.is_(None), FacturaCliente.moneda == "PEN"),
+         Decimal("1")),
+        else_=func.coalesce(FacturaCliente.tipo_cambio, Decimal("1")),
+    )
+    monto_pen = FacturaCliente.subtotal * tc
     signo = case(
-        (FacturaCliente.tipo_documento == "nota_credito", -FacturaCliente.subtotal),
-        else_=FacturaCliente.subtotal,
+        (FacturaCliente.tipo_documento == "nota_credito", -monto_pen),
+        else_=monto_pen,
     )
     q = (
         db.query(FacturaCliente.proyecto_id, func.coalesce(func.sum(signo), 0))
@@ -331,6 +339,25 @@ def rentabilidad_proyectos(
             fila["empleados"] = desg_emps.get(pid, [])
         filas.append(fila)
     return filas
+
+
+def asegurar_centro_proyecto(db: Session, empresa_id: str, proyecto_id: str,
+                             codigo: str, nombre: str) -> None:
+    """Centro de costo 1-a-1 del proyecto (idempotente): lo crea si no existe.
+    Sin este centro no hay dónde imputar gastos y Rentabilidad ve costos 0."""
+    existe = (
+        db.query(CentroCosto.id)
+        .filter(CentroCosto.empresa_id == empresa_id,
+                CentroCosto.tipo_referencia == "proyecto",
+                CentroCosto.referencia_id == proyecto_id)
+        .first()
+    )
+    if existe:
+        return
+    db.add(CentroCosto(
+        empresa_id=empresa_id, codigo=codigo[:20], nombre=nombre[:150],
+        tipo_referencia="proyecto", referencia_id=proyecto_id,
+    ))
 
 
 if __name__ == "__main__":  # self-check del pareo de horas (sin DB)

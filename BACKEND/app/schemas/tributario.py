@@ -41,3 +41,7 @@ class RegistroFila(BaseModel):
     base_imponible: Decimal
     igv: Decimal
     total: Decimal
+    # Multimoneda: montos arriba SIEMPRE en PEN; el doc origen se muestra aparte.
+    moneda: str = "PEN"
+    tipo_cambio: Decimal = Decimal("1")
+    total_original: Optional[Decimal] = None

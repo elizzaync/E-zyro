@@ -3458,6 +3458,13 @@ def crear_proyecto(
         activo           = True,
     ))
 
+    # Controlling: cada proyecto nace con su centro de costo, para poder
+    # imputar gastos y que Rentabilidad calcule margen sin pasos manuales.
+    from app.services.controlling_service import asegurar_centro_proyecto
+    asegurar_centro_proyecto(db, empresa_id, proyecto_id,
+                             codigo=f"PRY-{orden_trabajo}",
+                             nombre=body.nombre_proyecto)
+
     db.commit()
     return {"ok": True, "id": proyecto_id, "orden_trabajo": orden_trabajo}
 

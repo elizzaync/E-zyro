@@ -2080,6 +2080,26 @@ def _run_migrations():
         """))
         conn.commit()
 
+        # ── Controlling: centro de costo automático por proyecto (2026-07-07) ──
+        # Cada proyecto necesita su centro (tipo 'proyecto') para imputar
+        # gastos y que Rentabilidad vea costos. Backfill idempotente; los
+        # proyectos nuevos lo crean en crear_proyecto (operaciones.py).
+        conn.execute(text("""
+            INSERT INTO centro_costo (id, empresa_id, codigo, nombre,
+                                      tipo_referencia, referencia_id, activo, created_at)
+            SELECT gen_random_uuid()::text, p.empresa_id::text,
+                   left('PRY-' || p.orden_trabajo::text, 20),
+                   left(p.nombre_proyecto, 150), 'proyecto', p.id::text, true, now()
+              FROM proyecto p
+             WHERE NOT EXISTS (
+                   SELECT 1 FROM centro_costo cc
+                    WHERE cc.empresa_id = p.empresa_id::text
+                      AND cc.tipo_referencia = 'proyecto'
+                      AND cc.referencia_id = p.id::text
+             )
+        """))
+        conn.commit()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
