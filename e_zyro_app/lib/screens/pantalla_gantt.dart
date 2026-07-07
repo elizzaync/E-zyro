@@ -55,7 +55,9 @@ class GanttScreen extends StatefulWidget {
 
 class _GanttScreenState extends State<GanttScreen> {
   List<ServicioItem> _servicios = [];
-  final Map<String, List<ProcedimientoDetalle>> _procs = {};
+  // Tareas del cronograma por servicio (los procedimientos son pasos fijos
+  // sin fechas planificadas: no van en el Gantt).
+  final Map<String, List<TareaDetalle>> _procs = {};
   final Set<String> _expanded = {};
   final Set<String> _loadingProcs = {};
   bool _isLoading = true;
@@ -154,7 +156,7 @@ class _GanttScreenState extends State<GanttScreen> {
       setState(() => _loadingProcs.add(id));
       final detail = await widget.service.getDetalleServicio(id);
       if (!mounted) return;
-      _procs[id] = detail?.procedimientos ?? [];
+      _procs[id] = detail?.tareas ?? [];
       _loadingProcs.remove(id);
     }
     setState(() => _expanded.add(id));

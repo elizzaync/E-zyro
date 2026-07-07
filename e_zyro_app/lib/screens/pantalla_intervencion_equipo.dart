@@ -654,7 +654,7 @@ class _PantallaIntervencionEquipoState
                             ),
                             child: Text(
                               _proximaFecha.isEmpty
-                                  ? 'Sin programar'
+                                  ? 'Automático: hoy + frecuencia del equipo'
                                   : _proximaFecha,
                               style: const TextStyle(fontSize: 13),
                             ),

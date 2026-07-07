@@ -742,7 +742,15 @@ class _AgregarEquipoSheetState extends State<_AgregarEquipoSheet> {
   final _descCtrl = TextEditingController();
   String? _tipoId;
   String _estado = 'operativo';
+  int _frecuenciaMeses = 6;
   bool _guardando = false;
+
+  static const _frecuenciasDisp = [
+    (1, 'Cada mes'),
+    (3, 'Cada 3 meses'),
+    (6, 'Cada 6 meses'),
+    (12, 'Cada 12 meses'),
+  ];
 
   static const _estadosDisp = [
     ('operativo', 'Operativo'),
@@ -767,6 +775,13 @@ class _AgregarEquipoSheetState extends State<_AgregarEquipoSheet> {
           backgroundColor: _danger));
       return;
     }
+    if (_tipoId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Elige el tipo de equipo: define los procedimientos del mantenimiento'),
+          backgroundColor: _danger));
+      return;
+    }
     setState(() => _guardando = true);
     final res = await widget.service.crearEquipo(
       widget.servicioId,
@@ -775,6 +790,7 @@ class _AgregarEquipoSheetState extends State<_AgregarEquipoSheet> {
       ubicacionReferencia: _refCtrl.text.trim(),
       estado: _estado,
       descripcion: _descCtrl.text.trim(),
+      frecuenciaMeses: _frecuenciaMeses,
     );
     if (!mounted) return;
     setState(() => _guardando = false);
@@ -823,10 +839,8 @@ class _AgregarEquipoSheetState extends State<_AgregarEquipoSheet> {
             DropdownButtonFormField<String>(
               initialValue: _tipoId,
               decoration: const InputDecoration(
-                  labelText: 'Tipo de equipo', border: OutlineInputBorder()),
+                  labelText: 'Tipo de equipo *', border: OutlineInputBorder()),
               items: [
-                const DropdownMenuItem(
-                    value: null, child: Text('— Sin tipo —')),
                 for (final t in widget.tipos)
                   DropdownMenuItem(value: t.id, child: Text(t.nombre)),
               ],
@@ -838,6 +852,18 @@ class _AgregarEquipoSheetState extends State<_AgregarEquipoSheet> {
               decoration: const InputDecoration(
                   labelText: 'Referencia (dónde está el equipo)',
                   border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<int>(
+              initialValue: _frecuenciaMeses,
+              decoration: const InputDecoration(
+                  labelText: 'Frecuencia de mantenimiento',
+                  border: OutlineInputBorder()),
+              items: [
+                for (final (v, label) in _frecuenciasDisp)
+                  DropdownMenuItem(value: v, child: Text(label)),
+              ],
+              onChanged: (v) => setState(() => _frecuenciaMeses = v ?? 6),
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(

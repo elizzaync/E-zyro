@@ -71,6 +71,7 @@ class IntervencionService {
     String? ubicacionReferencia,
     String estado = 'operativo',
     String? descripcion,
+    int frecuenciaMeses = 6,
   }) =>
       _run(
         () => _client.post(
@@ -82,6 +83,7 @@ class IntervencionService {
               (ubicacionReferencia?.isEmpty ?? true) ? null : ubicacionReferencia,
           'estado': estado,
           'descripcion': (descripcion?.isEmpty ?? true) ? null : descripcion,
+          'frecuencia_meses': frecuenciaMeses,
         }),
         (r) => EquipoIntervenidoServicio.fromJson(
             jsonDecode(r.body) as Map<String, dynamic>),

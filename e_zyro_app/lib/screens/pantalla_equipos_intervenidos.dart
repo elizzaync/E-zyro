@@ -36,6 +36,7 @@ class _State extends State<PantallaEquiposIntervenidos> {
   String? _error;
   String _estadoFiltro = 'todos';
   String _busqueda = '';
+  bool _vistaParque = false; // false = lista plana, true = agrupado por sede
   final _searchCtrl = TextEditingController();
 
   @override
@@ -565,6 +566,19 @@ class _State extends State<PantallaEquiposIntervenidos> {
                         child: Text('Mantenimientos',
                             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                       ),
+                      IconButton(
+                        tooltip: _vistaParque
+                            ? 'Ver como lista'
+                            : 'Ver parque por ubicación',
+                        onPressed: () =>
+                            setState(() => _vistaParque = !_vistaParque),
+                        icon: Icon(
+                          _vistaParque
+                              ? Icons.view_list_rounded
+                              : Icons.travel_explore_rounded,
+                          color: _green,
+                        ),
+                      ),
                       if (AppSession.i.canCrearEquipoIntervenido)
                         IconButton(
                           onPressed: () => _abrirFormulario(),
@@ -660,11 +674,13 @@ class _State extends State<PantallaEquiposIntervenidos> {
                           : RefreshIndicator(
                               onRefresh: _cargar,
                               color: _green,
-                              child: ListView.builder(
-                                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                                itemCount: _filtrados.length,
-                                itemBuilder: (_, i) => _tarjeta(_filtrados[i], isDark, surface),
-                              ),
+                              child: _vistaParque
+                                  ? _parqueView(isDark, surface)
+                                  : ListView.builder(
+                                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                                      itemCount: _filtrados.length,
+                                      itemBuilder: (_, i) => _tarjeta(_filtrados[i], isDark, surface),
+                                    ),
                             ),
             ),
           ],
@@ -767,6 +783,104 @@ class _State extends State<PantallaEquiposIntervenidos> {
           ),
         ),
       ),
+    );
+  }
+
+  // ── Vista Parque: equipos agrupados por ubicación → zona con semáforo ───────
+
+  Widget _parqueView(bool isDark, Color surface) {
+    // Agrupar los YA filtrados (respeta búsqueda y chips de estado).
+    final porUbicacion = <String, List<EquipoIntervenido>>{};
+    for (final e in _filtrados) {
+      porUbicacion
+          .putIfAbsent(e.ubicacionNombre ?? 'Sin ubicación', () => [])
+          .add(e);
+    }
+    final ubicaciones = porUbicacion.keys.toList()..sort();
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+      itemCount: ubicaciones.length,
+      itemBuilder: (_, i) {
+        final ubic = ubicaciones[i];
+        final equipos = porUbicacion[ubic]!;
+        final vencidos =
+            equipos.where((e) => (e.diasParaMantenimiento ?? 1) < 0).length;
+        final proximos = equipos
+            .where((e) {
+              final d = e.diasParaMantenimiento;
+              return d != null && d >= 0 && d <= 30;
+            })
+            .length;
+
+        final porZona = <String, List<EquipoIntervenido>>{};
+        for (final e in equipos) {
+          porZona.putIfAbsent(e.zonaNombre ?? 'Sin zona', () => []).add(e);
+        }
+        final zonas = porZona.keys.toList()..sort();
+
+        final Color estadoColor = vencidos > 0
+            ? Colors.red.shade600
+            : proximos > 0
+                ? Colors.amber.shade800
+                : _green;
+
+        return Container(
+          margin: const EdgeInsets.only(top: 10),
+          decoration: BoxDecoration(
+            color: surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: estadoColor.withValues(alpha: 0.35)),
+          ),
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              leading: Icon(Icons.location_on_outlined, color: estadoColor),
+              title: Text(ubic,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w700)),
+              subtitle: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    _miniBadge('${equipos.length} equipo${equipos.length == 1 ? '' : 's'}',
+                        Colors.blueGrey),
+                    if (vencidos > 0)
+                      _miniBadge('$vencidos vencido${vencidos == 1 ? '' : 's'}',
+                          Colors.red.shade600),
+                    if (proximos > 0)
+                      _miniBadge('$proximos próximo${proximos == 1 ? '' : 's'} (≤30 d)',
+                          Colors.amber.shade800),
+                  ],
+                ),
+              ),
+              childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              children: [
+                for (final z in zonas) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, bottom: 2),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.layers_outlined,
+                            size: 14, color: Colors.grey),
+                        const SizedBox(width: 4),
+                        Text(z,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey,
+                                fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                  for (final e in porZona[z]!) _tarjeta(e, isDark, surface),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
