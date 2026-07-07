@@ -153,8 +153,12 @@ def resumen_horas_periodo(
         asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
 
     def _info_turno_dia(emp_id: str, dia: date):
-        """(horas_req, dias_lab_set, turno_nombre) para el turno del empleado
-        ese día. turno_nombre=None cuando cae al defecto (sin turno asignado)."""
+        """(horas_req, dias_lab_set, turno_nombre, hora_entrada, hora_salida)
+        para el turno del empleado ese día — hora_entrada/hora_salida son
+        `time` (la hora de RELOJ pactada, no una duración) para que el
+        detalle diario pueda comparar "marcaste a las X" contra "tu turno
+        empieza a las Y". turno_nombre/horas=None cuando cae al defecto (sin
+        turno asignado)."""
         for te, turno in asigns_por_emp.get(str(emp_id), []):
             if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
                 req_min = max(
@@ -164,9 +168,9 @@ def resumen_horas_periodo(
                 return (
                     req_min / 60.0,
                     _parse_dias_lab(getattr(turno, "dias_laborales", None)),
-                    turno.nombre,
+                    turno.nombre, turno.hora_entrada, turno.hora_salida,
                 )
-        return (META_HORAS_DIA, {0, 1, 2, 3, 4}, None)   # defecto L-V, 8h, sin turno
+        return (META_HORAS_DIA, {0, 1, 2, 3, 4}, None, None, None)   # defecto L-V, 8h, sin turno
 
     regs_por_emp:  dict[str, list] = {}
     for reg in todos_registros:
@@ -235,6 +239,8 @@ def resumen_horas_periodo(
 
             req_horas_dia = 0.0
             turno_nombre  = None
+            turno_hora_entrada = None
+            turno_hora_salida  = None
             tipo_dia: str
             es_justificado = False
             motivo = None
@@ -260,7 +266,7 @@ def resumen_horas_periodo(
                 h = _horas_dia(regs_dia)
                 horas_feriado += h
             else:
-                req_h, dias_turno, turno_nombre = _info_turno_dia(emp.id, dia)
+                req_h, dias_turno, turno_nombre, turno_hora_entrada, turno_hora_salida = _info_turno_dia(emp.id, dia)
                 if dia.weekday() not in dias_turno:
                     # Día fuera del turno del empleado (ej. sábado si su
                     # turno es L-V) — no cuenta para meta/falta/extra, igual
@@ -300,6 +306,8 @@ def resumen_horas_periodo(
                     "es_justificado":       es_justificado,
                     "motivo_justificacion": motivo,
                     "turno_nombre":         turno_nombre,
+                    "turno_hora_entrada":   turno_hora_entrada,
+                    "turno_hora_salida":    turno_hora_salida,
                     "req_horas":            req_horas_dia,
                     "marcaciones": {
                         "entrada":          _marcacion_punto(entrada),

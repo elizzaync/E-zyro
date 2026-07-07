@@ -1,7 +1,7 @@
 """Schemas del módulo de planilla (Fase 8)."""
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import List, Optional
 
@@ -364,6 +364,8 @@ class DetalleDiaOut(BaseModel):
     es_justificado: bool
     motivo_justificacion: Optional[str] = None  # tipo de la SolicitudLaboral que cubre el día
     turno_nombre: Optional[str] = None
+    turno_hora_entrada: Optional[time] = None   # hora de RELOJ pactada (no duración) — para comparar contra la marcación real
+    turno_hora_salida: Optional[time] = None
     req_horas: Decimal                          # horas requeridas del turno ese día (0 si no aplica)
     marcaciones: MarcacionesDiaOut
     horas_reales: Decimal

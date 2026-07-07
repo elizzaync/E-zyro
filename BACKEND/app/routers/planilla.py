@@ -665,7 +665,9 @@ def asistencia_detalle_empleado(
         DetalleDiaOut(
             fecha=d["fecha"], dia_semana=d["dia_semana"], tipo_dia=d["tipo_dia"],
             es_justificado=d["es_justificado"], motivo_justificacion=d["motivo_justificacion"],
-            turno_nombre=d["turno_nombre"], req_horas=Decimal(str(d["req_horas"])),
+            turno_nombre=d["turno_nombre"],
+            turno_hora_entrada=d["turno_hora_entrada"], turno_hora_salida=d["turno_hora_salida"],
+            req_horas=Decimal(str(d["req_horas"])),
             marcaciones=MarcacionesDiaOut(
                 entrada=_marc(d["marcaciones"]["entrada"]),
                 salida=_marc(d["marcaciones"]["salida"]),
