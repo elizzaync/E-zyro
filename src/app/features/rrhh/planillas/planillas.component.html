@@ -561,7 +561,9 @@
             </td>
 
             <td class="text-center td-neto">
-              @if (getSueldo(emp) > 0) {
+              @if (recalculandoId === emp.id) {
+              <span class="spinner-inline" title="Recalculando…"></span>
+              } @else if (getSueldo(emp) > 0) {
               <span class="neto-val">{{ formatMonto(emp.neto_a_pagar) }}</span>
               @if (tieneSueldoPendiente(emp)) {
               <span class="neto-pendiente-hint" title="Guarda el sueldo para recalcular el neto">recalcular al guardar</span>
@@ -743,15 +745,26 @@
         <tr class="row-ingreso">
           <td>
             Asignación Familiar
-            @if (puedeEditar) {
+            @if (!esRegimenMype && puedeEditar) {
             <label class="asigfam-toggle">
-              <input type="checkbox" [checked]="boletaEmp.tiene_asignacion_familiar" (change)="onAsigFamiliarChange(boletaEmp, $any($event.target).checked)">
+              <input type="checkbox" [checked]="boletaEmp.tiene_asignacion_familiar"
+                     [disabled]="recalculandoId === boletaEmp.id"
+                     (change)="onAsigFamiliarChange(boletaEmp, $any($event.target).checked)">
               ¿Tiene hijos a cargo?
             </label>
+            @if (recalculandoId === boletaEmp.id) { <span class="spinner-inline" title="Recalculando…"></span> }
             }
           </td>
+          @if (esRegimenMype) {
+          <!-- Régimen MYPE (micro/pequeña): la Asignación Familiar NO aplica por
+               ley (solo Régimen General, D.S. 035-90-TR). Se muestra el motivo
+               en vez del checkbox para no confundir. -->
+          <td class="col-detalle">No aplica en régimen MYPE ({{ regimenLabel }}) — solo Régimen General (D.S. N.° 035-90-TR)</td>
+          <td class="col-monto">—</td>
+          } @else {
           <td class="col-detalle">10% RMV vigente (S/ {{ rmvVigente }})</td>
           <td class="col-monto text-green">{{ boletaEmp.asignacion_familiar > 0 ? '+' + formatMonto(boletaEmp.asignacion_familiar) : '—' }}</td>
+          }
         </tr>
         }
       </tbody>

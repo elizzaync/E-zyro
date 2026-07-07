@@ -94,6 +94,10 @@ export class PlanillasComponent implements OnInit {
   boletaEmp: PlanillaPreviewEmpleadoDto | null = null;
   generandoPdf = false;
 
+  // Id del empleado que se está recalculando (spinner inline en su fila/modal
+  // mientras el backend confirma el cambio, sin recargar toda la planilla).
+  recalculandoId: string | null = null;
+
   // ── Modal "Ver asistencia" (verificación día-por-día, Fase 9) ──────────────
   asistDetalleOpen = false;
   asistDetalleEmpId: string | null = null;
@@ -250,6 +254,33 @@ export class PlanillasComponent implements OnInit {
     if (this.esVistaMensual) this.cargarEstadoPlanilla();
   }
 
+  // Refresca SOLO la fila de un empleado tras un cambio de config por-empleado
+  // (asignación familiar, pensión, comisión, modalidad, sueldo). El cambio del
+  // flag ya se aplicó de forma optimista sobre `emp`; aquí se recalculan los
+  // montos en el backend y se reemplaza únicamente esa fila — sin re-traer toda
+  // la planilla (que perdía scroll y parpadeaba). Spinner inline vía recalculandoId.
+  refrescarEmpleado(emp: PlanillaPreviewEmpleadoDto): void {
+    this.recalculandoId = emp.id;
+    this.svc.previewBoletaEmpleado(emp.id, {
+      fecha_inicio: this.fechaInicio,
+      fecha_fin:    this.fechaFin,
+      periodo_pago: this.periodoPago,
+    }).subscribe({
+      next: (fresco) => {
+        const i = this.empleados.findIndex(e => e.id === emp.id);
+        if (i >= 0) this.empleados[i] = fresco;
+        if (this.boletaEmp?.id === emp.id) this.boletaEmp = fresco;
+        this.comisionDisplayMap[fresco.id] = (fresco.comision_afp_pct * 100).toFixed(2);
+        this.recalculandoId = null;
+      },
+      error: () => {
+        // Si el recálculo puntual falla, como último recurso recarga todo.
+        this.recalculandoId = null;
+        this.cargar();
+      },
+    });
+  }
+
   irPagina(p: number): void {
     if (p < 1 || p > this.totalPaginas) return;
     this.currentPage = p;
@@ -363,7 +394,7 @@ export class PlanillasComponent implements OnInit {
     this.svc.actualizarModalidad(emp.id, nuevoTipo as any).subscribe({
       next: () => {
         this.toast.mostrar(`Modalidad de ${emp.nombre_completo} actualizada a ${this.modalidadLabel(emp)}`, 'success');
-        this.cargar(); // el cálculo legal completo depende de la modalidad
+        this.refrescarEmpleado(emp); // recalcula solo esa fila (la modalidad afecta su cálculo legal)
       },
       error: (err) => {
         emp.tipo_contrato = anterior;
@@ -434,7 +465,7 @@ export class PlanillasComponent implements OnInit {
     if (anterior === val) return;
     emp.sistema_pension = val;
     this.svc.actualizarPensionEmpleado(emp.id, { sistema_pension: val }).subscribe({
-      next: () => { this.toast.mostrar('Sistema de pensión actualizado', 'success'); this.cargar(); },
+      next: () => { this.toast.mostrar('Sistema de pensión actualizado', 'success'); this.refrescarEmpleado(emp); },
       error: (err) => {
         emp.sistema_pension = anterior;
         this.toast.mostrar(err?.error?.detail || 'Error al actualizar el sistema de pensión', 'error');
@@ -455,7 +486,7 @@ export class PlanillasComponent implements OnInit {
     if (anterior === val) return;
     emp.tipo_comision_afp = val;
     this.svc.actualizarPensionEmpleado(emp.id, { tipo_comision_afp: val }).subscribe({
-      next: () => { this.toast.mostrar('Esquema de comisión AFP actualizado', 'success'); this.cargar(); },
+      next: () => { this.toast.mostrar('Esquema de comisión AFP actualizado', 'success'); this.refrescarEmpleado(emp); },
       error: (err) => {
         emp.tipo_comision_afp = anterior;
         this.toast.mostrar(err?.error?.detail || 'Error al actualizar el esquema de comisión', 'error');
@@ -488,7 +519,7 @@ export class PlanillasComponent implements OnInit {
     this.svc.actualizarPensionEmpleado(empId, {
       entidad_afp: this.afpConfirmNewVal, comision_afp_personalizada: null,
     }).subscribe({
-      next: () => { this.toast.mostrar(`AFP actualizada a ${this.afpConfirmLabel}`, 'success'); this.cargar(); },
+      next: () => { this.toast.mostrar(`AFP actualizada a ${this.afpConfirmLabel}`, 'success'); if (emp) this.refrescarEmpleado(emp); else this.cargar(); },
       error: (err) => {
         if (emp) { emp.entidad_afp = anteriorEntidad; emp.comision_afp_personalizada = anteriorComision; }
         this.toast.mostrar(err?.error?.detail || 'Error al actualizar la AFP', 'error');
@@ -527,7 +558,7 @@ export class PlanillasComponent implements OnInit {
     this.comisionDisplayMap[empId] = (this.comisionConfirmNewPct * 100).toFixed(2);
     this.comisionConfirmOpen = false;
     this.svc.actualizarPensionEmpleado(empId, { comision_afp_personalizada: this.comisionConfirmNewPct }).subscribe({
-      next: () => { this.toast.mostrar(`Comisión actualizada a ${(this.comisionConfirmNewPct * 100).toFixed(2)}%`, 'success'); this.cargar(); },
+      next: () => { this.toast.mostrar(`Comisión actualizada a ${(this.comisionConfirmNewPct * 100).toFixed(2)}%`, 'success'); if (emp) this.refrescarEmpleado(emp); else this.cargar(); },
       error: (err) => {
         if (emp) emp.comision_afp_personalizada = anterior;
         if (emp) this.comisionDisplayMap[empId] = (emp.comision_afp_pct * 100).toFixed(2);
@@ -547,9 +578,8 @@ export class PlanillasComponent implements OnInit {
     emp.comision_afp_personalizada = null;
     this.svc.actualizarPensionEmpleado(emp.id, { comision_afp_personalizada: null }).subscribe({
       next: () => {
-        this.comisionDisplayMap[emp.id] = (emp.comision_afp_pct * 100).toFixed(2);
         this.toast.mostrar('Comisión restablecida a la tasa oficial', 'success');
-        this.cargar();
+        this.refrescarEmpleado(emp);
       },
       error: (err) => {
         emp.comision_afp_personalizada = anterior;
@@ -602,7 +632,7 @@ export class PlanillasComponent implements OnInit {
     const anterior = emp.tiene_asignacion_familiar;
     emp.tiene_asignacion_familiar = val;
     this.svc.actualizarPensionEmpleado(emp.id, { tiene_asignacion_familiar: val }).subscribe({
-      next: () => { this.toast.mostrar('Asignación familiar actualizada', 'success'); this.cargar(); },
+      next: () => { this.toast.mostrar('Asignación familiar actualizada', 'success'); this.refrescarEmpleado(emp); },
       error: (err) => {
         emp.tiene_asignacion_familiar = anterior;
         this.toast.mostrar(err?.error?.detail || 'Error al actualizar la asignación familiar', 'error');

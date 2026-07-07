@@ -534,6 +534,14 @@
 .monto-red   { font-size: 12px; font-weight: 700; color: #ef4444; }
 .monto-green { font-size: 12px; font-weight: 700; color: #22c55e; }
 
+/* Spinner inline (recálculo optimista de una fila, sin recargar la planilla) */
+.spinner-inline {
+  display: inline-block; width: 14px; height: 14px; vertical-align: middle;
+  border: 2px solid rgba(34,197,94,0.25); border-top-color: #16a34a;
+  border-radius: 50%; animation: spin-inline 0.7s linear infinite;
+}
+@keyframes spin-inline { to { transform: rotate(360deg); } }
+
 .neto-val {
   display:      inline-block;
   padding:      5px 10px;

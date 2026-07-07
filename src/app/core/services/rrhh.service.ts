@@ -615,6 +615,21 @@ export class RrhhService {
     return this.http.get<PlanillaPreviewDto>(url);
   }
 
+  // Recalcula la boleta de UN empleado (para el update optimista: refresca solo
+  // esa fila tras un cambio de config, sin re-traer toda la planilla).
+  previewBoletaEmpleado(empleadoId: string, params: {
+    fecha_inicio?: string;
+    fecha_fin?: string;
+    periodo_pago?: PeriodoPagoPlanilla;
+  }): Observable<PlanillaPreviewEmpleadoDto> {
+    const qs: string[] = [];
+    if (params.fecha_inicio) qs.push(`fecha_inicio=${params.fecha_inicio}`);
+    if (params.fecha_fin)    qs.push(`fecha_fin=${params.fecha_fin}`);
+    if (params.periodo_pago) qs.push(`periodo_pago=${params.periodo_pago}`);
+    const url = `${this.api}/planilla/empleados/${empleadoId}/preview-boleta` + (qs.length ? '?' + qs.join('&') : '');
+    return this.http.get<PlanillaPreviewEmpleadoDto>(url);
+  }
+
   getConfigPlanilla(): Observable<ConfigPlanillaDto> {
     return this.http.get<ConfigPlanillaDto>(`${this.api}/planilla/config`);
   }
