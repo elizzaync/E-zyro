@@ -2084,21 +2084,37 @@ def _run_migrations():
         # Cada proyecto necesita su centro (tipo 'proyecto') para imputar
         # gastos y que Rentabilidad vea costos. Backfill idempotente; los
         # proyectos nuevos lo crean en crear_proyecto (operaciones.py).
-        conn.execute(text("""
-            INSERT INTO centro_costo (id, empresa_id, codigo, nombre,
-                                      tipo_referencia, referencia_id, activo, created_at)
-            SELECT gen_random_uuid()::text, p.empresa_id::text,
-                   left('PRY-' || p.orden_trabajo::text, 20),
-                   left(p.nombre_proyecto, 150), 'proyecto', p.id::text, true, now()
-              FROM proyecto p
-             WHERE NOT EXISTS (
-                   SELECT 1 FROM centro_costo cc
-                    WHERE cc.empresa_id = p.empresa_id::text
-                      AND cc.tipo_referencia = 'proyecto'
-                      AND cc.referencia_id = p.id::text
-             )
-        """))
-        conn.commit()
+        # OJO tipos: en prod centro_costo/proyecto usan uuid nativo → comparar
+        # con ::text en AMBOS lados e insertar con parámetros bound (Postgres
+        # los adapta al tipo real de la columna). Nunca uuid = text crudo.
+        try:
+            import uuid as _uuid_mod
+            faltantes = conn.execute(text("""
+                SELECT p.id::text, p.empresa_id::text,
+                       p.orden_trabajo::text, p.nombre_proyecto
+                  FROM proyecto p
+                 WHERE NOT EXISTS (
+                       SELECT 1 FROM centro_costo cc
+                        WHERE cc.empresa_id::text = p.empresa_id::text
+                          AND cc.tipo_referencia = 'proyecto'
+                          AND cc.referencia_id::text = p.id::text
+                 )
+            """)).fetchall()
+            for pid, emp, ot, nombre in faltantes:
+                conn.execute(text("""
+                    INSERT INTO centro_costo (id, empresa_id, codigo, nombre,
+                                              tipo_referencia, referencia_id,
+                                              activo, created_at)
+                    VALUES (:id, :emp, :cod, :nom, 'proyecto', :ref, true, now())
+                """), {"id": str(_uuid_mod.uuid4()), "emp": emp,
+                       "cod": f"PRY-{ot}"[:20],
+                       "nom": (nombre or "Proyecto")[:150], "ref": pid})
+            conn.commit()
+            if faltantes:
+                print(f"[migración] centros de costo creados para {len(faltantes)} proyecto(s)")
+        except Exception as e:
+            conn.rollback()
+            print(f"[migración] backfill centro_costo por proyecto omitido: {e}")
 
 
 @asynccontextmanager
