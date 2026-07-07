@@ -12,17 +12,23 @@ const DIA_LABEL: Record<string, string> = {
   no_laborable_turno: 'Fuera de turno',
 };
 
+const BADGE_STYLE: Record<string, { bg: string; color: string }> = {
+  laborable:          { bg: '#f1f5f9', color: '#475569' },
+  domingo:            { bg: '#f3ecff', color: '#7c3aed' },
+  feriado:            { bg: '#fff1e6', color: '#c2410c' },
+  no_laborable_turno: { bg: '#f8fafc', color: '#94a3b8' },
+};
+
 /**
  * Modal de verificación de asistencia (botón "Ver asistencia" de Planilla):
  * lista de días del período con los totales que ya usa la boleta. Solo
  * lectura — consume GET /planilla/empleados/{id}/asistencia-detalle, nunca
- * recalcula nada en el cliente.
+ * recalcula nada en el cliente. Diseño importado de Claude Design (proyecto
+ * "Diseño modal interactivo" → Verificar Asistencia.dc.html, 2026-07-08).
  *
  * El detalle de CADA día (línea de tiempo, marcaciones, mapa) vive en un
- * modal HIJO aparte (`AsistenciaDiaModalComponent`, 2026-07-08, pedido
- * explícito del usuario para no saturar esta pantalla) — hacer click en una
- * fila lo abre encima, con el día ya resuelto (mismo objeto, sin otra
- * llamada al backend).
+ * modal HIJO aparte (`AsistenciaDiaModalComponent`) con navegación
+ * anterior/siguiente entre días sin cerrar.
  */
 @Component({
   selector: 'app-asistencia-detalle-modal',
@@ -46,7 +52,7 @@ export class AsistenciaDetalleModalComponent implements OnChanges {
   datos: AsistenciaDetallePlanillaDto | null = null;
 
   diaModalOpen = false;
-  diaSeleccionado: AsistDiaDetalleDto | null = null;
+  indiceSeleccionado = -1;
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['open'] && this.open && this.empleadoId && this.inicio && this.fin) {
@@ -83,11 +89,20 @@ export class AsistenciaDetalleModalComponent implements OnChanges {
   }
 
   abrirDia(d: AsistDiaDetalleDto): void {
-    this.diaSeleccionado = d;
+    if (!this.datos) return;
+    this.indiceSeleccionado = this.datos.detalle_dias.findIndex(x => x.fecha === d.fecha);
     this.diaModalOpen = true;
   }
   cerrarDiaModal(): void {
     this.diaModalOpen = false;
+  }
+  onNavegar(nuevoIndice: number): void {
+    this.indiceSeleccionado = nuevoIndice;
+  }
+
+  get diaSeleccionado(): AsistDiaDetalleDto | null {
+    if (!this.datos || this.indiceSeleccionado < 0) return null;
+    return this.datos.detalle_dias[this.indiceSeleccionado] ?? null;
   }
 
   // ── Helpers numéricos (Decimal llega como string — SIEMPRE Number() antes
@@ -114,12 +129,12 @@ export class AsistenciaDetalleModalComponent implements OnChanges {
   tipoDiaLabel(tipo: string): string {
     return DIA_LABEL[tipo] ?? tipo;
   }
+  badgeStyle(tipo: string): Record<string, string> {
+    const c = BADGE_STYLE[tipo] ?? BADGE_STYLE['laborable'];
+    return { background: c.bg, color: c.color };
+  }
 
   filaClass(d: AsistDiaDetalleDto): string {
-    const clases = ['asist-fila', `tipo-${d.tipo_dia}`];
-    if (d.es_justificado) clases.push('justificado');
-    if (this.num(d.falta) > 0) clases.push('con-falta');
-    if (this.num(d.extra_25) + this.num(d.extra_35) > 0) clases.push('con-extra');
-    return clases.join(' ');
+    return d.alerta ? 'asist-fila con-alerta' : 'asist-fila';
   }
 }

@@ -4,75 +4,94 @@
   title="{{ dia.dia_semana }} {{ dia.fecha }}"
   [subtitle]="tipoDiaLabel(dia.tipo_dia) + (dia.es_justificado ? ' · Justificado' : '')"
   maxWidth="640px"
-  iconBg="rgba(124,58,237,0.12)"
+  iconBg="#f3ecff"
   iconColor="#7c3aed"
   (closeModal)="cerrar()">
 
-  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-    <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="17" height="17">
+    <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>
   </svg>
+
+  <div modal-header-actions class="dia-nav-actions">
+    <button class="dia-nav-btn" type="button" (click)="irAnterior()" [disabled]="prevDisabled" title="Día anterior">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="dia-nav-btn" type="button" (click)="irSiguiente()" [disabled]="nextDisabled" title="Día siguiente">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <div class="dia-nav-divider"></div>
+  </div>
 
   <div class="dia-body">
 
-    <!-- Turno esperado ese día -->
-    @if (dia.turno_nombre || dia.turno_hora_entrada) {
-    <p class="dia-turno-header">
-      Turno <strong>{{ dia.turno_nombre || 'asignado' }}</strong>:
-      entra a las <strong>{{ horaCorta(dia.turno_hora_entrada) }}</strong>,
-      sale a las <strong>{{ horaCorta(dia.turno_hora_salida) }}</strong>
-      ({{ h(dia.req_horas) }} netas de jornada).
-    </p>
-    } @else if (dia.tipo_dia === 'no_laborable_turno') {
-    <p class="dia-turno-header">Este día NO le tocaba trabajar según su turno — cualquier marcación es informativa.</p>
-    } @else if (dia.tipo_dia === 'domingo' || dia.tipo_dia === 'feriado') {
-    <p class="dia-turno-header">{{ tipoDiaLabel(dia.tipo_dia) }}: día de descanso, sin jornada exigida. Lo trabajado aquí se paga aparte (sobretasa 100%), no participa de falta ni de hora extra por tramo.</p>
-    }
+    <p class="dia-turno-header">{{ turnoLineText(dia) }}</p>
 
-    <!-- Línea de tiempo proporcional -->
-    @if (tieneLineaDeTiempo(dia)) {
+    <!-- Línea de tiempo proporcional (siempre presente, con tooltips) -->
     <div class="dia-timeline-wrap">
+      @if (tieneTurno(dia)) {
+      <div class="dia-timeline-labels">
+        <span>{{ barLabels(dia).left }}</span>
+        <span>{{ barLabels(dia).right }}</span>
+      </div>
+      }
       <div class="dia-timeline-bar">
-        @if (turnoZona(dia); as z) {
-        <div class="tl-zona tl-turno" [style.left.%]="z.leftPct" [style.width.%]="z.widthPct" title="Jornada pactada del turno"></div>
+        @if (!tieneTurno(dia)) {
+        <div class="tl-zona tl-sinturno"></div>
+        } @else if (!tieneMarcas(dia)) {
+        <div class="tl-zona tl-turno-sinmarcas"
+          (mouseenter)="mostrarTip('Turno asignado: ' + barLabels(dia).left + ' – ' + barLabels(dia).right + ' (sin marcaciones)', 50)"
+          (mouseleave)="ocultarTip()"></div>
+        } @else {
+          @if (turnoZona(dia); as z) {
+          <div class="tl-zona tl-turno" [style.left.%]="z.leftPct" [style.width.%]="z.widthPct"
+            (mouseenter)="mostrarTip('Turno: ' + barLabels(dia).left + ' – ' + barLabels(dia).right + ' (' + h(dia.req_horas) + ' netas)', z.leftPct + z.widthPct/2)"
+            (mouseleave)="ocultarTip()"></div>
+          }
+          @if (tempranoZona(dia); as z) {
+          <div class="tl-zona tl-temprano" [style.left.%]="z.leftPct" [style.width.%]="z.widthPct"
+            (mouseenter)="mostrarTip('Llegó antes (no cuenta)', z.leftPct + z.widthPct/2)"
+            (mouseleave)="ocultarTip()"></div>
+          }
+          @if (extraZona(dia); as z) {
+          <div class="tl-zona tl-extra" [style.left.%]="z.leftPct" [style.width.%]="z.widthPct"
+            (mouseenter)="mostrarTip((compararConTurno(dia.marcaciones.salida?.hora, dia.turno_hora_salida, 'salida') ?? '') , z.leftPct + z.widthPct/2)"
+            (mouseleave)="ocultarTip()"></div>
+          }
+          @if (marcadorPct(dia.marcaciones.entrada?.hora, dia); as p) {
+          <div class="tl-dot" [class.tl-dot-tarde]="entradaTarde(dia)" [class.tl-dot-ok]="!entradaTarde(dia)" [style.left.%]="p"
+            (mouseenter)="mostrarTip('Entrada ' + hora(dia.marcaciones.entrada?.hora) + (entradaTarde(dia) ? ' (llegó tarde)' : ''), p)"
+            (mouseleave)="ocultarTip()"></div>
+          }
+          @if (marcadorPct(dia.marcaciones.salida?.hora, dia); as p) {
+          <div class="tl-dot tl-dot-salida" [style.left.%]="p"
+            (mouseenter)="mostrarTip('Salida ' + hora(dia.marcaciones.salida?.hora), p)"
+            (mouseleave)="ocultarTip()"></div>
+          }
         }
-        @if (tempranoZona(dia); as z) {
-        <div class="tl-zona tl-temprano" [style.left.%]="z.leftPct" [style.width.%]="z.widthPct" title="Llegó antes — no cuenta"></div>
-        }
-        @if (extraZona(dia); as z) {
-        <div class="tl-zona tl-extra" [style.left.%]="z.leftPct" [style.width.%]="z.widthPct" title="Tiempo después de la salida — SÍ es hora extra"></div>
-        }
-        @if (marcadorPct(dia.marcaciones.entrada?.hora, dia); as p) {
-        <div class="tl-marcador tl-entrada" [style.left.%]="p">
-          <span class="tl-marcador-etiqueta">Entrada<br>{{ hora(dia.marcaciones.entrada?.hora ?? null) }}</span>
-        </div>
-        }
-        @if (marcadorPct(dia.marcaciones.salida?.hora, dia); as p) {
-        <div class="tl-marcador tl-salida" [style.left.%]="p">
-          <span class="tl-marcador-etiqueta">Salida<br>{{ hora(dia.marcaciones.salida?.hora ?? null) }}</span>
-        </div>
+        @if (hoverTip) {
+        <div class="dia-tooltip" [style.left.%]="hoverTip.leftPct">{{ hoverTip.text }}</div>
         }
       </div>
       <div class="dia-timeline-leyenda">
-        <span class="tl-leyenda-item"><span class="tl-dot tl-dot-turno"></span> Jornada del turno</span>
-        @if (tempranoZona(dia)) { <span class="tl-leyenda-item"><span class="tl-dot tl-dot-temprano"></span> Llegó antes (no cuenta)</span> }
-        @if (extraZona(dia)) { <span class="tl-leyenda-item"><span class="tl-dot tl-dot-extra"></span> Hora extra (después de salida)</span> }
+        @for (item of legend(dia); track item.label) {
+        <span class="tl-leyenda-item"><span class="tl-dot-leyenda" [style.background]="item.color"></span>{{ item.label }}</span>
+        }
       </div>
     </div>
-    }
 
-    <!-- Marcaciones, cada una comparada contra el turno -->
+    @if (sinMarcacionesEnAbsoluto(dia)) {
+    <p class="dia-nota-warning">{{ calcLines(dia)[0] }}</p>
+    } @else {
+
+    <!-- Marcaciones -->
     <div class="dia-marcaciones">
       @for (p of marcacionesDelDia(dia); track p.label) {
       <div class="dia-marc-item" [class.vacio]="!p.m">
         <span class="dia-marc-dot" [class]="'dot-' + p.color"></span>
-        <div class="dia-marc-texto">
-          <span class="dia-marc-label">{{ p.label }}</span>
-          <span class="dia-marc-hora">{{ p.m ? hora(p.m.hora) : 'no marcó' }}</span>
-        </div>
+        <span class="dia-marc-label">{{ p.label }}</span>
+        <span class="dia-marc-hora">{{ p.m ? hora(p.m.hora) : 'no marcó' }}</span>
         @if (p.tipo && p.turnoHora && p.m) {
-        <span class="dia-marc-comparacion" [class.negativo]="esNegativoParaElTrabajador(p.m.hora, p.turnoHora, p.tipo)">
-          turno {{ horaCorta(p.turnoHora) }} → {{ compararConTurno(p.m.hora, p.turnoHora, p.tipo) }}
-        </span>
+        <span class="dia-marc-nota">turno {{ horaCorta(p.turnoHora) }} → {{ compararConTurno(p.m.hora, p.turnoHora, p.tipo) }}</span>
         }
       </div>
       }
@@ -81,13 +100,12 @@
     @if (dia.alerta === 'marcacion_incompleta') {
     <p class="dia-nota-error">
       <strong>SALIDA NO REGISTRADA.</strong> Marcó entrada pero nunca marcó salida ese día — por
-      eso el sistema cuenta <strong>0h trabajadas</strong> (no puede calcular una duración sin
-      el segundo extremo), aunque haya estado presente. Es la causa más común de una "falta"
-      que en realidad es un olvido de marcación.
+      eso el sistema cuenta <strong>0h trabajadas</strong>, aunque haya estado presente. Es la
+      causa más común de una "falta" que en realidad es un olvido de marcación.
     </p>
     }
     @if (dia.alerta === 'sin_tramite') {
-    <p class="dia-nota-error">
+    <p class="dia-nota-warning">
       Este día tiene sobretiempo pagado que <strong>todavía no tiene un trámite de Permanencia
       Extra aprobado</strong> que lo respalde — se sigue pagando igual, pero conviene regularizar
       el trámite en Trámites y Permisos.
@@ -97,36 +115,21 @@
     <!-- Fórmula del día -->
     <div class="dia-formula-titulo">Cómo se calculó este día</div>
     <div class="dia-formula">
-      <span>Trabajó (dentro de su turno) <strong>{{ h(dia.horas_reales) }}</strong></span>
-      <span class="dia-formula-sep">vs. jornada de</span>
-      <span><strong>{{ h(dia.req_horas) }}</strong></span>
-      @if (num(dia.falta) > 0) {
-      <span class="dia-formula-sep">→</span>
-      <span class="text-red">le faltaron <strong>{{ h(dia.falta) }}</strong></span>
-      } @else if (num(dia.horas_extra_bruto) > 0) {
-      <span class="dia-formula-sep">→</span>
-      <span class="text-green">
-        <strong>{{ h(dia.horas_extra_bruto) }}</strong> después de su hora de salida
-        @if (num(dia.horas_extra_pagable) < num(dia.horas_extra_bruto)) {
-        (se paga solo la hora completa: <strong>{{ h(dia.horas_extra_pagable) }}</strong>,
-        la fracción de {{ h(num(dia.horas_extra_bruto) - num(dia.horas_extra_pagable)) }} no se paga)
-        }
-        @if (num(dia.horas_extra_pagable) > 0) {
-        → {{ h(dia.extra_25) }} al 25% + {{ h(dia.extra_35) }} al 35%
-        }
-      </span>
-      } @else {
-      <span class="dia-formula-sep">→</span>
-      <span>jornada exacta, sin falta ni extra</span>
+      @for (linea of calcLines(dia); track $index) {
+      <div [innerHTML]="linea"></div>
       }
     </div>
+    }
 
     <!-- Mapa -->
-    @if (tieneGeolocalizacion(dia)) {
     <div class="dia-formula-titulo">Ubicación de las marcaciones</div>
+    @if (tieneGeolocalizacion(dia)) {
     <div class="dia-mapa" id="asist-dia-mapa"></div>
     } @else {
-    <p class="dia-sin-mapa">Sin datos de ubicación para este día (la marcación no guardó GPS, o no marcó).</p>
+    <div class="dia-sin-mapa">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.5-7-11a7 7 0 1114 0c0 5.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      Sin marcaciones — no hay ubicación registrada
+    </div>
     }
   </div>
 </app-modal>

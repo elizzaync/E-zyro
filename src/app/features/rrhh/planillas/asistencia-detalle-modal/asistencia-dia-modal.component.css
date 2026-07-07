@@ -1,81 +1,94 @@
-.dia-body { max-height: 76vh; overflow-y: auto; padding: 4px 2px 8px; }
+.dia-body { max-height: 74vh; overflow-y: auto; padding: 4px 2px 8px; }
+
+/* ── Navegación anterior/siguiente (inyectada en el header de app-modal) ── */
+.dia-nav-actions { display: flex; align-items: center; gap: 6px; }
+.dia-nav-btn {
+  width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--border-color, #e2e8f0);
+  background: var(--card-bg, #fff); cursor: pointer; display: flex; align-items: center; justify-content: center;
+  color: #475569; transition: background 0.12s;
+}
+.dia-nav-btn:hover:not(:disabled) { background: var(--hover-bg, #f8fafc); }
+.dia-nav-btn:disabled { opacity: .35; cursor: default; }
+.dia-nav-divider { width: 1px; height: 20px; background: var(--border-color, #e2e8f0); margin: 0 4px; }
 
 .dia-turno-header { font-size: 12.5px; color: var(--text-muted, #64748b); margin: 0 0 16px; line-height: 1.5; }
-.dia-turno-header strong { color: var(--text-main, #1e293b); }
 
 /* ── Línea de tiempo proporcional ────────────────────────────────────────── */
-.dia-timeline-wrap { margin-bottom: 30px; }
-.dia-timeline-bar {
-  position: relative; height: 10px; border-radius: 6px;
-  background: var(--border-color, #e2e8f0); margin: 26px 6px 8px;
-}
-.tl-zona { position: absolute; top: 0; height: 100%; border-radius: 4px; }
-.tl-turno    { background: rgba(59,130,246,0.35); }
-.tl-temprano { background: repeating-linear-gradient(45deg, rgba(148,163,184,0.5), rgba(148,163,184,0.5) 3px, rgba(148,163,184,0.25) 3px, rgba(148,163,184,0.25) 6px); }
-.tl-extra    { background: rgba(34,197,94,0.55); }
+.dia-timeline-wrap { margin-bottom: 18px; }
+.dia-timeline-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted, #94a3b8); margin-bottom: 6px; }
+.dia-timeline-bar { position: relative; height: 10px; border-radius: 6px; background: var(--border-color, #eef1f6); margin: 26px 4px 8px; }
 
-.tl-marcador { position: absolute; top: -18px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; }
-.tl-marcador::after {
-  content: ''; width: 2px; height: 26px; background: var(--text-main, #1e293b); opacity: .55; margin-top: 2px;
-}
-.tl-entrada::after { background: #16a34a; opacity: 1; }
-.tl-salida::after { background: #dc2626; opacity: 1; }
-.tl-marcador-etiqueta {
-  font-size: 9.5px; font-weight: 700; text-align: center; line-height: 1.25;
-  color: var(--text-main, #1e293b); white-space: nowrap;
+.tl-zona { position: absolute; top: 0; height: 100%; border-radius: 6px; }
+.tl-sinturno { inset: 0; background: repeating-linear-gradient(45deg, #e2e8f0, #e2e8f0 6px, #eef1f6 6px, #eef1f6 12px); }
+.tl-turno-sinmarcas { inset: 0; background: #dbeafe; cursor: default; }
+.tl-turno { background: #2563eb; cursor: default; }
+.tl-temprano { background: #e2e8f0; cursor: default; }
+.tl-extra { background: #16a34a; cursor: default; }
+
+.tl-dot { position: absolute; top: -4px; width: 2px; height: 18px; transform: translateX(-1px); cursor: pointer; }
+.tl-dot-ok { background: #16a34a; }
+.tl-dot-tarde { background: #f59e0b; }
+.tl-dot-salida { background: #dc2626; }
+
+.dia-tooltip {
+  position: absolute; bottom: 18px; transform: translateX(-50%);
+  background: #0f172a; color: #fff; font-size: 12px; padding: 5px 9px; border-radius: 6px;
+  white-space: nowrap; pointer-events: none; box-shadow: 0 6px 16px rgba(15,23,42,0.25); z-index: 5;
 }
 
-.dia-timeline-leyenda { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 4px; }
-.tl-leyenda-item { display: flex; align-items: center; gap: 5px; font-size: 10.5px; color: var(--text-muted, #64748b); }
-.tl-dot { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; }
-.tl-dot-turno { background: rgba(59,130,246,0.6); }
-.tl-dot-temprano { background: repeating-linear-gradient(45deg, #94a3b8, #94a3b8 2px, #cbd5e1 2px, #cbd5e1 4px); }
-.tl-dot-extra { background: #22c55e; }
+.dia-timeline-leyenda { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
+.tl-leyenda-item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--text-muted, #64748b); }
+.tl-dot-leyenda { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0; display: inline-block; }
 
 /* ── Marcaciones ─────────────────────────────────────────────────────────── */
-.dia-marcaciones { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.dia-marcaciones { display: flex; flex-direction: column; margin-bottom: 12px; }
 .dia-marc-item {
-  display: flex; align-items: center; gap: 8px; font-size: 12.5px;
-  padding: 6px 10px; border-radius: 8px; background: var(--card-bg, #f8fafc);
+  display: flex; align-items: center; gap: 10px; padding: 9px 0; font-size: 13px;
+  border-bottom: 1px solid var(--border-color, #f1f5f9);
 }
 .dia-marc-item.vacio { opacity: .5; }
+.dia-marc-item:last-child { border-bottom: none; }
 .dia-marc-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
-.dot-green { background: #16a34a; } .dot-red { background: #dc2626; } .dot-amber { background: #d97706; }
-.dia-marc-texto { display: flex; gap: 8px; align-items: baseline; min-width: 150px; }
-.dia-marc-label { color: var(--text-muted, #64748b); }
-.dia-marc-hora { font-weight: 700; color: var(--text-main, #1e293b); }
-.dia-marc-comparacion { font-size: 11px; color: var(--text-muted, #94a3b8); margin-left: auto; text-align: right; }
-.dia-marc-comparacion.negativo { color: #dc2626; font-weight: 600; }
+.dot-green { background: #16a34a; } .dot-red { background: #dc2626; } .dot-amber { background: #f59e0b; } .dot-gris { background: #cbd5e1; }
+.dia-marc-label { color: var(--text-muted, #64748b); width: 110px; flex-shrink: 0; }
+.dia-marc-hora { font-weight: 700; color: var(--text-main, #0f172a); width: 90px; flex-shrink: 0; }
+.dia-marc-nota { color: var(--text-muted, #94a3b8); font-size: 12px; margin-left: auto; text-align: right; }
 
 .dia-nota-error {
   font-size: 12px; color: #dc2626; background: rgba(239,68,68,0.08);
-  border-radius: 7px; padding: 8px 11px; margin: 0 0 12px;
+  border-radius: 10px; padding: 12px 14px; margin: 4px 0 12px;
+}
+.dia-nota-warning {
+  font-size: 13px; color: #c2410c; background: #fff7ed; border: 1px solid #fed7aa;
+  border-radius: 10px; padding: 12px 14px; margin: 4px 0 18px;
 }
 
 .dia-formula-titulo {
-  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em;
-  color: var(--text-muted, #94a3b8); margin: 14px 0 6px;
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--text-muted, #94a3b8); margin: 18px 0 10px;
 }
 .dia-formula {
-  display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 12.5px;
-  color: var(--text-muted, #64748b); background: var(--card-bg, #f8fafc);
-  border-radius: 8px; padding: 10px 12px; margin-bottom: 4px;
+  background: var(--card-bg, #f8fafc); border-radius: 10px; padding: 14px 16px;
+  font-size: 13px; color: #334155; line-height: 1.7; margin-bottom: 4px;
 }
-.dia-formula-sep { opacity: .5; }
-.dia-formula .text-red { color: #dc2626; }
-.dia-formula .text-green { color: #16a34a; }
-.dia-formula strong { color: var(--text-main, #1e293b); }
+.dia-formula strong { color: var(--text-main, #0f172a); }
 
-.dia-mapa { width: 100%; height: 240px; border-radius: 10px; overflow: hidden; z-index: 0; }
-.dia-sin-mapa { font-size: 12px; color: var(--text-muted, #94a3b8); font-style: italic; margin: 4px 0 0; }
+.dia-mapa { width: 100%; height: 220px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-color, #e2e8f0); z-index: 0; }
+.dia-sin-mapa {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  height: 120px; border-radius: 12px; border: 1px dashed var(--border-color, #cbd5e1);
+  color: var(--text-muted, #94a3b8); font-size: 13px; margin: 0;
+}
 
 ::ng-deep .map-pin-green svg { fill: #16a34a; }
 ::ng-deep .map-pin-red svg   { fill: #dc2626; }
-::ng-deep .map-pin-amber svg { fill: #d97706; }
+::ng-deep .map-pin-amber svg { fill: #f59e0b; }
 ::ng-deep .map-pin-green, ::ng-deep .map-pin-red, ::ng-deep .map-pin-amber {
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.35));
 }
 
 @media (prefers-color-scheme: dark) {
-  .dia-marc-item, .dia-formula { background: rgba(255,255,255,0.04); }
+  .dia-marc-item { border-color: rgba(255,255,255,0.08); }
+  .dia-formula { background: rgba(255,255,255,0.04); }
+  .dia-nav-btn { background: rgba(255,255,255,0.04); }
 }

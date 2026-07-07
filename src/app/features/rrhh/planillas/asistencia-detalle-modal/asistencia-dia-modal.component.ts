@@ -12,6 +12,14 @@ const DIA_LABEL: Record<string, string> = {
   no_laborable_turno: 'Fuera de turno',
 };
 
+const BADGE_STYLE: Record<string, { bg: string; color: string }> = {
+  laborable:           { bg: '#f1f5f9', color: '#475569' },
+  domingo:              { bg: '#f3ecff', color: '#7c3aed' },
+  feriado:              { bg: '#fff1e6', color: '#c2410c' },
+  no_laborable_turno:   { bg: '#f8fafc', color: '#94a3b8' },
+  justificado:          { bg: '#eaf1ff', color: '#2563eb' },
+};
+
 interface MarcacionRow {
   label: string;
   m: AsistMarcacionDto | null;
@@ -19,18 +27,15 @@ interface MarcacionRow {
   turnoHora: string | null;
   tipo: 'entrada' | 'salida' | null;
 }
-
-interface ZonaBarra {
-  leftPct: number;
-  widthPct: number;
-}
+interface ZonaBarra { leftPct: number; widthPct: number; }
+interface HoverTip { text: string; leftPct: number; }
 
 /**
- * Modal HIJO: detalle de UN día (se abre al hacer click en una fila del
- * modal de lista `AsistenciaDetalleModalComponent`). Separado en su propio
- * modal (2026-07-08, pedido explícito del usuario) para tener espacio de
- * sobra para explicar bien: línea de tiempo proporcional, comparación
- * marcación-vs-turno y mapa, sin competir con la tabla de días.
+ * Modal HIJO: detalle de UN día, con navegación anterior/siguiente entre
+ * días sin cerrar (flechas + ← →), línea de tiempo proporcional con
+ * tooltips al pasar el mouse, y mapa. Diseño importado de Claude Design
+ * (proyecto "Diseño modal interactivo" → Verificar Asistencia.dc.html,
+ * 2026-07-08).
  */
 @Component({
   selector: 'app-asistencia-dia-modal',
@@ -42,12 +47,17 @@ interface ZonaBarra {
 export class AsistenciaDiaModalComponent implements OnChanges, OnDestroy {
   @Input() open = false;
   @Input() dia: AsistDiaDetalleDto | null = null;
+  @Input() dias: AsistDiaDetalleDto[] = [];
+  @Input() indice = -1;
   @Output() cerrarModal = new EventEmitter<void>();
+  @Output() navegar = new EventEmitter<number>();
 
+  hoverTip: HoverTip | null = null;
   private leafletMap: L.Map | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['open'] && this.open && this.dia) {
+    if ((changes['open'] || changes['dia']) && this.open && this.dia) {
+      this.hoverTip = null;
       this.destruirMapa();
       setTimeout(() => this.initMapa(), 80);
     }
@@ -64,11 +74,25 @@ export class AsistenciaDiaModalComponent implements OnChanges, OnDestroy {
   onEsc(): void {
     if (this.open) this.cerrar();
   }
+  @HostListener('document:keydown.arrowleft')
+  onArrowLeft(): void {
+    if (this.open && !this.prevDisabled) this.irAnterior();
+  }
+  @HostListener('document:keydown.arrowright')
+  onArrowRight(): void {
+    if (this.open && !this.nextDisabled) this.irSiguiente();
+  }
 
   cerrar(): void {
     this.destruirMapa();
     this.cerrarModal.emit();
   }
+
+  get prevDisabled(): boolean { return this.indice <= 0; }
+  get nextDisabled(): boolean { return this.indice < 0 || this.indice >= this.dias.length - 1; }
+
+  irAnterior(): void { if (!this.prevDisabled) this.navegar.emit(this.indice - 1); }
+  irSiguiente(): void { if (!this.nextDisabled) this.navegar.emit(this.indice + 1); }
 
   // ── Helpers numéricos / de hora (Decimal llega como string) ────────────
   num(v: string | number | null | undefined): number {
@@ -77,7 +101,7 @@ export class AsistenciaDiaModalComponent implements OnChanges, OnDestroy {
   h(v: string | number | null | undefined): string {
     return `${this.num(v).toFixed(1)}h`;
   }
-  hora(v: string | null): string {
+  hora(v: string | null | undefined): string {
     if (!v) return '—';
     const d = new Date(v);
     return isNaN(d.getTime()) ? '—' : d.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' });
@@ -87,52 +111,49 @@ export class AsistenciaDiaModalComponent implements OnChanges, OnDestroy {
     const m = v.match(/T?(\d{2}):(\d{2})/);
     return m ? `${m[1]}:${m[2]}` : '—';
   }
-  private minutosDelDia(v: string | null): number | null {
+  private minutosDelDia(v: string | null | undefined): number | null {
     if (!v) return null;
     const m = v.match(/T?(\d{2}):(\d{2})/);
     return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+  }
+  private fmtMin(min: number): string {
+    const h = Math.floor(min / 60), m = min % 60;
+    return h > 0 ? `${h}h ${m}min` : `${m} min`;
   }
 
   tipoDiaLabel(tipo: string): string {
     return DIA_LABEL[tipo] ?? tipo;
   }
+  badgeStyle(tipo: string): Record<string, string> {
+    const c = BADGE_STYLE[tipo] ?? BADGE_STYLE['laborable'];
+    return { background: c.bg, color: c.color };
+  }
 
-  /** Compara la hora REAL de una marcación contra la hora PACTADA del turno:
-   * "15 min tarde", "puntual", "1h antes (no cuenta)". Para 'entrada', llegar
-   * antes SIEMPRE se marca "no cuenta" (2026-07-08: el sobretiempo es
-   * exclusivamente tiempo trabajado DESPUÉS de la salida pactada). */
-  compararConTurno(horaReal: string | null, horaTurno: string | null, tipo: 'entrada' | 'salida'): string | null {
-    if (!horaReal || !horaTurno) return null;
+  /** true si la entrada fue DESPUÉS de la hora pactada (tardanza real). */
+  entradaTarde(d: AsistDiaDetalleDto): boolean {
+    const real = this.minutosDelDia(d.marcaciones.entrada?.hora);
+    const turno = this.minutosDelDia(d.turno_hora_entrada);
+    return real !== null && turno !== null && real > turno;
+  }
+
+  compararConTurno(horaReal: string | null | undefined, horaTurno: string | null, tipo: 'entrada' | 'salida'): string | null {
     const real = this.minutosDelDia(horaReal);
     const turno = this.minutosDelDia(horaTurno);
     if (real === null || turno === null) return null;
-
     const diff = real - turno;
     if (diff === 0) return 'puntual';
-
-    const abs = Math.abs(diff);
-    const horas = Math.floor(abs / 60), mins = abs % 60;
-    const dur = horas > 0 ? `${horas}h ${mins}min` : `${mins} min`;
-
-    if (tipo === 'entrada') {
-      return diff > 0 ? `${dur} tarde` : `${dur} antes (no cuenta)`;
-    }
+    const dur = this.fmtMin(Math.abs(diff));
+    if (tipo === 'entrada') return diff > 0 ? `${dur} tarde` : `${dur} antes (no cuenta)`;
     return diff > 0 ? `${dur} después (SÍ es extra)` : `${dur} antes de su hora`;
   }
 
-  esNegativoParaElTrabajador(horaReal: string | null, horaTurno: string | null, tipo: 'entrada' | 'salida'): boolean {
-    const texto = this.compararConTurno(horaReal, horaTurno, tipo);
-    if (!texto) return false;
-    if (tipo === 'entrada') return texto.includes('tarde');
-    return texto.includes('antes de su hora');
-  }
-
   marcacionesDelDia(d: AsistDiaDetalleDto): MarcacionRow[] {
+    const entradaTarde = this.entradaTarde(d);
     return [
-      { label: 'Entrada',          m: d.marcaciones.entrada,         color: 'green', turnoHora: d.turno_hora_entrada, tipo: 'entrada' },
-      { label: 'Almuerzo inicio',  m: d.marcaciones.almuerzo_inicio, color: 'amber', turnoHora: null,                 tipo: null       },
-      { label: 'Almuerzo fin',     m: d.marcaciones.almuerzo_fin,    color: 'amber', turnoHora: null,                 tipo: null       },
-      { label: 'Salida',           m: d.marcaciones.salida,          color: 'red',   turnoHora: d.turno_hora_salida,  tipo: 'salida'   },
+      { label: 'Entrada',          m: d.marcaciones.entrada,         color: entradaTarde ? 'amber' : 'green', turnoHora: d.turno_hora_entrada, tipo: 'entrada' },
+      { label: 'Almuerzo inicio',  m: d.marcaciones.almuerzo_inicio, color: d.marcaciones.almuerzo_inicio ? 'green' : 'gris', turnoHora: null, tipo: null },
+      { label: 'Almuerzo fin',     m: d.marcaciones.almuerzo_fin,    color: d.marcaciones.almuerzo_fin ? 'green' : 'gris',    turnoHora: null, tipo: null },
+      { label: 'Salida',           m: d.marcaciones.salida,          color: 'red', turnoHora: d.turno_hora_salida, tipo: 'salida' },
     ];
   }
 
@@ -140,30 +161,83 @@ export class AsistenciaDiaModalComponent implements OnChanges, OnDestroy {
     return this.marcacionesDelDia(d).some(p => p.m && p.m.lat !== null && p.m.lng !== null);
   }
 
-  // ── Línea de tiempo proporcional: turno (núcleo) + zona "no cuenta"
-  // (llegada temprana) + zona "extra" (después de la salida) ─────────────
+  /** Turno asignado pero SIN NINGUNA marcación ese día (ausencia total, a
+   * diferencia de "marcó entrada pero no salida"). */
+  sinMarcacionesEnAbsoluto(d: AsistDiaDetalleDto): boolean {
+    return !!d.turno_hora_entrada && !d.marcaciones.entrada;
+  }
+
+  turnoLineText(d: AsistDiaDetalleDto): string {
+    if (!d.turno_hora_entrada || !d.turno_hora_salida) {
+      return d.tipo_dia === 'domingo'
+        ? 'Día de descanso semanal — no tiene turno asignado.'
+        : 'Sin turno con horario definido asignado este día.';
+    }
+    return `Turno ${d.turno_nombre || 'asignado'}: entra a las ${this.horaCorta(d.turno_hora_entrada)}, sale a las ${this.horaCorta(d.turno_hora_salida)} (${this.h(d.req_horas)} netas de jornada).`;
+  }
+
+  /** Líneas de explicación del cálculo del día, en el orden del mockup:
+   * trabajado-vs-jornada, luego extra (si hay), luego temprano/tarde. */
+  calcLines(d: AsistDiaDetalleDto): string[] {
+    const lineas: string[] = [];
+    if (!d.turno_hora_entrada) {
+      lineas.push(`Día sin turno asignado — no se calculan horas.`);
+      return lineas;
+    }
+    if (this.sinMarcacionesEnAbsoluto(d)) {
+      lineas.push(`No se registraron marcaciones este día — se contabiliza como falta de <strong>${this.h(d.req_horas)}</strong>.`);
+      return lineas;
+    }
+    lineas.push(`Trabajó (dentro de su turno) <strong>${this.h(d.horas_reales)}</strong> vs. jornada de <strong>${this.h(d.req_horas)}</strong>`);
+    if (this.num(d.horas_extra_bruto) > 0) {
+      const bruto = this.num(d.horas_extra_bruto), pagable = this.num(d.horas_extra_pagable);
+      let txt = `<strong>${this.h(bruto)}</strong> después de su hora de salida`;
+      if (pagable < bruto) {
+        txt += ` (se paga solo la hora completa: <strong>${this.h(pagable)}</strong>, la fracción de ${this.h(bruto - pagable)} no se paga)`;
+      }
+      lineas.push(txt);
+    }
+    const entradaMin = this.minutosDelDia(d.marcaciones.entrada?.hora);
+    const turnoMin = this.minutosDelDia(d.turno_hora_entrada);
+    if (entradaMin !== null && turnoMin !== null && entradaMin < turnoMin) {
+      lineas.push(`Llegó ${this.fmtMin(turnoMin - entradaMin)} antes de su turno — no cuenta ni suma ni resta.`);
+    } else if (entradaMin !== null && turnoMin !== null && entradaMin > turnoMin) {
+      lineas.push(`Llegó ${this.fmtMin(entradaMin - turnoMin)} tarde respecto al turno.`);
+    }
+    return lineas;
+  }
+
+  // ── Línea de tiempo proporcional con tooltips ───────────────────────────
   private escalaMinutos(d: AsistDiaDetalleDto): { min: number; max: number } | null {
     const turnoIn = this.minutosDelDia(d.turno_hora_entrada);
     const turnoOut = this.minutosDelDia(d.turno_hora_salida);
     if (turnoIn === null || turnoOut === null) return null;
     let min = turnoIn, max = turnoOut;
-    const marcIn = this.minutosDelDia(d.marcaciones.entrada?.hora ?? null);
-    const marcOut = this.minutosDelDia(d.marcaciones.salida?.hora ?? null);
+    const marcIn = this.minutosDelDia(d.marcaciones.entrada?.hora);
+    const marcOut = this.minutosDelDia(d.marcaciones.salida?.hora);
     if (marcIn !== null) min = Math.min(min, marcIn);
     if (marcOut !== null) max = Math.max(max, marcOut);
-    const pad = 20;
-    return { min: min - pad, max: max + pad };
+    return { min: min - 20, max: max + 20 };
   }
-
   private pct(minutos: number | null, escala: { min: number; max: number }): number {
     if (minutos === null) return 0;
     const span = escala.max - escala.min;
-    if (span <= 0) return 0;
-    return Math.max(0, Math.min(100, ((minutos - escala.min) / span) * 100));
+    return span <= 0 ? 0 : Math.max(0, Math.min(100, ((minutos - escala.min) / span) * 100));
   }
 
-  tieneLineaDeTiempo(d: AsistDiaDetalleDto): boolean {
-    return this.escalaMinutos(d) !== null && !!d.marcaciones.entrada && !!d.marcaciones.salida;
+  /** true si el día tiene un turno con horario — la barra siempre se
+   * muestra (rayada si no hay turno), igual que el mockup. */
+  tieneTurno(d: AsistDiaDetalleDto): boolean {
+    return !!d.turno_hora_entrada && !!d.turno_hora_salida;
+  }
+  tieneMarcas(d: AsistDiaDetalleDto): boolean {
+    return !!d.marcaciones.entrada && !!d.marcaciones.salida;
+  }
+
+  barLabels(d: AsistDiaDetalleDto): { left: string; right: string } {
+    if (!this.tieneTurno(d)) return { left: '', right: '' };
+    const escala = this.escalaMinutos(d)!;
+    return { left: this.horaCorta(d.turno_hora_entrada), right: this.horaCorta(d.turno_hora_salida) };
   }
 
   turnoZona(d: AsistDiaDetalleDto): ZonaBarra | null {
@@ -174,37 +248,45 @@ export class AsistenciaDiaModalComponent implements OnChanges, OnDestroy {
     const left = this.pct(turnoIn, escala);
     return { leftPct: left, widthPct: this.pct(turnoOut, escala) - left };
   }
-
-  /** Zona "no cuenta": desde la marcación de entrada hasta el inicio del
-   * turno, SOLO si llegó antes. */
   tempranoZona(d: AsistDiaDetalleDto): ZonaBarra | null {
     const escala = this.escalaMinutos(d);
-    const marcIn = this.minutosDelDia(d.marcaciones.entrada?.hora ?? null);
+    const marcIn = this.minutosDelDia(d.marcaciones.entrada?.hora);
     const turnoIn = this.minutosDelDia(d.turno_hora_entrada);
     if (!escala || marcIn === null || turnoIn === null || marcIn >= turnoIn) return null;
     const left = this.pct(marcIn, escala);
     return { leftPct: left, widthPct: this.pct(turnoIn, escala) - left };
   }
-
-  /** Zona "extra": desde el fin del turno hasta la marcación de salida,
-   * SOLO si se quedó después. */
   extraZona(d: AsistDiaDetalleDto): ZonaBarra | null {
     const escala = this.escalaMinutos(d);
-    const marcOut = this.minutosDelDia(d.marcaciones.salida?.hora ?? null);
+    const marcOut = this.minutosDelDia(d.marcaciones.salida?.hora);
     const turnoOut = this.minutosDelDia(d.turno_hora_salida);
     if (!escala || marcOut === null || turnoOut === null || marcOut <= turnoOut) return null;
     const left = this.pct(turnoOut, escala);
     return { leftPct: left, widthPct: this.pct(marcOut, escala) - left };
   }
-
   marcadorPct(hora: string | null | undefined, d: AsistDiaDetalleDto): number | null {
     const escala = this.escalaMinutos(d);
-    const min = this.minutosDelDia(hora ?? null);
+    const min = this.minutosDelDia(hora);
     if (!escala || min === null) return null;
     return this.pct(min, escala);
   }
 
-  // ── Mapa (Leaflet, import estático — ver nota en asistencia-detalle-modal) ──
+  mostrarTip(text: string, leftPct: number): void { this.hoverTip = { text, leftPct }; }
+  ocultarTip(): void { this.hoverTip = null; }
+
+  legend(d: AsistDiaDetalleDto): { color: string; label: string }[] {
+    if (!this.tieneTurno(d)) return [{ color: '#e2e8f0', label: 'Sin turno asignado este día' }];
+    if (!this.tieneMarcas(d)) {
+      return [{ color: '#dbeafe', label: `Turno asignado: ${this.horaCorta(d.turno_hora_entrada)} – ${this.horaCorta(d.turno_hora_salida)} (sin marcaciones)` }];
+    }
+    const items = [{ color: '#2563eb', label: 'Jornada del turno' }];
+    if (this.tempranoZona(d)) items.push({ color: '#e2e8f0', label: 'Llegó antes (no cuenta)' });
+    if (this.entradaTarde(d)) items.push({ color: '#f59e0b', label: 'Llegó tarde' });
+    if (this.extraZona(d)) items.push({ color: '#16a34a', label: 'Hora extra (después de salida)' });
+    return items;
+  }
+
+  // ── Mapa (Leaflet, import estático) ─────────────────────────────────────
   private initMapa(): void {
     const d = this.dia;
     if (!d) return;

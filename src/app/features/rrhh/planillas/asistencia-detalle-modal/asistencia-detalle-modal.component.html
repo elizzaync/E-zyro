@@ -2,13 +2,13 @@
   [open]="open"
   title="Verificar asistencia"
   [subtitle]="nombreEmpleado || ''"
-  maxWidth="880px"
-  iconBg="rgba(59,130,246,0.12)"
+  maxWidth="960px"
+  iconBg="#eaf1ff"
   iconColor="#2563eb"
   (closeModal)="cerrar()">
 
-  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
-    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="19" height="19">
+    <circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/>
   </svg>
 
   <div class="asist-body">
@@ -30,42 +30,53 @@
     <!-- ═══ Tarjetas de resumen ═══ -->
     <div class="asist-resumen-grid">
       <div class="asist-card">
-        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span class="asist-card-icon" style="color:#2563eb">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+        </span>
         <span class="asist-card-label">Meta</span>
         <span class="asist-card-val">{{ h(datos.totales.meta_horas) }}</span>
       </div>
       <div class="asist-card">
-        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
+        <span class="asist-card-icon" style="color:#64748b">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg>
+        </span>
         <span class="asist-card-label">Reales</span>
         <span class="asist-card-val">{{ h(datos.totales.horas_reales) }}</span>
       </div>
-      <div class="asist-card extra">
-        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+      <div class="asist-card">
+        <span class="asist-card-icon" style="color:#16a34a">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+        </span>
         <span class="asist-card-label">Extra</span>
-        <span class="asist-card-val">{{ h(datos.totales.horas_extra_bruto) }}</span>
+        <span class="asist-card-val" style="color:#16a34a">{{ h(datos.totales.horas_extra_bruto) }}</span>
       </div>
-      <div class="asist-card falta">
-        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div class="asist-card">
+        <span class="asist-card-icon" style="color:#dc2626">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        </span>
         <span class="asist-card-label">Faltantes</span>
-        <span class="asist-card-val">{{ h(datos.totales.horas_faltantes) }}</span>
+        <span class="asist-card-val" style="color:#dc2626">{{ h(datos.totales.horas_faltantes) }}</span>
       </div>
-      <div class="asist-card morado">
-        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+      <div class="asist-card">
+        <span class="asist-card-icon" style="color:#7c3aed">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/></svg>
+        </span>
         <span class="asist-card-label">Domingo</span>
         <span class="asist-card-val">{{ h(datos.totales.horas_domingo) }}</span>
       </div>
-      <div class="asist-card morado">
-        <svg class="asist-card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/></svg>
+      <div class="asist-card">
+        <span class="asist-card-icon" style="color:#64748b">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/></svg>
+        </span>
         <span class="asist-card-label">Feriado</span>
         <span class="asist-card-val">{{ h(datos.totales.horas_feriado) }}</span>
       </div>
     </div>
 
-    <p class="asist-reconciliacion">{{ reconciliacionTexto }}</p>
-    <p class="asist-hint">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-      Solo cuenta como hora extra el tiempo trabajado <strong>después</strong> de la hora de salida del turno — llegar antes de la entrada no suma ni resta nada. Click en un día para ver el detalle.
-    </p>
+    <div class="asist-hint">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/></svg>
+      <span>Solo cuenta como hora extra el tiempo trabajado <strong>después</strong> de la hora de salida del turno — llegar antes de la entrada no suma ni resta. <strong>Click en un día</strong> para ver el detalle.</span>
+    </div>
 
     <!-- ═══ Tabla de días ═══ -->
     <div class="asist-tabla-wrap">
@@ -74,7 +85,7 @@
           <tr>
             <th>Fecha</th><th>Día</th><th>Tipo</th><th class="text-center">Req</th>
             <th class="text-center">Reales</th><th class="text-center">Extra</th>
-            <th class="text-center">Falta</th><th class="text-center">Alerta</th><th></th>
+            <th class="text-center">Falta</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -82,23 +93,18 @@
           <tr [class]="filaClass(d)" (click)="abrirDia(d)">
             <td>{{ d.fecha }}</td>
             <td>{{ d.dia_semana }}</td>
-            <td>
-              <span class="asist-badge" [ngClass]="'badge-' + d.tipo_dia">{{ tipoDiaLabel(d.tipo_dia) }}</span>
-              @if (d.es_justificado) { <span class="asist-badge badge-justificado">Justificado</span> }
-            </td>
+            <td><span class="asist-badge" [ngStyle]="badgeStyle(d.tipo_dia)">{{ tipoDiaLabel(d.tipo_dia) }}</span></td>
             <td class="text-center">{{ h(d.req_horas) }}</td>
-            <td class="text-center">{{ h(d.horas_reales) }}</td>
-            <td class="text-center">{{ num(d.extra_25) + num(d.extra_35) > 0 ? h(num(d.extra_25) + num(d.extra_35)) : '—' }}</td>
-            <td class="text-center">{{ num(d.falta) > 0 ? h(d.falta) : '—' }}</td>
+            <td class="text-center asist-td-strong">{{ h(d.horas_reales) }}</td>
+            <td class="text-center asist-td-muted">{{ num(d.extra_25) + num(d.extra_35) > 0 ? h(num(d.extra_25) + num(d.extra_35)) : '—' }}</td>
+            <td class="text-center asist-td-falta">{{ num(d.falta) > 0 ? h(d.falta) : '—' }}</td>
             <td class="text-center">
-              @if (d.alerta === 'marcacion_incompleta') {
-              <span class="asist-alerta" title="Falta registrar la salida ese día">⚠</span>
-              } @else if (d.alerta === 'sin_tramite') {
-              <span class="asist-alerta" title="Sobretiempo sin trámite de Permanencia Extra aprobado">⚠</span>
-              }
-            </td>
-            <td class="text-center">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="asist-fila-chevron"><polyline points="9 18 15 12 9 6"/></svg>
+              <div class="asist-fila-end">
+                @if (d.alerta) {
+                <span class="asist-alerta" [title]="d.alerta === 'marcacion_incompleta' ? 'Falta registrar la salida ese día' : 'Sobretiempo sin trámite de Permanencia Extra aprobado'">⚠️</span>
+                }
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+              </div>
             </td>
           </tr>
           }
@@ -112,5 +118,8 @@
 <app-asistencia-dia-modal
   [open]="diaModalOpen"
   [dia]="diaSeleccionado"
-  (cerrarModal)="cerrarDiaModal()">
+  [dias]="datos?.detalle_dias ?? []"
+  [indice]="indiceSeleccionado"
+  (cerrarModal)="cerrarDiaModal()"
+  (navegar)="onNavegar($event)">
 </app-asistencia-dia-modal>
