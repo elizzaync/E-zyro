@@ -14,9 +14,19 @@ Nota histórica: existió un `resumen_asistencia_periodo` (día/minuto,
 más simple) usado por una versión anterior de `calcular_planilla` — quedó
 reemplazado por `resumen_horas_periodo` cuando el motor legal pasó a calcular
 el sueldo devengado proporcional a las horas reales (no por conteo de días).
+
+FIX 2026-07-07: falta y sobretiempo se calculan POR DÍA dentro del loop de
+`dias_lab`, no por acumulación del período (D.S. 007-2002-TR: el tramo
+25%/35% de hora extra aplica por JORNADA, no una sola vez al mes). Un día
+corto ya NO compensa (netea) un día largo: ambos se acumulan por separado en
+`horas_faltantes`/`horas_extra`. Los buckets `horas_extra_25`/`horas_extra_35`
+(ya truncados a la hora completa, por día) son el insumo directo que
+`planilla_calculo_service.calcular_boleta_empleado` usa para pagar el
+sobretiempo — el motor YA NO deriva la hora extra de horas_reales/meta_horas.
 """
 from __future__ import annotations
 
+import math
 from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
@@ -162,6 +172,16 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
         dias_laborados     = 0
         horas_domingo      = 0.0
         horas_feriado      = 0.0
+        horas_faltantes    = 0.0
+        # Sobretiempo (2026-07-07, FIX horas extra por día, D.S. 007-2002-TR:
+        # el tramo 25%/35% aplica por JORNADA, no una sola vez al período —
+        # sin netear un día corto con uno largo). `horas_extra` es el total
+        # informativo sin truncar; `horas_extra_25`/`horas_extra_35` ya
+        # vienen truncadas a la hora completa por día y clasificadas por
+        # tramo (25% las primeras 2h de CADA día, 35% el resto de ese día).
+        horas_extra        = 0.0
+        horas_extra_25     = 0.0
+        horas_extra_35     = 0.0
 
         for dia in domingos:
             regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
@@ -185,20 +205,33 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
 
             if dia in dias_justificados:
                 horas_justificadas += req_h
-            else:
-                regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
-                h = _horas_dia(regs_dia)
-                horas_reales += h
-                if h > 0:
-                    dias_laborados += 1
+                continue
+
+            regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
+            h = _horas_dia(regs_dia)
+            horas_reales += h
+            if h > 0:
+                dias_laborados += 1
+
+            # Falta y sobretiempo se calculan POR DÍA, sin comparar contra la
+            # meta acumulada del período — así un día corto NO compensa
+            # (netea) un día largo: ambos se acumulan por separado.
+            falta_dia = max(0.0, req_h - h)
+            extra_bruto_dia = max(0.0, h - req_h)
+            extra_pag_dia = float(math.floor(extra_bruto_dia))  # solo la hora YA completada, por día
+            extra25_dia = min(extra_pag_dia, 2.0)               # primeras 2h del día → 25%
+            extra35_dia = max(0.0, extra_pag_dia - 2.0)         # resto del día → 35%
+
+            horas_faltantes += falta_dia
+            horas_extra      += extra_bruto_dia
+            horas_extra_25   += extra25_dia
+            horas_extra_35   += extra35_dia
 
         # Horas extras aprobadas (permanencia_extra)
         perm_extra_h = float(sum(
             s.dias or 0 for s in solis if s.tipo == "permanencia_extra"
         ))
         horas_total           = horas_reales + horas_justificadas
-        horas_faltantes       = max(0.0, meta_horas_emp - horas_total)
-        horas_extra           = max(0.0, horas_total - meta_horas_emp)
         horas_extra_aprobadas = round(min(horas_extra, perm_extra_h), 2)
         horas_extra_no_autor  = round(max(0.0, horas_extra - horas_extra_aprobadas), 2)
         porcentaje            = round((horas_total / meta_horas_emp * 100) if meta_horas_emp > 0 else 0.0, 1)
@@ -229,6 +262,8 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
             "horas_total":           round(horas_total,        2),
             "horas_faltantes":       round(horas_faltantes,    2),
             "horas_extra":           round(horas_extra,        2),
+            "horas_extra_25":        round(horas_extra_25,     2),
+            "horas_extra_35":        round(horas_extra_35,     2),
             "horas_extra_aprobadas": horas_extra_aprobadas,
             "horas_extra_no_autor":  horas_extra_no_autor,
             "horas_domingo":         round(horas_domingo, 2),

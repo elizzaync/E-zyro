@@ -60,12 +60,17 @@ class ConfigPlanillaOut(BaseModel):
     descuento_tardanza_auto: bool
     regimen_laboral: str
     esquema_pago_planilla: str
+    # Gate de trámite (2026-07-07, decisión de negocio con riesgo legal,
+    # default False): si es False, solo se paga sobretiempo respaldado por
+    # un trámite de Permanencia Extra aprobado. Ver planilla_calculo_service.
+    pagar_horas_extra_sin_tramite: bool = False
 
 
 class ConfigPlanillaUpdate(BaseModel):
     descuento_tardanza_auto: Optional[bool] = None
     regimen_laboral: Optional[str] = None
     esquema_pago_planilla: Optional[str] = None
+    pagar_horas_extra_sin_tramite: Optional[bool] = None
 
     @field_validator("regimen_laboral")
     @classmethod
@@ -85,6 +90,7 @@ class ConfigPlanillaUpdate(BaseModel):
 # ── Configuración previsional por empleado (Fase 8) ───────────────────────────
 TIPOS_SISTEMA_PENSION = {"onp", "afp"}
 TIPOS_ENTIDAD_AFP = {"integra", "prima", "profuturo", "habitat"}
+TIPOS_COMISION_AFP = {"flujo", "saldo"}
 
 
 class PensionConfigOut(BaseModel):
@@ -93,6 +99,9 @@ class PensionConfigOut(BaseModel):
     entidad_afp: Optional[str] = None
     comision_afp_personalizada: Optional[Decimal] = None
     tiene_asignacion_familiar: bool
+    # 'saldo' (default legal post-2013, NO se descuenta en planilla) o
+    # 'flujo' (SÍ se descuenta sobre la remuneración cada mes).
+    tipo_comision_afp: str = "saldo"
 
 
 class PensionConfigUpdate(BaseModel):
@@ -103,6 +112,14 @@ class PensionConfigUpdate(BaseModel):
     entidad_afp: Optional[str] = None
     comision_afp_personalizada: Optional[Decimal] = None
     tiene_asignacion_familiar: Optional[bool] = None
+    tipo_comision_afp: Optional[str] = None
+
+    @field_validator("tipo_comision_afp")
+    @classmethod
+    def _tipo_comision(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in TIPOS_COMISION_AFP:
+            raise ValueError(f"tipo_comision_afp debe ser uno de {sorted(TIPOS_COMISION_AFP)}")
+        return v
 
     @field_validator("sistema_pension")
     @classmethod
@@ -179,6 +196,7 @@ class PlanillaPreviewEmpleadoOut(BaseModel):
     entidad_afp: Optional[str] = None
     comision_afp_personalizada: Optional[Decimal] = None
     comision_afp_pct: Decimal
+    tipo_comision_afp: str = "saldo"
     tiene_asignacion_familiar: bool
 
     sueldo_base: Decimal
@@ -194,8 +212,10 @@ class PlanillaPreviewEmpleadoOut(BaseModel):
     descuento_dominical: Decimal
     descuento_faltas: Decimal
 
-    horas_extra_pagables: Decimal    # horas COMPLETAS que sí se pagan (fracción no se paga)
-    horas_extra_sin_tramite: Decimal # alerta: de las pagables, cuántas sin Permanencia Extra aprobada
+    horas_extra_25: Decimal          # informativo: horas completas en tramo 25% (antes del gate de trámite)
+    horas_extra_35: Decimal          # informativo: horas completas en tramo 35% (antes del gate de trámite)
+    horas_extra_pagables: Decimal    # horas COMPLETAS que sí se pagan (fracción no se paga; puede topar por el gate)
+    horas_extra_sin_tramite: Decimal # alerta: de todo lo truncado, cuánto sin Permanencia Extra aprobada
     pago_horas_extra: Decimal
     horas_domingo: Decimal           # horas trabajadas el día de descanso semanal
     pago_domingo: Decimal            # retribución + sobretasa 100% (D.Leg. 713 Art. 3)
@@ -286,6 +306,7 @@ class EmpleadoPlanillaOut(BaseModel):
     entidad_afp: Optional[str] = None
     comision_afp_personalizada: Optional[Decimal] = None
     tiene_asignacion_familiar: bool = False
+    tipo_comision_afp: str = "saldo"
 
 
 class AsignacionOut(BaseModel):

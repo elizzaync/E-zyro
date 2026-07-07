@@ -26,7 +26,8 @@ def q2(v: Decimal) -> Decimal:
 def calc(**kwargs):
     """Atajo: separa los kwargs de InsumoEmpleado de los de configuración
     (regimen_empresa, periodo_pago, descuento_tardanza_auto)."""
-    config_keys = {"regimen_empresa", "periodo_pago", "descuento_tardanza_auto"}
+    config_keys = {"regimen_empresa", "periodo_pago", "descuento_tardanza_auto",
+                    "pagar_horas_extra_sin_tramite"}
     config = {k: v for k, v in kwargs.items() if k in config_keys}
     insumo_kwargs = {k: v for k, v in kwargs.items() if k not in config_keys}
     config.setdefault("periodo_pago", "mes")
@@ -42,6 +43,13 @@ def test_caso_a_dependiente_onp_general_con_extras_y_faltas():
         horas_faltantes=Decimal(10), horas_reales=Decimal(180), meta_horas=Decimal(176),
         sistema_pension="onp", tiene_asignacion_familiar=True,
         regimen_empresa="general",
+        # FIX 2026-07-07: la hora extra ya no se deriva de horas_reales-meta_horas
+        # (acumulación de período) — se pasa explícita, ya agregada por día y
+        # truncada (equivalente al escenario original: 4h de sobretiempo en un
+        # solo día, 2h@25% + 2h@35%). Sin trámite formal, así que se necesita el
+        # gate en True para reproducir "se paga toda la hora extra registrada".
+        horas_extra=Decimal(4), horas_extra_25=Decimal(2), horas_extra_35=Decimal(2),
+        pagar_horas_extra_sin_tramite=True,
     )
     # Informativos (ya no afectan el dinero, solo describen la asistencia)
     assert d.dias_faltantes == 1
@@ -81,6 +89,9 @@ def test_caso_b_afp_comision_personalizada_pequena_empresa():
         sistema_pension="afp", entidad_afp="prima",
         comision_afp_personalizada=Decimal("0.0175"), tiene_asignacion_familiar=False,
         regimen_empresa="pequena",
+        # FIX 2026-07-07: la comisión personalizada solo se aplica en esquema
+        # 'flujo' (en 'saldo', el default, la comisión no se descuenta en planilla).
+        tipo_comision_afp="flujo",
     )
     assert d.es_afp is True
     assert d.comision_afp_pct == Decimal("0.0175")               # pisa la tabla oficial (0.0160)
@@ -229,6 +240,7 @@ def test_caso_f_quincena_divide_sueldo_a_la_mitad():
         horas_faltantes=Decimal(0), horas_reales=Decimal(88), meta_horas=Decimal(88),
         sistema_pension="afp", entidad_afp="habitat", tiene_asignacion_familiar=True,
         regimen_empresa="general", periodo_pago="q1",
+        tipo_comision_afp="flujo",
     )
     assert q2(d.sueldo_periodo) == Decimal("1500.00")            # 3000 / 2, no prorrateo por días
     assert q2(d.asignacion_familiar) == Decimal("56.50")         # 113 / 2
@@ -267,7 +279,7 @@ def test_entidad_afp_no_definida_cae_a_integra():
         tipo_contrato="planilla", sueldo_base=Decimal(1000),
         horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
         sistema_pension="afp", entidad_afp=None, tiene_asignacion_familiar=False,
-        regimen_empresa="general",
+        regimen_empresa="general", tipo_comision_afp="flujo",
     )
     assert d.comision_afp_pct == Decimal("0.0155")               # tabla oficial Integra (default)
 
@@ -305,6 +317,8 @@ def test_caso_k_fraccion_de_hora_extra_no_se_paga():
         tipo_contrato="planilla", sueldo_base=Decimal(2000),
         horas_faltantes=Decimal(0), horas_reales=Decimal("60.5") + Decimal("0.6"),
         meta_horas=Decimal("60.5"), sistema_pension="onp", regimen_empresa="general",
+        # 0.6h de sobretiempo en el día: floor(0.6) = 0 → no cae en ningún tramo.
+        horas_extra=Decimal("0.6"), horas_extra_25=Decimal(0), horas_extra_35=Decimal(0),
     )
     assert q2(d.horas_extra) == Decimal("0.60")          # informativo: sí trabajó 0.6h de más
     assert d.horas_extra_pagables == Decimal(0)           # pero no completó la hora
@@ -317,6 +331,9 @@ def test_caso_l_horas_extra_pagables_trunca_a_entero_tramo_25pct():
         tipo_contrato="planilla", sueldo_base=Decimal(2000),
         horas_faltantes=Decimal(0), horas_reales=Decimal(176) + Decimal("2.6"),
         meta_horas=Decimal(176), sistema_pension="onp", regimen_empresa="general",
+        # 2.6h en el día: floor(2.6) = 2 → las 2 primeras horas, tramo 25%.
+        horas_extra=Decimal("2.6"), horas_extra_25=Decimal(2), horas_extra_35=Decimal(0),
+        pagar_horas_extra_sin_tramite=True,
     )
     assert d.horas_extra_pagables == Decimal(2)
     assert q2(d.pago_horas_extra) == Decimal("20.83")     # 2h × valor_hora(8.333) × 1.25
@@ -328,6 +345,9 @@ def test_caso_m_horas_extra_pagables_tramo_25_y_35pct():
         tipo_contrato="planilla", sueldo_base=Decimal(2000),
         horas_faltantes=Decimal(0), horas_reales=Decimal(176) + Decimal("3.9"),
         meta_horas=Decimal(176), sistema_pension="onp", regimen_empresa="general",
+        # 3.9h en el día: floor(3.9) = 3 → 2h al tramo 25%, 1h al tramo 35%.
+        horas_extra=Decimal("3.9"), horas_extra_25=Decimal(2), horas_extra_35=Decimal(1),
+        pagar_horas_extra_sin_tramite=True,
     )
     assert d.horas_extra_pagables == Decimal(3)
     assert q2(d.pago_horas_extra) == Decimal("32.08")     # 2h×1.25 + 1h×1.35, sobre valor_hora=8.333
@@ -344,6 +364,11 @@ def test_caso_n_alerta_horas_extra_sin_tramite_no_reduce_el_pago():
         horas_faltantes=Decimal(0), horas_reales=Decimal(176) + Decimal("3.15"),
         meta_horas=Decimal(176), sistema_pension="onp", regimen_empresa="general",
         horas_extra_aprobadas=Decimal(1),
+        # 3.15h en el día: floor(3.15) = 3 → 2h@25% + 1h@35%. Empresa con el
+        # gate en True (paga todo el sobretiempo registrado, el trámite es
+        # solo alerta) — ver Caso "gate false" para el escenario contrario.
+        horas_extra=Decimal("3.15"), horas_extra_25=Decimal(2), horas_extra_35=Decimal(1),
+        pagar_horas_extra_sin_tramite=True,
     )
     assert d.horas_extra_pagables == Decimal(3)
     assert q2(d.pago_horas_extra) == Decimal("32.08")     # SIN reducir por falta de trámite
@@ -434,3 +459,101 @@ def test_caso_s_domingo_y_feriado_no_se_solapan():
     )
     assert q2(d.pago_domingo) == Decimal("133.33")
     assert q2(d.pago_feriado) == Decimal("133.33")
+
+
+# ── FIX 2026-07-07 — Comisión AFP por esquema (flujo vs saldo) ──────────────
+def test_comision_afp_saldo_no_se_descuenta():
+    """'saldo' es el default legal desde 2013: la comisión SPP (~0.78% anual
+    sobre el FONDO acumulado) la cobra la AFP directamente del fondo, nunca
+    de la remuneración — en planilla debe salir en 0."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(1000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="afp", entidad_afp="integra", tiene_asignacion_familiar=False,
+        regimen_empresa="general", tipo_comision_afp="saldo",
+    )
+    assert d.comision_afp_pct == Decimal("0")
+    assert q2(d.afp_comision) == Decimal("0.00")
+    assert q2(d.descuento_pension) == Decimal("113.70")   # base × (10% + 1.37% + 0%) = 11.37%
+
+
+def test_comision_afp_flujo_se_descuenta():
+    """'flujo' es el esquema anterior (aún vigente para quienes no
+    migraron): la comisión SÍ se descuenta cada mes sobre la remuneración."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(1000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="afp", entidad_afp="integra", tiene_asignacion_familiar=False,
+        regimen_empresa="general", tipo_comision_afp="flujo",
+    )
+    assert d.comision_afp_pct == Decimal("0.0155")
+    assert q2(d.afp_comision) == Decimal("15.50")          # 1.55% de 1000
+    assert q2(d.descuento_pension) == Decimal("129.20")    # base × (10% + 1.37% + 1.55%) = 12.92%
+
+
+# ── FIX 2026-07-07 — Hora extra por DÍA, no por acumulación de período ─────
+def test_horas_extra_por_dia_suma_buckets_sin_recalcular_desde_periodo():
+    """Escenario de referencia: día 1 con 1h de sobretiempo (floor(1)=1 → va
+    al tramo 25%) y día 2 con 5h de sobretiempo (floor(5)=5 → 2h al tramo
+    25%, 3h al tramo 35%). El AGREGADO por período es extra_25=1+2=3,
+    extra_35=0+3=3 — el motor solo suma los buckets ya resueltos por
+    `resumen_horas_periodo`, no vuelve a derivar nada de horas_reales/meta."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+        horas_extra_25=Decimal(3), horas_extra_35=Decimal(3),
+        pagar_horas_extra_sin_tramite=True,
+    )
+    assert d.horas_extra_pagables == Decimal(6)
+    assert q2(d.pago_horas_extra) == Decimal("65.00")     # 3×8.333×1.25 + 3×8.333×1.35
+
+
+def test_falta_de_un_dia_no_cancela_extra_de_otro_dia():
+    """Antes (acumulación de período): un día corto y un día largo se
+    NETEABAN entre sí (horas_extra = max(0, total - meta)), así que una
+    falta podía anular el sobretiempo de otro día del mismo período. Ahora
+    (2026-07-07) ambos vienen ya agregados por separado desde
+    `resumen_horas_periodo` — la falta SIGUE descontando el sueldo Y el
+    extra SIGUE pagándose completo, sin compensarse entre sí."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(2), horas_reales=Decimal(174), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+        horas_extra_25=Decimal(2), horas_extra_35=Decimal(0),
+        pagar_horas_extra_sin_tramite=True,
+    )
+    assert q2(d.sueldo_devengado) == Decimal("1977.27")   # la falta de 2h SÍ se descuenta
+    assert q2(d.pago_horas_extra) == Decimal("20.83")     # Y el extra de 2h SÍ se paga completo
+
+
+# ── FIX 2026-07-07 — Gate de pago de sobretiempo sin trámite (por empresa) ──
+def test_gate_false_sin_tramite_no_paga():
+    """Empresa con `pagar_horas_extra_sin_tramite=False` (default, más
+    conservador legalmente): sin trámite de Permanencia Extra aprobado, el
+    sobretiempo NO se paga — pero la alerta informativa SIEMPRE se calcula."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+        horas_extra_25=Decimal(2), horas_extra_35=Decimal(0),
+        pagar_horas_extra_sin_tramite=False,
+    )
+    assert q2(d.pago_horas_extra) == Decimal("0.00")
+    assert d.horas_extra_sin_tramite == Decimal(2)
+
+
+def test_gate_true_sin_tramite_paga_completo():
+    """Mismo escenario que el anterior, pero con
+    `pagar_horas_extra_sin_tramite=True`: se paga TODO el sobretiempo
+    registrado (presunción de autorización tácita, SUNAFIL); la alerta sigue
+    apareciendo igual, es puramente informativa."""
+    d = calc(
+        tipo_contrato="planilla", sueldo_base=Decimal(2000),
+        horas_faltantes=Decimal(0), horas_reales=Decimal(176), meta_horas=Decimal(176),
+        sistema_pension="onp", regimen_empresa="general",
+        horas_extra_25=Decimal(2), horas_extra_35=Decimal(0),
+        pagar_horas_extra_sin_tramite=True,
+    )
+    assert q2(d.pago_horas_extra) == Decimal("20.83")
+    assert d.horas_extra_sin_tramite == Decimal(2)

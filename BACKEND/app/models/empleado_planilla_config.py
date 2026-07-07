@@ -29,6 +29,11 @@ class EmpleadoPlanillaConfig(Base):
     entidad_afp                = Column(String(20), nullable=True)                    # integra|prima|profuturo|habitat
     comision_afp_personalizada = Column(Numeric(6, 4), nullable=True)
     tiene_asignacion_familiar  = Column(Boolean, nullable=False, default=False)
+    # Esquema de comisión SPP (2026-07-07): 'saldo' (default legal desde
+    # 2013, comisión ~0.78% anual sobre el FONDO acumulado — NO se descuenta
+    # en planilla) o 'flujo' (comisión sobre la remuneración — SÍ se
+    # descuenta cada mes). Ver planilla_calculo_service._comision_afp_efectiva.
+    tipo_comision_afp          = Column(String(10), nullable=False, default="saldo")
     created_at                 = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at                 = Column(DateTime, nullable=True, onupdate=datetime.utcnow)
 
@@ -39,4 +44,5 @@ class EmpleadoPlanillaConfig(Base):
             "entidad_afp IS NULL OR entidad_afp IN ('integra','prima','profuturo','habitat')",
             name="chk_epc_entidad_afp",
         ),
+        CheckConstraint("tipo_comision_afp IN ('flujo','saldo')", name="chk_epc_tipo_comision_afp"),
     )

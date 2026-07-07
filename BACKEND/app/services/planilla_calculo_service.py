@@ -41,6 +41,24 @@ correcta: 0% de asistencia ⇒ sueldo devengado = 0 ⇒ neto = 0. `dias_faltante
 INFORMATIVOS (para mostrar en la boleta "por qué"), ya no participan en el
 cálculo del neto — el descuento real ya está reflejado en `sueldo_devengado`.
 
+CORRECCIONES 2026-07-07 (dos más, mismo criterio de fidelidad de arriba —
+documentadas aquí porque cambian el CONTRATO de `InsumoEmpleado`, no solo un
+número):
+  - Comisión AFP por ESQUEMA (`tipo_comision_afp`): antes se sumaba SIEMPRE
+    la comisión de la entidad al descuento; ahora solo se descuenta si el
+    empleado está en esquema 'flujo' — el default legal 'saldo' (post-2013)
+    no se descuenta en planilla (ver `_comision_afp_efectiva`).
+  - Horas extra POR DÍA, no por acumulación de período: antes
+    `horas_extra_pagables` se derivaba de `horas_reales - meta_horas` del
+    PERÍODO completo (aplicaba el tramo 25%/35% una sola vez al mes y
+    compensaba días cortos con días largos). Ahora `resumen_horas_periodo`
+    agrega el sobretiempo día por día (D.S. 007-2002-TR: el tramo aplica por
+    JORNADA) y el motor solo consume los buckets ya resueltos
+    (`horas_extra_25`/`horas_extra_35`) — sin recalcular desde
+    horas_reales/meta_horas. Se agrega además un gate configurable por
+    empresa (`pagar_horas_extra_sin_tramite`, default False) que puede topar
+    el pago a lo cubierto por trámite de Permanencia Extra aprobado.
+
 Fuentes legales (idénticas al comentario original en TypeScript): SUNAFIL,
 MTPE, SUNAT, SBS, Ley N.° 32353 (clasificación empresarial), D.L. 19990
 (ONP), D.L. 25897 (AFP), D.L. 854 (jornada), Ley 28518 (modalidades
@@ -114,13 +132,26 @@ class InsumoEmpleado:
     comision_afp_personalizada: Optional[Decimal] = None
     tiene_asignacion_familiar: bool = False
     # Horas de sobretiempo con trámite de "Permanencia Extra" APROBADO
-    # (SolicitudLaboral tipo=permanencia_extra, estado=aprobada) — solo para
-    # la alerta de documentación (horas_extra_sin_tramite). NO condiciona el
-    # pago: SUNAFIL presume autorización tácita con el solo registro de
-    # asistencia (el empleador debe probar lo contrario), así que TODA hora
-    # extra registrada se paga igual; esto solo avisa a RRHH qué parte del
-    # pago aún no tiene el trámite formal regularizado.
+    # (SolicitudLaboral tipo=permanencia_extra, estado=aprobada) — alimenta
+    # la alerta de documentación (horas_extra_sin_tramite) y, si la empresa
+    # exige trámite (Empresa.pagar_horas_extra_sin_tramite=False), también
+    # el TOPE de lo que se paga (ver calcular_boleta_empleado).
     horas_extra_aprobadas: Decimal = field(default_factory=lambda: Decimal(0))
+    # Sistema de comisión SPP (2026-07-07): 'saldo' (default legal desde
+    # 2013, ~0.78% anual sobre el FONDO acumulado — NO se descuenta en
+    # planilla) o 'flujo' (sobre la remuneración — SÍ se descuenta cada mes).
+    # Ver `_comision_afp_efectiva`.
+    tipo_comision_afp: str = "saldo"
+    # Sobretiempo YA agregado POR DÍA desde `resumen_horas_periodo`
+    # (D.S. 007-2002-TR: el tramo 25%/35% se calcula por JORNADA, no por
+    # período — sin netear un día corto con uno largo). `horas_extra` es el
+    # total informativo sin truncar; `horas_extra_25`/`horas_extra_35` ya
+    # vienen truncadas a la hora completa y clasificadas por tramo (25% las
+    # primeras 2h de CADA día, 35% el resto de ese día), sumadas across todo
+    # el período.
+    horas_extra: Decimal = field(default_factory=lambda: Decimal(0))
+    horas_extra_25: Decimal = field(default_factory=lambda: Decimal(0))
+    horas_extra_35: Decimal = field(default_factory=lambda: Decimal(0))
     # Horas trabajadas en domingo (día de descanso semanal obligatorio,
     # D.Leg. 713 Art. 3/4) — independientes de horas_reales/meta_horas.
     horas_domingo: Decimal = field(default_factory=lambda: Decimal(0))
@@ -145,11 +176,15 @@ class DesgloseBoleta:
     descuento_dominical: Decimal
     descuento_faltas: Decimal
     horas_extra: Decimal              # informativo: total de sobretiempo trabajado (sin redondear)
-    horas_extra_pagables: Decimal     # informativo: horas COMPLETAS que sí se pagan (D.S. 007-2002-TR
-                                       # exige pagar incluso la fracción de hora, pero a pedido explícito
-                                       # del usuario aquí solo se paga la hora ya completada)
-    horas_extra_sin_tramite: Decimal  # informativo: de las horas_extra_pagables, cuántas no tienen
-                                       # trámite de Permanencia Extra aprobado (alerta para RRHH)
+    horas_extra_25: Decimal           # informativo: horas COMPLETAS de sobretiempo en tramo 25% (antes del gate de trámite)
+    horas_extra_35: Decimal           # informativo: horas COMPLETAS de sobretiempo en tramo 35% (antes del gate de trámite)
+    horas_extra_pagables: Decimal     # horas COMPLETAS que SÍ se pagan (D.S. 007-2002-TR exige pagar
+                                       # incluso la fracción de hora, pero a pedido explícito del usuario
+                                       # solo se paga la hora ya completada; además puede quedar topado
+                                       # por el gate de trámite, ver `pagar_horas_extra_sin_tramite`)
+    horas_extra_sin_tramite: Decimal  # informativo: de todo el sobretiempo truncado, cuánto no tiene
+                                       # trámite de Permanencia Extra aprobado (alerta para RRHH, SIEMPRE
+                                       # se calcula, sin importar el gate)
     pago_horas_extra: Decimal
     horas_domingo: Decimal            # informativo: horas trabajadas el día de descanso semanal
     pago_domingo: Decimal             # retribución + sobretasa 100% (D.Leg. 713 Art. 3) — SÍ afecta el neto
@@ -190,8 +225,18 @@ def dias_vacaciones(regimen_empresa: str) -> int:
 
 
 def _comision_afp_efectiva(insumo: InsumoEmpleado) -> Decimal:
-    """Personalizada si el empleado la sobreescribió; si no, la tasa oficial
-    de su entidad (default 'integra', igual que `getAfpEntidad()` en el TS)."""
+    """Comisión SPP efectiva según el ESQUEMA (SBS, 2026-07-07):
+      - 'saldo' (default legal desde 2013 para todo afiliado que no migró
+        explícitamente a flujo): comisión ~0.78% ANUAL sobre el FONDO
+        acumulado, la cobra la AFP directamente del fondo, NUNCA de la
+        remuneración — en planilla es 0%.
+      - 'flujo' (esquema anterior, aún vigente para quienes no migraron):
+        comisión MENSUAL sobre la remuneración — SÍ se descuenta en
+        planilla. Personalizada si el empleado la sobreescribió; si no, la
+        tasa oficial de su entidad (default 'integra', igual que
+        `getAfpEntidad()` en el TS)."""
+    if insumo.tipo_comision_afp == "saldo":
+        return CERO
     if insumo.comision_afp_personalizada is not None:
         return insumo.comision_afp_personalizada
     entidad = insumo.entidad_afp or "integra"
@@ -206,6 +251,7 @@ def calcular_boleta_empleado(
     regimen_empresa: str,
     periodo_pago: str,                  # 'mes' | 'q1' | 'q2' — solo 'mes' vs. resto importa aquí
     descuento_tardanza_auto: bool = True,
+    pagar_horas_extra_sin_tramite: bool = False,
 ) -> DesgloseBoleta:
     """Calcula el desglose completo de la boleta de UN empleado para un
     período. Puerto 1:1 de `planillas.component.ts` (líneas 310-780)."""
@@ -257,32 +303,47 @@ def calcular_boleta_empleado(
     descuento_faltas = sueldo_periodo - sueldo_devengado
 
     # Horas extra: recargo legal 25%/35% (DL 854) solo para dependientes;
-    # practicantes a tarifa simple (Ley 28518, sin "sobretiempo" legal).
-    #
-    # CORRECCIÓN DELIBERADA (a pedido explícito del usuario, 2026-07-06 — el
-    # D.S. 007-2002-TR en realidad exige pagar la parte proporcional aunque
-    # el sobretiempo sea menor a una hora; aquí, por decisión de negocio
-    # explícita, SOLO se paga la hora ya completada): `horas_extra` es el
-    # total informativo trabajado, `horas_extra_pagables` es el truncado a
-    # horas enteras que efectivamente se paga con el recargo 25%/35%.
-    horas_extra = max(CERO, insumo.horas_reales - insumo.meta_horas)
-    horas_extra_pagables = horas_extra.to_integral_value(rounding="ROUND_FLOOR")
-    if horas_extra_pagables <= CERO:
+    # practicantes a tarifa simple (Ley 28518, sin "sobretiempo" legal). Ya
+    # vienen agregadas POR DÍA desde `resumen_horas_periodo` (D.S.
+    # 007-2002-TR: el tramo 25%/35% aplica por JORNADA, no una sola vez al
+    # período — sin netear un día corto con uno largo) y truncadas a la hora
+    # completa por día (decisión de negocio explícita del usuario,
+    # 2026-07-06: solo se paga la hora ya completada, no la fracción).
+    horas_extra = insumo.horas_extra              # informativo, sin truncar
+    total_extra_pag = insumo.horas_extra_25 + insumo.horas_extra_35
+
+    # Gate de trámite (decisión de negocio CON RIESGO LEGAL, configurable por
+    # empresa, default False — Empresa.pagar_horas_extra_sin_tramite):
+    #   - False: solo se paga el sobretiempo CUBIERTO por un trámite de
+    #     Permanencia Extra APROBADO; el resto queda sin pagar (solo alerta).
+    #   - True: se paga TODO el sobretiempo truncado registrado, sin
+    #     importar el trámite (SUNAFIL presume autorización tácita con el
+    #     solo registro de asistencia).
+    aprobadas = insumo.horas_extra_aprobadas.to_integral_value(rounding="ROUND_FLOOR")
+    if pagar_horas_extra_sin_tramite:
+        pagables = total_extra_pag
+    else:
+        pagables = min(total_extra_pag, aprobadas)
+    pagables_25 = min(pagables, insumo.horas_extra_25)   # llena el tramo 25% primero
+    pagables_35 = pagables - pagables_25
+
+    horas_extra_pagables = pagables   # horas COMPLETAS que SÍ se pagan (ya con el gate aplicado)
+    if pagables <= CERO:
         pago_horas_extra = CERO
     elif practicante:
-        pago_horas_extra = horas_extra_pagables * valor_hora
+        pago_horas_extra = pagables * valor_hora
     else:
-        h1 = min(horas_extra_pagables, Decimal(2)) * valor_hora * Decimal("1.25")
-        h2 = max(CERO, horas_extra_pagables - Decimal(2)) * valor_hora * Decimal("1.35")
-        pago_horas_extra = h1 + h2
+        pago_horas_extra = (
+            pagables_25 * valor_hora * Decimal("1.25")
+            + pagables_35 * valor_hora * Decimal("1.35")
+        )
 
-    # Alerta de documentación (NO condiciona el pago — ver nota en
-    # InsumoEmpleado.horas_extra_aprobadas): de las horas que SÍ se están
-    # pagando, cuántas superan lo respaldado por un trámite de Permanencia
-    # Extra aprobado. Toda la hora extra registrada se paga igual
-    # (presunción de autorización tácita, SUNAFIL); esto solo avisa a RRHH
-    # para que regularice el trámite antes de aprobar la planilla.
-    horas_extra_sin_tramite = max(CERO, horas_extra_pagables - insumo.horas_extra_aprobadas)
+    # Alerta de documentación: SIEMPRE informativa, sin importar el gate — de
+    # todo el sobretiempo truncado, cuánto no tiene trámite de Permanencia
+    # Extra aprobado. Avisa a RRHH para que regularice el trámite antes de
+    # aprobar la planilla (y, con el gate en False, también explica por qué
+    # esa parte no se pagó).
+    horas_extra_sin_tramite = max(CERO, total_extra_pag - aprobadas)
 
     # Trabajo en el día de descanso semanal obligatorio (domingo, D.Leg. 713
     # Art. 3/4): "retribución correspondiente a la labor efectuada MÁS una
@@ -412,7 +473,8 @@ def calcular_boleta_empleado(
         valor_dia=valor_dia, valor_hora=valor_hora, valor_minuto=valor_minuto,
         dias_faltantes=dias_faltantes, minutos_tardanza=minutos_tardanza,
         descuento_dominical=descuento_dominical, descuento_faltas=descuento_faltas,
-        horas_extra=horas_extra, horas_extra_pagables=horas_extra_pagables,
+        horas_extra=horas_extra, horas_extra_25=insumo.horas_extra_25, horas_extra_35=insumo.horas_extra_35,
+        horas_extra_pagables=horas_extra_pagables,
         horas_extra_sin_tramite=horas_extra_sin_tramite, pago_horas_extra=pago_horas_extra,
         horas_domingo=insumo.horas_domingo, pago_domingo=pago_domingo,
         horas_feriado=insumo.horas_feriado, pago_feriado=pago_feriado,

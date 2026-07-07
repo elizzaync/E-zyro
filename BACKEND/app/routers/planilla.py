@@ -166,6 +166,7 @@ def obtener_config(
         descuento_tardanza_auto=bool(getattr(emp, "descuento_tardanza_auto", True)) if emp else True,
         regimen_laboral=getattr(emp, "regimen_laboral", None) or "micro",
         esquema_pago_planilla=getattr(emp, "esquema_pago_planilla", None) or "quincenal",
+        pagar_horas_extra_sin_tramite=bool(getattr(emp, "pagar_horas_extra_sin_tramite", False)) if emp else False,
     )
 
 
@@ -186,12 +187,15 @@ def actualizar_config(
         emp.regimen_laboral = body.regimen_laboral
     if body.esquema_pago_planilla is not None:
         emp.esquema_pago_planilla = body.esquema_pago_planilla
+    if body.pagar_horas_extra_sin_tramite is not None:
+        emp.pagar_horas_extra_sin_tramite = bool(body.pagar_horas_extra_sin_tramite)
     db.commit()
     db.refresh(emp)
     return ConfigPlanillaOut(
         descuento_tardanza_auto=bool(emp.descuento_tardanza_auto),
         regimen_laboral=emp.regimen_laboral,
         esquema_pago_planilla=emp.esquema_pago_planilla,
+        pagar_horas_extra_sin_tramite=bool(emp.pagar_horas_extra_sin_tramite),
     )
 
 
@@ -234,6 +238,7 @@ def preview_planilla(
     regimen_empresa = getattr(empresa, "regimen_laboral", None) or "micro"
     esquema_pago = getattr(empresa, "esquema_pago_planilla", None) or "quincenal"
     descuento_tardanza_auto = bool(getattr(empresa, "descuento_tardanza_auto", True))
+    pagar_horas_extra_sin_tramite = bool(getattr(empresa, "pagar_horas_extra_sin_tramite", False))
 
     filas_asistencia = resumen_horas_periodo(db, empresa_id, fecha_inicio, fecha_fin)
 
@@ -277,13 +282,18 @@ def preview_planilla(
             entidad_afp=(cfg.entidad_afp if cfg else None),
             comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
             tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+            tipo_comision_afp=(cfg.tipo_comision_afp if cfg else "saldo"),
             horas_extra_aprobadas=Decimal(str(fila.get("horas_extra_aprobadas", 0))),
             horas_domingo=Decimal(str(fila.get("horas_domingo", 0))),
             horas_feriado=Decimal(str(fila.get("horas_feriado", 0))),
+            horas_extra=Decimal(str(fila.get("horas_extra", 0))),
+            horas_extra_25=Decimal(str(fila.get("horas_extra_25", 0))),
+            horas_extra_35=Decimal(str(fila.get("horas_extra_35", 0))),
         )
         desglose = calcular_boleta_empleado(
             insumo, regimen_empresa=regimen_empresa, periodo_pago=periodo_pago,
             descuento_tardanza_auto=descuento_tardanza_auto,
+            pagar_horas_extra_sin_tramite=pagar_horas_extra_sin_tramite,
         )
 
         empleados_out.append(PlanillaPreviewEmpleadoOut(
@@ -302,6 +312,7 @@ def preview_planilla(
             sistema_pension=insumo.sistema_pension, entidad_afp=insumo.entidad_afp,
             comision_afp_personalizada=insumo.comision_afp_personalizada,
             comision_afp_pct=desglose.comision_afp_pct,
+            tipo_comision_afp=insumo.tipo_comision_afp,
             tiene_asignacion_familiar=insumo.tiene_asignacion_familiar,
             sueldo_base=insumo.sueldo_base, sueldo_periodo=desglose.sueldo_periodo,
             sueldo_devengado=desglose.sueldo_devengado,
@@ -310,6 +321,7 @@ def preview_planilla(
             minutos_tardanza=desglose.minutos_tardanza,
             descuento_dominical=desglose.descuento_dominical,
             descuento_faltas=desglose.descuento_faltas,
+            horas_extra_25=desglose.horas_extra_25, horas_extra_35=desglose.horas_extra_35,
             horas_extra_pagables=desglose.horas_extra_pagables,
             horas_extra_sin_tramite=desglose.horas_extra_sin_tramite,
             pago_horas_extra=desglose.pago_horas_extra,
@@ -444,6 +456,7 @@ def listar_empleados_planilla(
             entidad_afp=(cfg.entidad_afp if cfg else None),
             comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
             tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+            tipo_comision_afp=(cfg.tipo_comision_afp if cfg else "saldo"),
         ))
     return salida
 
@@ -478,6 +491,8 @@ def actualizar_pension_empleado(
         cfg.comision_afp_personalizada = body.comision_afp_personalizada
     if body.tiene_asignacion_familiar is not None:
         cfg.tiene_asignacion_familiar = body.tiene_asignacion_familiar
+    if body.tipo_comision_afp is not None:
+        cfg.tipo_comision_afp = body.tipo_comision_afp
 
     db.commit()
     db.refresh(cfg)
@@ -485,6 +500,7 @@ def actualizar_pension_empleado(
         empleado_id=str(cfg.empleado_id), sistema_pension=cfg.sistema_pension,
         entidad_afp=cfg.entidad_afp, comision_afp_personalizada=cfg.comision_afp_personalizada,
         tiene_asignacion_familiar=bool(cfg.tiene_asignacion_familiar),
+        tipo_comision_afp=cfg.tipo_comision_afp,
     )
 
 

@@ -226,6 +226,7 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
     empresa = db.query(Empresa).filter(Empresa.id == empresa_id).first()
     regimen_empresa = getattr(empresa, "regimen_laboral", None) or "micro"
     descuento_tardanza_auto = bool(getattr(empresa, "descuento_tardanza_auto", True)) if empresa else True
+    pagar_horas_extra_sin_tramite = bool(getattr(empresa, "pagar_horas_extra_sin_tramite", False)) if empresa else False
 
     inicio_p = date(periodo.anio, periodo.mes, 1)
     fin_p = date(periodo.anio, periodo.mes, _cal.monthrange(periodo.anio, periodo.mes)[1])
@@ -266,13 +267,18 @@ def calcular_planilla(db: Session, empresa_id: str, periodo_id: str) -> Planilla
             entidad_afp=(cfg.entidad_afp if cfg else None),
             comision_afp_personalizada=(cfg.comision_afp_personalizada if cfg else None),
             tiene_asignacion_familiar=(bool(cfg.tiene_asignacion_familiar) if cfg else False),
+            tipo_comision_afp=(cfg.tipo_comision_afp if cfg else "saldo"),
             horas_extra_aprobadas=Decimal(str(fila_asist.get("horas_extra_aprobadas", 0))),
             horas_domingo=Decimal(str(fila_asist.get("horas_domingo", 0))),
             horas_feriado=Decimal(str(fila_asist.get("horas_feriado", 0))),
+            horas_extra=Decimal(str(fila_asist.get("horas_extra", 0))),
+            horas_extra_25=Decimal(str(fila_asist.get("horas_extra_25", 0))),
+            horas_extra_35=Decimal(str(fila_asist.get("horas_extra_35", 0))),
         )
         desglose = calcular_boleta_empleado(
             insumo, regimen_empresa=regimen_empresa, periodo_pago="mes",
             descuento_tardanza_auto=descuento_tardanza_auto,
+            pagar_horas_extra_sin_tramite=pagar_horas_extra_sin_tramite,
         )
 
         detalles: list[tuple[str, Decimal]] = []
