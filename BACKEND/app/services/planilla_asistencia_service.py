@@ -23,6 +23,19 @@ corto ya NO compensa (netea) un día largo: ambos se acumulan por separado en
 (ya truncados a la hora completa, por día) son el insumo directo que
 `planilla_calculo_service.calcular_boleta_empleado` usa para pagar el
 sobretiempo — el motor YA NO deriva la hora extra de horas_reales/meta_horas.
+
+FIX 2026-07-08 (detalle diario, modal "Ver" de Planilla): las tres pasadas
+que antes existían por separado (domingos / feriados_trabajables / dias_lab)
+se unificaron en UN solo loop que recorre TODOS los días del rango — sigue
+produciendo EXACTAMENTE los mismos totales de antes (domingo/feriado siguen
+sin tocar meta_horas/horas_faltantes/horas_extra*, días fuera del turno del
+empleado siguen sin contar para nada, días justificados siguen sin generar
+falta ni extra), pero de paso arma `detalle_dias` — single source of truth:
+los totales son la SUMA de ese detalle, nunca un cálculo aparte. Activado
+solo con `incluir_detalle_dias=True` (los dos consumidores existentes,
+`/rrhh/asistencia/resumen` y `/planilla/preview`/`calcular_planilla`, NO lo
+piden — no pagan el costo extra de armar el detalle día-por-día con
+geolocalización de cada empleado en cada carga de la tabla).
 """
 from __future__ import annotations
 
@@ -32,18 +45,27 @@ from datetime import date, datetime, timedelta
 from sqlalchemy.orm import Session
 
 
-def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date) -> list[dict]:
+def resumen_horas_periodo(
+    db: Session, empresa_id: str, inicio: date, fin: date,
+    *, incluir_detalle_dias: bool = False,
+) -> list[dict]:
     """Por empleado activo en [inicio, fin]: identidad + horas acumuladas del
     periodo (horas_reales, horas_justificadas, horas_total, horas_faltantes,
-    horas_extra, meta_horas, etc.).
+    horas_extra, meta_horas, etc.). Si `incluir_detalle_dias=True`, cada fila
+    también trae `detalle_dias`: una entrada por CADA día del rango con el
+    desglose exacto (turno, marcaciones con geolocalización, falta/extra ya
+    truncados) que arma el modal "Ver asistencia" de Planilla — construido
+    por el MISMO loop que calcula los totales, nunca recalculado aparte.
 
     Extraído 1:1 (Fase 0 de la migración del motor de Planilla) del bucle que
     antes vivía inline en `routers.rrhh_asistencia.resumen_asistencia` — MISMA
     lógica, MISMOS campos, sin ordenar ni paginar (eso sigue siendo
-    responsabilidad de cada consumidor). Dos consumidores:
+    responsabilidad de cada consumidor). Consumidores:
       - el propio endpoint `GET /rrhh/asistencia/resumen` (ordena + pagina).
       - el motor de cálculo de Planilla (Fase 8, usa horas_reales/horas_faltantes/
         horas_extra/meta_horas/tipo_contrato como insumo de las fórmulas legales).
+      - `GET /planilla/empleados/{id}/asistencia-detalle` (Fase 9, modal de
+        verificación — el único que pasa `incluir_detalle_dias=True`).
     """
     from app.models.turno import Turno as _Turno, TurnoEmpleado as _TE
     from app.models.registro_asistencia import RegistroAsistencia
@@ -53,30 +75,21 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
     from app.routers.rrhh_asistencia import (
         _dias_laborables, _feriados_set, _min_entre_horas, _parse_dias_lab,
         _horas_dia, _resolve_area, _area_cache, _contar_advertencias,
-        META_HORAS_DIA,
+        META_HORAS_DIA, _DIAS_ES,
     )
 
-    dias_lab     = _dias_laborables(inicio, fin)
-    dias_lab_set = set(dias_lab)
+    dias_lab_set = set(_dias_laborables(inicio, fin))
     feriados     = _feriados_set(db, empresa_id, inicio, fin)
 
-    # Domingos del rango (día de descanso semanal obligatorio, D.Leg. 713 Art. 3
-    # y 4): _dias_laborables ya los excluye de dias_lab por construcción, así
-    # que se recorren aparte para detectar asistencia marcada en domingo —
-    # trabajo en el día de descanso, pagado con sobretasa (ver
-    # planilla_calculo_service.calcular_boleta_empleado).
-    domingos: list[date] = []
+    # Todos los días del rango — un solo loop cubre domingos, feriados,
+    # laborables y días fuera del turno del empleado (antes eran tres pasadas
+    # separadas que, sumadas, ya recorrían la misma cantidad de días; unificar
+    # no cuesta más). `detalle_dias` solo se ARMA si se pidió (ver abajo).
+    todos_los_dias: list[date] = []
     _cur = inicio
     while _cur <= fin:
-        if _cur.weekday() == 6:
-            domingos.append(_cur)
+        todos_los_dias.append(_cur)
         _cur += timedelta(days=1)
-
-    # Feriados trabajados (D.Leg. 713 Art. 8/9): mismo tratamiento legal que
-    # el domingo (sobretasa 100% si no hay descanso sustitutorio). Se excluyen
-    # los feriados que caen en domingo para no pagar la sobretasa dos veces
-    # (ya cubiertos arriba por el bloque de domingos).
-    feriados_trabajables = [d for d in feriados if d.weekday() != 6]
 
     empleados = (
         db.query(Empleado, Usuario)
@@ -98,6 +111,19 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
         )
         .all()
     )
+
+    # Geolocalización por marcación (tabla aparte, 1:N con RegistroAsistencia
+    # vía registro_id — RegistroAsistencia NO tiene columnas lat/lng propias).
+    # Solo se consulta si se pidió el detalle diario (evita el costo/JOIN extra
+    # en los dos consumidores que no lo necesitan).
+    geos_por_registro: dict[str, tuple[float, float]] = {}
+    if incluir_detalle_dias and todos_registros:
+        from app.models.geolocalizacion_asistencia import GeolocalizacionAsistencia
+        reg_ids = [r.id for r in todos_registros]
+        for g in db.query(GeolocalizacionAsistencia).filter(
+            GeolocalizacionAsistencia.registro_id.in_(reg_ids)
+        ).all():
+            geos_por_registro[g.registro_id] = (float(g.latitud), float(g.longitud))
 
     todas_solicitudes = (
         db.query(SolicitudLaboral)
@@ -127,7 +153,8 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
         asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
 
     def _info_turno_dia(emp_id: str, dia: date):
-        """(horas_req, dias_lab_set) para el turno del empleado ese día."""
+        """(horas_req, dias_lab_set, turno_nombre) para el turno del empleado
+        ese día. turno_nombre=None cuando cae al defecto (sin turno asignado)."""
         for te, turno in asigns_por_emp.get(str(emp_id), []):
             if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
                 req_min = max(
@@ -137,8 +164,9 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
                 return (
                     req_min / 60.0,
                     _parse_dias_lab(getattr(turno, "dias_laborales", None)),
+                    turno.nombre,
                 )
-        return (META_HORAS_DIA, {0, 1, 2, 3, 4})   # defecto L-V, 8h
+        return (META_HORAS_DIA, {0, 1, 2, 3, 4}, None)   # defecto L-V, 8h, sin turno
 
     regs_por_emp:  dict[str, list] = {}
     for reg in todos_registros:
@@ -151,11 +179,19 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
     area_nombres = _area_cache(db, empresa_id)
     resultado = []
 
+    def _marcacion_punto(reg) -> dict | None:
+        if reg is None:
+            return None
+        lat, lng = geos_por_registro.get(reg.id, (None, None))
+        return {"hora": reg.fecha_hora, "lat": lat, "lng": lng}
+
     for emp, usr in empleados:
         regs  = regs_por_emp.get(emp.id,  [])
         solis = solis_por_emp.get(emp.id, [])
 
-        dias_justificados: set[date] = set()
+        # date -> tipo de la SolicitudLaboral que justifica ese día (última
+        # que aplique si hay solapamiento — caso raro).
+        dias_justificados: dict[date, str] = {}
         for sol in solis:
             if sol.tipo in ("justificacion_tardanza", "permanencia_extra"):
                 continue  # solo cuentan solicitudes de ausencia/permiso para justificar días
@@ -163,7 +199,7 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
             end = min(sol.fecha_fin,    fin)
             while cur <= end:
                 if cur in dias_lab_set:
-                    dias_justificados.add(cur)
+                    dias_justificados[cur] = sol.tipo
                 cur += timedelta(days=1)
 
         horas_reales       = 0.0
@@ -183,58 +219,140 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
         horas_extra_25     = 0.0
         horas_extra_35     = 0.0
 
-        for dia in domingos:
+        detalle_dias: list[dict] = []
+
+        # ── UN solo loop sobre TODOS los días del rango — mismos totales que
+        # las tres pasadas separadas de antes (domingo/feriado nunca tocan
+        # meta_horas/horas_faltantes/horas_extra*, días fuera de turno nunca
+        # cuentan para nada), ver docstring del módulo.
+        for dia in todos_los_dias:
             regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
-            horas_domingo += _horas_dia(regs_dia)
+            entrada  = next((r for r in regs_dia if r.tipo == "entrada"),          None)
+            salida   = next((r for r in regs_dia if r.tipo == "salida"),           None)
+            ini_alm  = next((r for r in regs_dia if r.tipo == "entrada_almuerzo"), None)
+            fin_alm  = next((r for r in regs_dia if r.tipo == "salida_almuerzo"),  None)
+            marcacion_incompleta = entrada is not None and salida is None
 
-        for dia in feriados_trabajables:
-            regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
-            horas_feriado += _horas_dia(regs_dia)
+            req_horas_dia = 0.0
+            turno_nombre  = None
+            tipo_dia: str
+            es_justificado = False
+            motivo = None
+            falta_dia = 0.0
+            extra_bruto_dia = 0.0
+            extra_pag_dia = 0.0
+            extra25_dia = 0.0
+            extra35_dia = 0.0
 
-        for dia in dias_lab:
-            req_h, dias_turno = _info_turno_dia(emp.id, dia)
+            if dia.weekday() == 6:
+                # Domingo: día de descanso semanal (D.Leg. 713 Art. 3/4). Sin
+                # meta propia — lo trabajado aquí paga sobretasa 100% aparte,
+                # no participa de falta/extra por tramo.
+                tipo_dia = "domingo"
+                h = _horas_dia(regs_dia)
+                horas_domingo += h
+            elif dia in feriados:
+                # Feriado no laborable (D.Leg. 713 Art. 8/9) — igual que
+                # domingo: sobretasa aparte, sin falta/extra por tramo. Los
+                # feriados que caen en domingo ya entraron por la rama de
+                # arriba (weekday()==6 se evalúa primero), evitando duplicar.
+                tipo_dia = "feriado"
+                h = _horas_dia(regs_dia)
+                horas_feriado += h
+            else:
+                req_h, dias_turno, turno_nombre = _info_turno_dia(emp.id, dia)
+                if dia.weekday() not in dias_turno:
+                    # Día fuera del turno del empleado (ej. sábado si su
+                    # turno es L-V) — no cuenta para meta/falta/extra, igual
+                    # que antes (el `continue` original lo excluía del todo).
+                    tipo_dia = "no_laborable_turno"
+                    h = _horas_dia(regs_dia)
+                else:
+                    meta_horas_emp += req_h
+                    req_horas_dia = req_h
+                    tipo_dia = "laborable"
+                    if dia in dias_justificados:
+                        es_justificado = True
+                        motivo = dias_justificados[dia]
+                        horas_justificadas += req_h
+                        h = _horas_dia(regs_dia)  # informativo: no genera falta ni extra
+                    else:
+                        h = _horas_dia(regs_dia)
+                        horas_reales += h
+                        if h > 0:
+                            dias_laborados += 1
+                        falta_dia = max(0.0, req_h - h)
+                        extra_bruto_dia = max(0.0, h - req_h)
+                        extra_pag_dia = float(math.floor(extra_bruto_dia))  # solo la hora YA completada
+                        extra25_dia = min(extra_pag_dia, 2.0)               # primeras 2h del día → 25%
+                        extra35_dia = max(0.0, extra_pag_dia - 2.0)         # resto del día → 35%
 
-            # Solo días que el turno del empleado marca como laborables
-            if dia.weekday() not in dias_turno:
-                continue
-            # Excluir feriados
-            if dia in feriados:
-                continue
+                        horas_faltantes += falta_dia
+                        horas_extra      += extra_bruto_dia
+                        horas_extra_25   += extra25_dia
+                        horas_extra_35   += extra35_dia
 
-            meta_horas_emp += req_h
-
-            if dia in dias_justificados:
-                horas_justificadas += req_h
-                continue
-
-            regs_dia = [r for r in regs if r.fecha_hora.date() == dia]
-            h = _horas_dia(regs_dia)
-            horas_reales += h
-            if h > 0:
-                dias_laborados += 1
-
-            # Falta y sobretiempo se calculan POR DÍA, sin comparar contra la
-            # meta acumulada del período — así un día corto NO compensa
-            # (netea) un día largo: ambos se acumulan por separado.
-            falta_dia = max(0.0, req_h - h)
-            extra_bruto_dia = max(0.0, h - req_h)
-            extra_pag_dia = float(math.floor(extra_bruto_dia))  # solo la hora YA completada, por día
-            extra25_dia = min(extra_pag_dia, 2.0)               # primeras 2h del día → 25%
-            extra35_dia = max(0.0, extra_pag_dia - 2.0)         # resto del día → 35%
-
-            horas_faltantes += falta_dia
-            horas_extra      += extra_bruto_dia
-            horas_extra_25   += extra25_dia
-            horas_extra_35   += extra35_dia
+            if incluir_detalle_dias:
+                detalle_dias.append({
+                    "fecha":                dia,
+                    "dia_semana":           _DIAS_ES[dia.weekday()],
+                    "tipo_dia":             tipo_dia,
+                    "es_justificado":       es_justificado,
+                    "motivo_justificacion": motivo,
+                    "turno_nombre":         turno_nombre,
+                    "req_horas":            req_horas_dia,
+                    "marcaciones": {
+                        "entrada":          _marcacion_punto(entrada),
+                        "salida":           _marcacion_punto(salida),
+                        "almuerzo_inicio":  _marcacion_punto(ini_alm),
+                        "almuerzo_fin":     _marcacion_punto(fin_alm),
+                    },
+                    "horas_reales":         h,
+                    "horas_extra_bruto":    extra_bruto_dia,
+                    "horas_extra_pagable":  extra_pag_dia,
+                    "extra_25":             extra25_dia,
+                    "extra_35":             extra35_dia,
+                    "falta":                falta_dia,
+                    # "sin_tramite" se resuelve DESPUÉS del loop (necesita el
+                    # total de horas aprobadas del período) — ver abajo.
+                    "alerta":               "marcacion_incompleta" if marcacion_incompleta else None,
+                })
 
         # Horas extras aprobadas (permanencia_extra)
+        #
+        # NOTA (bug pre-existente, detectado 2026-07-08): `SolicitudLaboral`
+        # NO tiene columna `dias` (confirmado en el modelo Y en el esquema
+        # real de Postgres) — el endpoint que crea solicitudes de
+        # permanencia_extra tampoco la puebla nunca. `getattr(s, "dias", 0)`
+        # evita el AttributeError que esto causaría en cuanto hubiera una
+        # solicitud de permanencia_extra aprobada en el rango; el efecto
+        # práctico es que `horas_extra_aprobadas` siempre sale 0 hasta que se
+        # agregue una columna real de horas y se pueble al crear el trámite.
         perm_extra_h = float(sum(
-            s.dias or 0 for s in solis if s.tipo == "permanencia_extra"
+            getattr(s, "dias", 0) or 0 for s in solis if s.tipo == "permanencia_extra"
         ))
         horas_total           = horas_reales + horas_justificadas
         horas_extra_aprobadas = round(min(horas_extra, perm_extra_h), 2)
         horas_extra_no_autor  = round(max(0.0, horas_extra - horas_extra_aprobadas), 2)
         porcentaje            = round((horas_total / meta_horas_emp * 100) if meta_horas_emp > 0 else 0.0, 1)
+
+        if incluir_detalle_dias:
+            # Alerta "sin_tramite" por día: asignación secuencial (primero el
+            # día más antiguo) del total de horas con trámite aprobado
+            # (`perm_extra_h`, truncado a hora completa, igual criterio que
+            # el motor legal) contra el sobretiempo pagable de cada día — el
+            # remanente sin cubrir se marca. No pisa "marcacion_incompleta"
+            # si ya estaba marcada (un día puede tener ambos problemas, pero
+            # el campo es un único string: se prioriza el de datos crudos).
+            restante = math.floor(perm_extra_h)
+            for fila_dia in detalle_dias:
+                pagable_dia = fila_dia["extra_25"] + fila_dia["extra_35"]
+                if pagable_dia <= 0:
+                    continue
+                if restante >= pagable_dia:
+                    restante -= pagable_dia
+                elif fila_dia["alerta"] is None:
+                    fila_dia["alerta"] = "sin_tramite"
 
         advertencias = _contar_advertencias(db, emp.id, empresa_id)
 
@@ -272,6 +390,7 @@ def resumen_horas_periodo(db: Session, empresa_id: str, inicio: date, fin: date)
             "meta_horas":            round(meta_horas_emp, 2),
             "porcentaje":            porcentaje,
             "advertencias":          advertencias,
+            "detalle_dias":          detalle_dias,
         })
 
     return resultado

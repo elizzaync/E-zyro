@@ -32,6 +32,8 @@ from ..schemas.planilla import (
     BoletaDetalleUpdate, ConfigPlanillaOut, ConfigPlanillaUpdate, ModalidadUpdate,
     PensionConfigOut, PensionConfigUpdate, SueldoBaseUpdate,
     PeriodoPreviewOut, PlanillaPreviewEmpleadoOut, PlanillaPreviewOut,
+    AsistenciaDetalleOut, EmpleadoAsistenciaDetalleOut, PeriodoAsistenciaDetalleOut,
+    TotalesAsistenciaDetalleOut, DetalleDiaOut, MarcacionesDiaOut, MarcacionPuntoOut,
 )
 from ..services import planilla_service as planilla_svc
 from ..services.planilla_asistencia_service import resumen_horas_periodo
@@ -625,6 +627,78 @@ def guardar_asignaciones(
     return [AsignacionOut(
         empleado_id=str(a.empleado_id), concepto_id=str(a.concepto_id), monto=a.monto,
     ) for a in filas]
+
+
+# ── Detalle diario de asistencia (2026-07-08, modal "Ver" de Planilla) ──────
+# Solo lectura — NO escribe nada en BD. Reusa `resumen_horas_periodo` con
+# `incluir_detalle_dias=True` (mismo loop que arma los totales que ya usa
+# /planilla/preview): el detalle día-por-día SIEMPRE reconcilia exacto con la
+# fila de la boleta, porque los totales de acá son la suma de ese detalle.
+@router.get("/empleados/{empleado_id}/asistencia-detalle", response_model=AsistenciaDetalleOut)
+def asistencia_detalle_empleado(
+    empleado_id: str,
+    inicio: date = Query(...),
+    fin:    date = Query(...),
+    payload: dict = Depends(verificar_token), db: Session = Depends(get_db),
+):
+    exigir_permiso(db, payload, "planilla", "ver")
+    empresa_id = payload["empresa_id"]
+    if fin < inicio:
+        raise HTTPException(status_code=400, detail="fin debe ser >= inicio")
+
+    emp = db.query(Empleado).filter(
+        Empleado.id == empleado_id, Empleado.empresa_id == empresa_id).first()
+    if not emp:
+        raise HTTPException(status_code=404, detail="Empleado no encontrado.")
+
+    filas = resumen_horas_periodo(db, empresa_id, inicio, fin, incluir_detalle_dias=True)
+    fila = next((f for f in filas if str(f["id"]) == empleado_id), None)
+    if fila is None:
+        raise HTTPException(status_code=404, detail="Sin datos de asistencia para ese empleado en el rango (¿empleado inactivo?).")
+
+    def _marc(m: dict | None) -> Optional[MarcacionPuntoOut]:
+        if m is None:
+            return None
+        return MarcacionPuntoOut(hora=m["hora"], lat=m["lat"], lng=m["lng"])
+
+    dias_out = [
+        DetalleDiaOut(
+            fecha=d["fecha"], dia_semana=d["dia_semana"], tipo_dia=d["tipo_dia"],
+            es_justificado=d["es_justificado"], motivo_justificacion=d["motivo_justificacion"],
+            turno_nombre=d["turno_nombre"], req_horas=Decimal(str(d["req_horas"])),
+            marcaciones=MarcacionesDiaOut(
+                entrada=_marc(d["marcaciones"]["entrada"]),
+                salida=_marc(d["marcaciones"]["salida"]),
+                almuerzo_inicio=_marc(d["marcaciones"]["almuerzo_inicio"]),
+                almuerzo_fin=_marc(d["marcaciones"]["almuerzo_fin"]),
+            ),
+            horas_reales=Decimal(str(d["horas_reales"])),
+            horas_extra_bruto=Decimal(str(d["horas_extra_bruto"])),
+            horas_extra_pagable=Decimal(str(d["horas_extra_pagable"])),
+            extra_25=Decimal(str(d["extra_25"])), extra_35=Decimal(str(d["extra_35"])),
+            falta=Decimal(str(d["falta"])), alerta=d["alerta"],
+        )
+        for d in fila["detalle_dias"]
+    ]
+
+    return AsistenciaDetalleOut(
+        empleado=EmpleadoAsistenciaDetalleOut(
+            id=str(fila["id"]), nombre_completo=fila.get("nombreCompleto"),
+            codigo=fila.get("codigo"), tipo_contrato=fila["tipo_contrato"],
+        ),
+        periodo=PeriodoAsistenciaDetalleOut(inicio=inicio, fin=fin),
+        totales=TotalesAsistenciaDetalleOut(
+            meta_horas=Decimal(str(fila["meta_horas"])),
+            horas_reales=Decimal(str(fila["horas_reales"])),
+            horas_justificadas=Decimal(str(fila["horas_justificadas"])),
+            horas_faltantes=Decimal(str(fila["horas_faltantes"])),
+            horas_extra_bruto=Decimal(str(fila["horas_extra"])),
+            extra_25=Decimal(str(fila["horas_extra_25"])), extra_35=Decimal(str(fila["horas_extra_35"])),
+            horas_domingo=Decimal(str(fila["horas_domingo"])), horas_feriado=Decimal(str(fila["horas_feriado"])),
+            dias_laborados=fila["dias_laborados"],
+        ),
+        detalle_dias=dias_out,
+    )
 
 
 @router.get("/{planilla_id}", response_model=PlanillaOut)

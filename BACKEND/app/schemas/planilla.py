@@ -1,7 +1,7 @@
 """Schemas del módulo de planilla (Fase 8)."""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
@@ -334,3 +334,74 @@ class ModalidadUpdate(BaseModel):
         if v not in TIPOS_MODALIDAD:
             raise ValueError(f"tipo debe ser uno de {sorted(TIPOS_MODALIDAD)}")
         return v
+
+
+# ── Detalle diario de asistencia (2026-07-08, modal "Ver" de Planilla) ──────
+# Solo lectura — reusa `resumen_horas_periodo(..., incluir_detalle_dias=True)`,
+# NUNCA recalcula: los `totales` de acá son la SUMA de `detalle_dias`, así el
+# modal siempre reconcilia exacto con la fila de la boleta.
+
+class MarcacionPuntoOut(BaseModel):
+    hora: Optional[datetime] = None
+    lat: Optional[float] = None   # None si no hay geolocalización para esa marcación
+    lng: Optional[float] = None
+
+
+class MarcacionesDiaOut(BaseModel):
+    entrada:         Optional[MarcacionPuntoOut] = None
+    salida:           Optional[MarcacionPuntoOut] = None
+    almuerzo_inicio:  Optional[MarcacionPuntoOut] = None
+    almuerzo_fin:     Optional[MarcacionPuntoOut] = None
+
+
+TIPOS_DIA_DETALLE = {"laborable", "domingo", "feriado", "no_laborable_turno"}
+
+
+class DetalleDiaOut(BaseModel):
+    fecha: date
+    dia_semana: str
+    tipo_dia: str                              # laborable|domingo|feriado|no_laborable_turno
+    es_justificado: bool
+    motivo_justificacion: Optional[str] = None  # tipo de la SolicitudLaboral que cubre el día
+    turno_nombre: Optional[str] = None
+    req_horas: Decimal                          # horas requeridas del turno ese día (0 si no aplica)
+    marcaciones: MarcacionesDiaOut
+    horas_reales: Decimal
+    horas_extra_bruto: Decimal                  # informativo, sin truncar
+    horas_extra_pagable: Decimal                # floor por día
+    extra_25: Decimal                           # min(pagable, 2)
+    extra_35: Decimal                           # max(0, pagable-2)
+    falta: Decimal                              # max(0, req_horas - horas_reales), NO neteado con otros días
+    alerta: Optional[str] = None                # "marcacion_incompleta" | "sin_tramite" | null
+
+
+class TotalesAsistenciaDetalleOut(BaseModel):
+    meta_horas: Decimal
+    horas_reales: Decimal
+    horas_justificadas: Decimal
+    horas_faltantes: Decimal
+    horas_extra_bruto: Decimal
+    extra_25: Decimal
+    extra_35: Decimal
+    horas_domingo: Decimal
+    horas_feriado: Decimal
+    dias_laborados: int
+
+
+class EmpleadoAsistenciaDetalleOut(BaseModel):
+    id: str
+    nombre_completo: Optional[str] = None
+    codigo: Optional[str] = None
+    tipo_contrato: str
+
+
+class PeriodoAsistenciaDetalleOut(BaseModel):
+    inicio: date
+    fin: date
+
+
+class AsistenciaDetalleOut(BaseModel):
+    empleado: EmpleadoAsistenciaDetalleOut
+    periodo: PeriodoAsistenciaDetalleOut
+    totales: TotalesAsistenciaDetalleOut
+    detalle_dias: List[DetalleDiaOut]
