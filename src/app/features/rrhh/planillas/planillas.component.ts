@@ -592,12 +592,17 @@ export class PlanillasComponent implements OnInit {
   // ── KPIs ──────────────────────────────────────────────────────────────────
 
   get kpis() {
+    // Number(...): los campos Decimal del backend (neto_a_pagar,
+    // total_descuentos_legales, pago_horas_extra, pago_domingo, pago_feriado,
+    // horas_extra_sin_tramite) llegan como string en el JSON (Pydantic
+    // serializa Decimal a str) — sumarlos con "+" sin coercionar concatena
+    // strings en vez de sumar números.
     const sinSueldo = this.empleados.filter(e => this.getSueldo(e) === 0).length;
-    const totalNeto = this.empleados.reduce((s, e) => s + e.neto_a_pagar, 0);
-    const totalDesc = this.empleados.reduce((s, e) => s + e.total_descuentos_legales, 0);
-    const totalExt  = this.empleados.reduce((s, e) => s + e.pago_horas_extra, 0);
-    const totalDomingo = this.empleados.reduce((s, e) => s + e.pago_domingo + e.pago_feriado, 0);
-    const horasSinTramite = this.empleados.reduce((s, e) => s + e.horas_extra_sin_tramite, 0);
+    const totalNeto = this.empleados.reduce((s, e) => s + Number(e.neto_a_pagar), 0);
+    const totalDesc = this.empleados.reduce((s, e) => s + Number(e.total_descuentos_legales), 0);
+    const totalExt  = this.empleados.reduce((s, e) => s + Number(e.pago_horas_extra), 0);
+    const totalDomingo = this.empleados.reduce((s, e) => s + Number(e.pago_domingo) + Number(e.pago_feriado), 0);
+    const horasSinTramite = this.empleados.reduce((s, e) => s + Number(e.horas_extra_sin_tramite), 0);
     const empleadosSinTramite = this.empleados.filter(e => e.horas_extra_sin_tramite > 0).length;
     const enPlanilla = this.empleados.filter(e => this.esDependiente(e)).length;
     const practicantes = this.empleados.filter(e => this.esPracticante(e)).length;
@@ -1168,8 +1173,19 @@ export class PlanillasComponent implements OnInit {
     return new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN', minimumFractionDigits: 2 }).format(n ?? 0);
   }
 
+  // Suma montos Decimal del backend (llegan como string en el JSON) sin caer
+  // en concatenación de strings — ver nota en formatH().
+  sumaMonto(...montos: number[]): number {
+    return montos.reduce((s: number, m) => s + Number(m), 0);
+  }
+
   formatH(n: number): string {
-    return n > 0 ? `${n.toFixed(1)}h` : '—';
+    // Los campos Decimal del backend (p. ej. horas_extra_pagables,
+    // horas_domingo, horas_feriado) llegan como string en el JSON (Pydantic
+    // serializa Decimal a str) — a diferencia de los campos float (meta_horas,
+    // horas_reales, etc.), que sí llegan como number. Number() normaliza ambos.
+    const v = Number(n);
+    return v > 0 ? `${v.toFixed(1)}h` : '—';
   }
 
   private _uuidRx = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

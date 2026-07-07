@@ -397,7 +397,7 @@
 
             <td class="text-center">
               @if (emp.pago_horas_extra > 0 || emp.pago_domingo > 0 || emp.pago_feriado > 0) {
-              <span class="monto-green" [title]="(emp.pago_domingo > 0 || emp.pago_feriado > 0) ? 'Incluye ' + formatMonto(emp.pago_domingo + emp.pago_feriado) + ' por domingo/feriado trabajado (sobretasa 100%)' : ''">+{{ formatMonto(emp.pago_horas_extra + emp.pago_domingo + emp.pago_feriado) }}</span>
+              <span class="monto-green" [title]="(emp.pago_domingo > 0 || emp.pago_feriado > 0) ? 'Incluye ' + formatMonto(sumaMonto(emp.pago_domingo, emp.pago_feriado)) + ' por domingo/feriado trabajado (sobretasa 100%)' : ''">+{{ formatMonto(sumaMonto(emp.pago_horas_extra, emp.pago_domingo, emp.pago_feriado)) }}</span>
               } @else {
               <span class="hrs-cero">—</span>
               }
