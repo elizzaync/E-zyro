@@ -471,6 +471,24 @@ def get_servicios_proyecto(
         .all()
     )
 
+    # ── Visibilidad por dueño (SOLO Jefe de Operaciones) ───────────────────────
+    # Un Jefe de Operaciones ve un servicio únicamente si NADIE lo acaparó
+    # todavía (lider_id vacío = pendiente, disponible para tomar) o si ÉL es el
+    # líder. Los servicios ya tomados por OTRO jefe no le aparecen. Admin,
+    # Soporte, Logística y demás roles NO se filtran: mantienen visibilidad
+    # total (gestión/monitoreo global). Técnico ya quedó restringido arriba por
+    # acceso al proyecto.
+    if es_jefe_operaciones(payload):
+        mi_emp = db.query(Empleado.id).filter(
+            Empleado.usuario_id == usuario_id,
+            Empleado.empresa_id == empresa_id,
+        ).first()
+        mi_emp_id = str(mi_emp[0]) if mi_emp else None
+        servicios = [
+            s for s in servicios
+            if s.lider_id is None or (mi_emp_id and str(s.lider_id) == mi_emp_id)
+        ]
+
     # ── Filtros adicionales ────────────────────────────────────────────────────
     if estado:
         servicios = [s for s in servicios if (s.estado or "") == estado]
@@ -695,7 +713,15 @@ def get_detalle_servicio(
         if not empleado_actual:
             raise HTTPException(status_code=403, detail="No eres empleado registrado")
 
-        es_jefe    = (proyecto.jefe_operaciones_id == empleado_actual.id) or es_jefe_operaciones(payload)
+        # Acceso "de jefe" al detalle: un Jefe de Operaciones tiene acceso
+        # completo SOLO a los servicios sin líder (pendientes) o de los que él es
+        # el líder — no a los ya tomados por otro jefe (misma regla que el
+        # listado). Otros roles no-admin (p. ej. Supervisor) conservan el acceso
+        # por ser jefe del PROYECTO.
+        if es_jefe_operaciones(payload):
+            es_jefe = ps.lider_id is None or str(ps.lider_id) == str(empleado_actual.id)
+        else:
+            es_jefe = proyecto.jefe_operaciones_id == empleado_actual.id
         es_miembro = db.query(ProyectoMiembro).filter(
             ProyectoMiembro.proyecto_id == ps.proyecto_id,
             ProyectoMiembro.empleado_id == empleado_actual.id,
@@ -2820,6 +2846,47 @@ def _empleado_ids_admin(db: Session, empresa_id: str) -> set[str]:
     return {str(r[0]) for r in rows}
 
 
+def _notificar_servicio_pendiente_a_jefes(
+    db: Session, empresa_id: str, ps: ProyectoServicio,
+    exclude_usuario_id: str | None = None,
+) -> None:
+    """Notifica a TODOS los Jefes de Operaciones de la empresa que hay un
+    servicio pendiente SIN líder (nadie lo acaparó todavía), para que puedan
+    tomarlo. Se dispara al crear un servicio sin líder — es justo el caso en
+    que todos los jefes deben verlo (ver filtro de visibilidad en
+    `get_servicios_proyecto`). No bloquea la creación si la notificación falla.
+    `exclude_usuario_id` evita auto-notificar a quien lo creó."""
+    try:
+        from ..services.fcm_service import notificar_usuario
+        rows = (
+            db.query(Usuario.id, Rol.nombre)
+            .join(UsuarioRol, UsuarioRol.usuario_id == Usuario.id)
+            .join(Rol, Rol.id == UsuarioRol.rol_id)
+            .filter(Usuario.empresa_id == empresa_id, Usuario.activo == True)
+            .all()
+        )
+        usuario_ids = {
+            str(uid) for uid, rnombre in rows
+            if "jefe" in _norm_rol(rnombre) and "operac" in _norm_rol(rnombre)
+        }
+        usuario_ids.discard(str(exclude_usuario_id) if exclude_usuario_id else None)
+        if not usuario_ids:
+            return
+        nombre_srv = ps.nombre or "Un servicio"
+        for uid in usuario_ids:
+            notificar_usuario(
+                db, empresa_id=empresa_id, usuario_id=uid,
+                titulo="Nuevo servicio disponible",
+                mensaje=f"{nombre_srv} está pendiente y sin líder asignado. Puedes tomarlo.",
+                tipo="servicio", categoria="servicio",
+                referencia_id=str(ps.id), referencia_tabla="proyecto_servicio",
+            )
+        db.commit()
+    except Exception:
+        # La notificación nunca debe romper la creación del servicio.
+        db.rollback()
+
+
 def _jefe_op_asignado_al_servicio(db: Session, payload: dict, empresa_id: str,
                                   servicio_id: str) -> bool:
     """True si el usuario está asignado al proyecto del servicio — como Jefe de
@@ -3709,6 +3776,12 @@ def crear_servicio(
     # Auto-vincular equipos de la ubicación/zona a este servicio.
     _vincular_equipos_al_servicio(db, nuevo, empresa_id, proyecto)
     db.commit()
+    # Servicio sin líder = pendiente/disponible: avisar a todos los Jefes de
+    # Operaciones para que puedan tomarlo (los servicios ya con líder solo los
+    # ve su dueño, así que la notificación no aplica a ese caso).
+    if lider_id is None:
+        _notificar_servicio_pendiente_a_jefes(
+            db, empresa_id, nuevo, exclude_usuario_id=payload.get("id"))
     # Alerta de calidad (no bloqueante): el tipo de servicio no tiene
     # procedimientos estándar definidos, así que este servicio quedó sin ellos.
     sin_proc_estandar = bool(nuevo.catalogo_servicio_id) and creados == 0
