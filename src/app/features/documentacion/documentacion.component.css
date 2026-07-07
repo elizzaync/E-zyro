@@ -213,8 +213,8 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ══ MODALS ═════════════════════════════════════════════════════════════════ */
-.modal-body { padding: 4px 0 0; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 0 0; border-top: 1px solid var(--border-color,#e2e8f0); margin-top: 4px; }
+.modal-body { padding: 8px 24px 4px; flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 16px 24px 4px; border-top: 1px solid var(--border-color,#e2e8f0); margin-top: 4px; }
 
 .modal-hint { margin: 0; font-size: 14px; color: var(--text-main,#0f172a); }
 
