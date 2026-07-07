@@ -16,6 +16,7 @@ import 'pantalla_evaluaciones.dart'
 import 'pantalla_vacaciones.dart';
 import 'pantalla_indicadores.dart';
 import 'pantalla_bandeja_solicitudes.dart';
+import 'pantalla_control_asistencias.dart';
 import 'pantalla_personal.dart';
 
 // ─── Design tokens (Ficha Colaborador) ────────────────────────────────────────
@@ -196,6 +197,13 @@ class _PantallaPersonalHubState extends State<PantallaPersonalHub> {
   Widget _accesosEmpresa() {
     final s = AppSession.i;
     final chips = <Widget>[
+      if (s.canVerControlAsistencias)
+        _chip(
+          'Asistencias',
+          Icons.how_to_reg_outlined,
+          Colors.green.shade700,
+          () => _push(const PantallaControlAsistencias()),
+        ),
       if (s.canVerControlAsistencias || s.canVerPersonal)
         _chip(
           'Solicitudes',

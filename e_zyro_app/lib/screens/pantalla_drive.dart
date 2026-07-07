@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show Uint8List;
 import 'package:flutter/material.dart';
 
 import '../models/drive_models.dart';
@@ -121,15 +122,17 @@ class _PantallaDriveState extends State<PantallaDrive> {
     final picked = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
     if (picked == null || picked.files.isEmpty) return;
     final f = picked.files.first;
-    final bytes = f.bytes;
-    // bytes vacíos (no solo null): pasa con archivos "en la nube" no
-    // descargados (OneDrive/Google Drive); el backend respondería 422.
+    // withData puede devolver bytes null/vacíos según el origen del archivo
+    // (p. ej. Word desde el gestor de archivos); el path de caché que deja
+    // file_picker sí es fiable, así que se relee desde ahí como respaldo.
+    Uint8List? bytes = f.bytes;
+    if ((bytes == null || bytes.isEmpty) && f.path != null) {
+      try {
+        bytes = await f.xFile.readAsBytes();
+      } catch (_) {}
+    }
     if (bytes == null || bytes.isEmpty) {
-      _snack(
-        'No se pudo leer el archivo. Si está en la nube (OneDrive/Drive), '
-        'descárgalo al dispositivo e inténtalo de nuevo.',
-        error: true,
-      );
+      _snack('No se pudo leer el archivo. Inténtalo de nuevo.', error: true);
       return;
     }
     if (bytes.length > 30 * 1024 * 1024) {
