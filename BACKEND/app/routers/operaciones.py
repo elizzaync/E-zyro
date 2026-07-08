@@ -119,72 +119,6 @@ from ..schemas.operaciones import (
 router = APIRouter(prefix="/operaciones", tags=["operaciones"])
 
 
-# ── Procedimientos fijos: instanciación desde plantilla por tipo de trabajo ───
-def _instanciar_procedimientos(db: Session, ps: ProyectoServicio, empresa_id: str) -> int:
-    """Si el servicio no tiene procedimientos, los crea desde la plantilla del
-    `tipo_trabajo` de su catálogo. Devuelve cuántos creó (0 si ya tenía o no hay
-    plantilla). NO hace commit (lo hace el caller)."""
-    ya = db.query(func.count(Procedimiento.id)).filter(
-        Procedimiento.proyecto_servicio_id == ps.id,
-        Procedimiento.equipo_intervenido_id.is_(None),
-    ).scalar()
-    if ya:
-        return 0
-
-    if not ps.catalogo_servicio_id:
-        return 0
-    catalogo = db.query(CatalogoServicio).filter(
-        CatalogoServicio.id == ps.catalogo_servicio_id
-    ).first()
-    if not catalogo:
-        return 0
-
-    # Match preferido: FK directa al tipo de servicio (no falla por typo/mayúsculas).
-    plantilla = db.query(PlantillaProcedimiento).filter(
-        PlantillaProcedimiento.empresa_id           == empresa_id,
-        PlantillaProcedimiento.catalogo_servicio_id == catalogo.id,
-        PlantillaProcedimiento.activo               == True,
-    ).first()
-    # Fallback legacy: plantillas aún no migradas a FK, por tipo_trabajo
-    # (insensible a mayúsculas/espacios, a diferencia del match original).
-    if not plantilla and catalogo.tipo_trabajo:
-        plantilla = db.query(PlantillaProcedimiento).filter(
-            PlantillaProcedimiento.empresa_id           == empresa_id,
-            PlantillaProcedimiento.catalogo_servicio_id.is_(None),
-            func.lower(func.trim(PlantillaProcedimiento.tipo_trabajo)) == catalogo.tipo_trabajo.strip().lower(),
-            PlantillaProcedimiento.activo               == True,
-        ).first()
-    if not plantilla:
-        return 0
-
-    try:
-        procesos = json.loads(plantilla.procesos or "[]")
-    except (ValueError, TypeError):
-        procesos = []
-    if not isinstance(procesos, list) or not procesos:
-        return 0
-
-    creados = 0
-    for i, p in enumerate(procesos, start=1):
-        if not isinstance(p, dict):
-            continue
-        nombre = (p.get("nombre") or "").strip()
-        if not nombre:
-            continue
-        db.add(Procedimiento(
-            id                   = str(_uuid.uuid4()),
-            proyecto_servicio_id = ps.id,
-            empresa_id           = empresa_id,
-            nombre               = nombre[:200],
-            descripcion          = (p.get("descripcion") or None),
-            orden                = int(p.get("orden") or i),
-            estado               = "pendiente",
-            created_at           = datetime.utcnow(),
-        ))
-        creados += 1
-    return creados
-
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -834,11 +768,11 @@ def get_detalle_servicio(
         ))
 
     # 4. Procedimientos (pasos fijos) + Evidencias — solo con acceso completo.
-    # Instanciación perezosa desde la plantilla por tipo de trabajo (cubre
-    # servicios creados antes de que existiera la plantilla).
+    # Replanteo 2026-07-08: ya NO se instancian procedimientos por tipo de
+    # servicio (los checklists viven en tipo_equipo.procedimientos_template y
+    # se trabajan por inspección de equipo). Los servicios antiguos conservan
+    # sus procedimientos/evidencias como histórico.
     if acceso_completo:
-        if _instanciar_procedimientos(db, ps, empresa_id):
-            db.commit()
         # Solo los procedimientos GENERALES del servicio: los ligados a un
         # equipo intervenido viven en el detalle de cada equipo.
         procs = (
@@ -850,8 +784,9 @@ def get_detalle_servicio(
             .order_by(Procedimiento.orden.asc())
             .all()
         )
-        # Recalcular tras la instanciación perezosa (puede haber cambiado).
-        sin_proc_estandar = bool(ps.catalogo_servicio_id) and not procs
+        # Concepto retirado: sin plantillas por servicio, que un servicio no
+        # tenga procedimientos generales ya no es una anomalía que alertar.
+        sin_proc_estandar = False
         evidencias = (
             db.query(EvidenciaProcedimiento)
             .filter(
@@ -3771,8 +3706,6 @@ def crear_servicio(
     )
     db.add(nuevo)
     db.flush()
-    # Instanciar los procedimientos fijos desde la plantilla del tipo de trabajo.
-    creados = _instanciar_procedimientos(db, nuevo, empresa_id)
     # Auto-vincular equipos de la ubicación/zona a este servicio.
     _vincular_equipos_al_servicio(db, nuevo, empresa_id, proyecto)
     db.commit()
@@ -3782,10 +3715,10 @@ def crear_servicio(
     if lider_id is None:
         _notificar_servicio_pendiente_a_jefes(
             db, empresa_id, nuevo, exclude_usuario_id=payload.get("id"))
-    # Alerta de calidad (no bloqueante): el tipo de servicio no tiene
-    # procedimientos estándar definidos, así que este servicio quedó sin ellos.
-    sin_proc_estandar = bool(nuevo.catalogo_servicio_id) and creados == 0
-    return {"ok": True, "id": servicio_id, "sin_procedimientos_estandar": sin_proc_estandar}
+    # Replanteo 2026-07-08: los procedimientos viven en el tipo de EQUIPO
+    # (checklist de inspección); ya no se instancian por tipo de servicio.
+    # El flag queda en False para no romper a los clientes que lo leen.
+    return {"ok": True, "id": servicio_id, "sin_procedimientos_estandar": False}
 
 
 # ── PATCH /operaciones/servicio/{servicio_id} ─────────────────────────────────

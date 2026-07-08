@@ -91,6 +91,28 @@ del PATCH: `{"procedimientos": [{"orden": 1, "nombre": "...", "descripcion": ""}
   procedimientos del servicio sin abrir el selector (usa el mismo
   `GET /operaciones/servicio/{id}` ya existente).
 
+## 9. Procedimientos por servicio: retirada la instanciación (2026-07-08)
+
+Decisión de negocio: **los procedimientos pertenecen a los tipos de equipo**
+(checklist de inspección), no a los servicios.
+
+- `POST /operaciones/servicio` ya **no instancia** procedimientos desde la
+  plantilla del tipo de servicio; `sin_procedimientos_estandar` en la
+  respuesta ahora es siempre `false` (la clave se conserva por compatibilidad).
+- El detalle del servicio ya no hace instanciación perezosa; `sin_proc_estandar`
+  del detalle también queda siempre `false`.
+- El detalle del equipo intervenido ya no crea copias por-equipo de los
+  procedimientos generales; `procedimientos` devuelve solo el histórico.
+- Los endpoints `plantillas-procedimiento` **siguen vivos** por compatibilidad,
+  pero las plantillas ya no se usan para nada: Angular debe retirar/ocultar sus
+  pantallas de plantillas por servicio; en una fase futura se eliminarán los
+  endpoints.
+- Los servicios/equipos antiguos conservan sus procedimientos y evidencias
+  como histórico (solo lectura de facto).
+- **Angular**: la captura de evidencia de mantenimiento debe apuntar al
+  checklist de inspección (`GET .../equipos-intervenidos/{eiId}/inspeccion` +
+  `POST /operaciones/inspeccion/{id}/foto/{orden}`), como ya hace la app.
+
 ## Pendiente (no acoplado aún, avisaremos)
 
 - Seed de `tipo_equipo` + plantillas de procedimientos (`procedimientos_template`).
