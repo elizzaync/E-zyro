@@ -893,8 +893,13 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                     _Header(detalle: d, progresoMostrado: _progresoTareas),
                     const SizedBox(height: 10),
                     _FasesStepper(estado: d.estado, progreso: _progresoTareas),
-                    // ── Botón Equipos Intervenidos (solo si está activo) ──
-                    if (d.inspeccionEquiposActiva) ...[
+                    // ── Botón Equipos Intervenidos ──
+                    // Regla 2026-07-08: solo desde la fase de ejecución (o en
+                    // servicios ya cerrados, para consultar su histórico). En
+                    // Pendiente no aparece: no se crean equipos de un servicio
+                    // que aún no arranca.
+                    if (d.inspeccionEquiposActiva &&
+                        (d.esEnEjecucion || d.esCerrado)) ...[
                       const SizedBox(height: 8),
                       _EquiposIntervenidosButton(
                         servicioId: d.id,
@@ -902,7 +907,9 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
                         zonaId: d.zonaId,
                         isClosed: d.esCerrado,
                       ),
-                    ] else if (!d.esCerrado && _esJefeOperaciones) ...[
+                    ] else if (d.esEnEjecucion &&
+                        !d.inspeccionEquiposActiva &&
+                        _esJefeOperaciones) ...[
                       const SizedBox(height: 8),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),

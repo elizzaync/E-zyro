@@ -593,18 +593,9 @@ class _State extends State<PantallaEquiposIntervenidos> {
                           color: _green,
                         ),
                       ),
-                      if (AppSession.i.canCrearEquipoIntervenido)
-                        IconButton(
-                          onPressed: () => _abrirFormulario(),
-                          icon: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: _green,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: const Icon(Icons.add, color: Colors.white, size: 20),
-                          ),
-                        ),
+                      // Sin alta manual: los equipos se registran desde el
+                      // servicio (en ejecución). Este módulo es solo consulta
+                      // del parque, para no crear datos falsos/duplicados.
                     ],
                   ),
                   const SizedBox(height: 12),

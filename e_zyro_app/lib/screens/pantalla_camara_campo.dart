@@ -1555,7 +1555,10 @@ class _SelectorSheetState extends State<_SelectorSheet> {
   }
 
   Widget _listaEquipos() {
+    // Solo los equipos de ESTE servicio (del_servicio_actual): los otros de la
+    // sede son de otro servicio y no se intervienen aquí.
     final filtrados = _equipos
+        .where((e) => e.delServicioActual)
         .where((e) =>
             e.nombre.toLowerCase().contains(_busqueda) ||
             (e.tipoNombre?.toLowerCase().contains(_busqueda) ?? false) ||
@@ -1566,8 +1569,8 @@ class _SelectorSheetState extends State<_SelectorSheet> {
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
-            'Este servicio no tiene equipos intervenidos.\n'
-            'Actívalos desde el detalle del servicio.',
+            'Este servicio no tiene equipos para intervenir.\n'
+            'Regístralos desde el detalle del servicio (en ejecución).',
             style: TextStyle(color: Colors.white38, fontSize: 13, height: 1.5),
             textAlign: TextAlign.center,
           ),

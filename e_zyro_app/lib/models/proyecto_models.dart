@@ -754,6 +754,10 @@ class ServicioDetalle {
   /// Cerrado = terminado o cancelado → solo lectura.
   bool get esCerrado => esTerminado || esCancelado;
 
+  /// En fase de ejecución. El backend usa 'En_Proceso'; se aceptan variantes.
+  bool get esEnEjecucion => const {'en_proceso', 'en proceso', 'activo'}
+      .contains(estado.trim().toLowerCase());
+
   factory ServicioDetalle.fromJson(Map<String, dynamic> j) => ServicioDetalle(
         id: j['id'] as String? ?? '',
         proyectoId: j['proyecto_id'] as String? ?? '',

@@ -149,13 +149,18 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
   List<EquipoIntervenidoServicio> get _seleccion =>
       _equipos.where((e) => _seleccionados.contains(e.id)).toList();
 
+  // Selección masiva solo sobre equipos de ESTE servicio (los de contexto no
+  // se pueden seleccionar).
+  List<EquipoIntervenidoServicio> get _seleccionables =>
+      _filtrados.where((e) => e.delServicioActual).toList();
+
   bool get _todosSeleccionados {
-    final vis = _filtrados;
+    final vis = _seleccionables;
     return vis.isNotEmpty && vis.every((e) => _seleccionados.contains(e.id));
   }
 
   void _toggleTodos() {
-    final vis = _filtrados;
+    final vis = _seleccionables;
     setState(() {
       if (_todosSeleccionados) {
         for (final e in vis) {
@@ -501,6 +506,8 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
                         )
                       else
                         for (final eq in delServicio) _equipoCard(eq),
+                      // Los otros equipos son de otro servicio de la sede: se
+                      // muestran como contexto, no se seleccionan ni intervienen.
                       // ── Sección secundaria: otros equipos (plegable) ────
                       if (otros.isNotEmpty) ...[
                         const SizedBox(height: 6),
@@ -534,7 +541,8 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
                           ),
                         ),
                         if (_otrosExpandido)
-                          for (final eq in otros) _equipoCard(eq),
+                          for (final eq in otros)
+                            _equipoCard(eq, soloContexto: true),
                       ],
                     ],
                   ),
@@ -544,10 +552,13 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
     );
   }
 
-  // Tarjeta de un equipo, reutilizada en ambas secciones del listado.
-  Widget _equipoCard(EquipoIntervenidoServicio eq) {
+  // Tarjeta de un equipo. [soloContexto]=true → equipo de OTRO servicio de la
+  // sede: se muestra atenuado, sin checkbox ni inspección (solo ver su detalle).
+  Widget _equipoCard(EquipoIntervenidoServicio eq, {bool soloContexto = false}) {
     final sel = _seleccionados.contains(eq.id);
-    return Card(
+    return Opacity(
+      opacity: soloContexto ? 0.6 : 1,
+      child: Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -560,7 +571,7 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(14),
-        onTap: () => _inspeccionar(eq),
+        onTap: soloContexto ? () => _verProcedimientos(eq) : () => _inspeccionar(eq),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -568,18 +579,25 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
             children: [
               Row(
                 children: [
-                  InkWell(
-                    onTap: () => setState(() => sel
-                        ? _seleccionados.remove(eq.id)
-                        : _seleccionados.add(eq.id)),
-                    child: Icon(
-                      sel
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      size: 20,
-                      color: sel ? _green : Colors.grey,
+                  if (soloContexto)
+                    Tooltip(
+                      message: 'De otro servicio de la sede',
+                      child: Icon(Icons.lock_outline,
+                          size: 18, color: Colors.grey.shade400),
+                    )
+                  else
+                    InkWell(
+                      onTap: () => setState(() => sel
+                          ? _seleccionados.remove(eq.id)
+                          : _seleccionados.add(eq.id)),
+                      child: Icon(
+                        sel
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank,
+                        size: 20,
+                        color: sel ? _green : Colors.grey,
+                      ),
                     ),
-                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -661,7 +679,7 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (!widget.isClosed)
+                  if (!widget.isClosed && !soloContexto)
                     InkWell(
                       onTap: () => _editarReferencia(eq),
                       child: const Padding(
@@ -675,25 +693,27 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
                 ],
               ),
               const SizedBox(height: 2),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () => _verProcedimientos(eq),
-                  icon: const Icon(Icons.photo_camera_outlined, size: 15),
-                  label: const Text('Procedimientos',
-                      style: TextStyle(
-                          fontSize: 11.5, fontWeight: FontWeight.w700)),
-                  style: TextButton.styleFrom(
-                    foregroundColor: _green,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: const Size(0, 30),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              if (!soloContexto)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: () => _verProcedimientos(eq),
+                    icon: const Icon(Icons.photo_camera_outlined, size: 15),
+                    label: const Text('Procedimientos',
+                        style: TextStyle(
+                            fontSize: 11.5, fontWeight: FontWeight.w700)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: _green,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: const Size(0, 30),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
+      ),
       ),
     );
   }
