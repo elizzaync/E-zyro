@@ -116,208 +116,6 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
         _             => 'Mantenimiento',
       };
 
-  // ── Registrar mantenimiento ───────────────────────────────────────────────
-
-  void _abrirRegistrarMantenimiento() {
-    DateTime fecha = DateTime.now();
-    String tipo = 'preventivo';
-    final descCtrl = TextEditingController();
-    final realizadoCtrl = TextEditingController();
-    bool guardando = false;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setLocal) {
-          final isDark = Theme.of(ctx).brightness == Brightness.dark;
-          final surface = Theme.of(ctx).colorScheme.surface;
-
-          InputDecoration deco(String label, IconData icon) => InputDecoration(
-                labelText: label,
-                prefixIcon: Icon(icon, size: 20, color: _green),
-                filled: true,
-                fillColor: isDark ? _green.withValues(alpha: 0.04) : Colors.grey.shade50,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                        color: isDark ? _green.withValues(alpha: 0.2) : Colors.grey.shade200)),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(
-                        color: isDark ? _green.withValues(alpha: 0.2) : Colors.grey.shade200)),
-                focusedBorder: const OutlineInputBorder(
-                    borderRadius: BorderRadius.all(Radius.circular(12)),
-                    borderSide: BorderSide(color: _green, width: 1.5)),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              );
-
-          return Container(
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-            ),
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 40, height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _green.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: const Icon(Icons.build_outlined, color: _green, size: 20),
-                        ),
-                        const SizedBox(width: 12),
-                        const Text('Registrar mantenimiento',
-                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    // Fecha
-                    InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () async {
-                        final sel = await showDatePicker(
-                          context: ctx,
-                          initialDate: fecha,
-                          firstDate: DateTime(2015),
-                          lastDate: DateTime.now(),
-                        );
-                        if (sel != null) setLocal(() => fecha = sel);
-                      },
-                      child: InputDecorator(
-                        decoration: deco('Fecha realizada', Icons.event_outlined),
-                        child: Text(_fmt(fecha), style: const TextStyle(fontSize: 14)),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      initialValue: tipo,
-                      decoration: deco('Tipo', Icons.category_outlined),
-                      items: const [
-                        DropdownMenuItem(value: 'preventivo', child: Text('Preventivo')),
-                        DropdownMenuItem(value: 'correctivo', child: Text('Correctivo')),
-                        DropdownMenuItem(value: 'inspeccion', child: Text('Inspección')),
-                        DropdownMenuItem(value: 'otro',       child: Text('Otro')),
-                      ],
-                      onChanged: (v) => setLocal(() => tipo = v ?? 'preventivo'),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: descCtrl,
-                      maxLines: 3,
-                      decoration: deco('Descripción / trabajos realizados', Icons.notes_outlined),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: realizadoCtrl,
-                      decoration: deco('Realizado por (opcional)', Icons.person_outline),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Se actualizará el próximo mantenimiento a '
-                      '${_equipo.frecuenciaMeses ?? 6} meses desde la fecha indicada.',
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: guardando
-                            ? null
-                            : () async {
-                                setLocal(() => guardando = true);
-                                final iso =
-                                    '${fecha.year.toString().padLeft(4, '0')}-'
-                                    '${fecha.month.toString().padLeft(2, '0')}-'
-                                    '${fecha.day.toString().padLeft(2, '0')}';
-                                final res = await _svc!.registrarMantenimiento(
-                                  _equipo.id,
-                                  fecha: iso,
-                                  tipo: tipo,
-                                  descripcion: descCtrl.text.trim().isEmpty
-                                      ? null
-                                      : descCtrl.text.trim(),
-                                  realizadoPor: realizadoCtrl.text.trim().isEmpty
-                                      ? null
-                                      : realizadoCtrl.text.trim(),
-                                );
-                                if (!ctx.mounted) return;
-                                if (res.ok) {
-                                  Navigator.pop(ctx);
-                                  if (!mounted) return;
-                                  setState(() {
-                                    _equipo = res.data!;
-                                    _huboCambios = true;
-                                  });
-                                  _cargarHistorial();
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: const Text('Mantenimiento registrado'),
-                                      backgroundColor: _green,
-                                      behavior: SnackBarBehavior.floating,
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12)),
-                                    ),
-                                  );
-                                } else {
-                                  setLocal(() => guardando = false);
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
-                                    SnackBar(
-                                      content: Text(res.errorMessage),
-                                      backgroundColor: Colors.red.shade700,
-                                    ),
-                                  );
-                                }
-                              },
-                        icon: guardando
-                            ? const SizedBox(
-                                width: 18, height: 18,
-                                child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white))
-                            : const Icon(Icons.build_outlined, size: 18),
-                        label: const Text('Registrar',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _green,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
   // ── BUILD ─────────────────────────────────────────────────────────────────
 
   @override
@@ -419,40 +217,9 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                   ),
                 ),
               ),
-              // ── Barra de acción inferior ─────────────────────────────────
-              if (puedeEditar)
-                Container(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                  decoration: BoxDecoration(
-                    color: surface,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.08),
-                        blurRadius: 12, offset: const Offset(0, -3),
-                      ),
-                    ],
-                  ),
-                  child: SafeArea(
-                    top: false,
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: _abrirRegistrarMantenimiento,
-                        icon: const Icon(Icons.build_outlined, size: 18),
-                        label: const Text('Registrar mantenimiento',
-                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _green,
-                          foregroundColor: Colors.white,
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14)),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+              // El mantenimiento se registra por el flujo de servicio
+              // (inspección con checklist y fotos), no con un alta manual: así
+              // el historial y el plan salen siempre de una intervención real.
             ],
           ),
         ),
@@ -950,6 +717,9 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                   ),
                 );
                 await Future.wait([_refrescarEquipo(), _cargarHistorial()]);
+                // Finalizar la inspección cambia último/próximo: avisar al
+                // volver para que la lista y el mapa recarguen su semáforo.
+                if (mounted) setState(() => _huboCambios = true);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: _green,

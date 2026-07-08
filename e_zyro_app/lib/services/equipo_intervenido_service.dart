@@ -93,33 +93,6 @@ class EquipoIntervenidoService {
     }
   }
 
-  /// Registra un mantenimiento ejecutado: el backend guarda el evento y
-  /// recalcula ultimo/proximo mantenimiento. Devuelve el equipo actualizado.
-  Future<ApiResult<EquipoIntervenido>> registrarMantenimiento(
-    String id, {
-    String? fecha,          // yyyy-MM-dd (default: hoy)
-    String? tipo,           // preventivo | correctivo | inspeccion | otro
-    String? descripcion,
-    String? realizadoPor,
-    int? frecuenciaMeses,
-  }) async {
-    try {
-      final r = await _client.post('/equipos-intervenidos/$id/mantenimiento', {
-        'fecha': ?fecha,
-        'tipo': ?tipo,
-        'descripcion': ?descripcion,
-        'realizado_por': ?realizadoPor,
-        'frecuencia_meses': ?frecuenciaMeses,
-      });
-      if (r.statusCode == 201 || r.statusCode == 200) {
-        return ApiResult.ok(
-            EquipoIntervenido.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
-      }
-      return ApiResult.fail(ApiError.fromResponse(r));
-    } catch (_) {
-      return const ApiResult.fail(ApiError(ApiErrorKind.network));
-    }
-  }
 
   Future<ApiResult<void>> eliminar(String id) async {
     try {
