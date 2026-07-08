@@ -70,11 +70,26 @@ Sin cambio de API (los endpoints ya existían), pero la app ahora gestiona desde
   `GET /logistica/tipos-equipo`, `GET/PATCH /logistica/tipos-equipo/{id}/procedimientos`,
   `POST /logistica/tipos-equipo`. Los tipos con pasos genéricos "Procedimiento N"
   se marcan como placeholder (ámbar) para completar su redacción.
-- **Tipos de servicio** (tab secundaria): lo que ya existía (plantilla_procedimiento
-  por catálogo de servicio), sin cambios.
+- **Tipos de servicio** (tab secundaria) — **actualizado 2026-07-08**: la app ya
+  NO gestiona plantillas de procedimientos por tipo de servicio. Decisión de
+  negocio: los procedimientos pertenecen a los **equipos**, no a los servicios.
+  Este tab quedó solo como catálogo (alta/edición/activar-desactivar de
+  `catalogo_servicio`). Los endpoints de `plantilla_procedimiento` siguen vivos
+  en el backend pero la UI nueva no los usa; si Angular tiene pantalla de
+  plantillas por servicio, retirarla u ocultarla para mantener paridad.
 
 **Angular**: replicar la misma separación si se quiere paridad; formato del body
 del PATCH: `{"procedimientos": [{"orden": 1, "nombre": "...", "descripcion": ""}]}`.
+
+## 8. Novedades solo-app (sin cambio de API, informativo)
+
+- **Mapa del Perú** (2026-07-08): pantalla nueva en la app con el parque de
+  equipos intervenidos por departamento (semáforo: rojo vencidos / ámbar ≤30
+  días / verde al día), datos del mismo `GET /operaciones/equipos-intervenidos`.
+  El match ubicación→departamento es por nombre en el cliente.
+- **Cámara de campo**: flechas anterior/siguiente para recorrer los
+  procedimientos del servicio sin abrir el selector (usa el mismo
+  `GET /operaciones/servicio/{id}` ya existente).
 
 ## Pendiente (no acoplado aún, avisaremos)
 
