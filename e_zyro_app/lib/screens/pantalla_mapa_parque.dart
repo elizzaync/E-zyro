@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/equipo_intervenido_models.dart';
+import '../utils/api_provider.dart';
 import '../utils/peru_geo.dart';
 import 'detalle_equipo_intervenido.dart';
 
@@ -42,6 +43,11 @@ class _PantallaMapaParqueState extends State<PantallaMapaParque>
   final Map<String, _DepEstado> _porDep = {};
   final List<EquipoIntervenido> _sinUbicar = [];
   String? _seleccionado;
+  // Fuente viva del parque: arranca con lo que llegó por parámetro y se
+  // refresca desde el backend al volver de un detalle (para que el semáforo
+  // no siga diciendo "sin plan" tras finalizar un mantenimiento).
+  late List<EquipoIntervenido> _equipos = widget.equipos;
+  bool _recargando = false;
 
   // Ciudades/provincias conocidas → departamento (nombres ya normalizados).
   // ponytail: cubre capitales y ciudades frecuentes; ampliar si aparece una
@@ -107,11 +113,28 @@ class _PantallaMapaParqueState extends State<PantallaMapaParque>
     return null;
   }
 
+  /// Recarga el parque desde el backend y reagrupa el mapa. Silencioso: si
+  /// falla, se conserva lo que ya había en pantalla.
+  Future<void> _recargar() async {
+    if (_recargando) return;
+    setState(() => _recargando = true);
+    final svc = await getEquipoIntervenidoService();
+    final res = await svc.listar();
+    if (!mounted) return;
+    setState(() {
+      if (res.ok && res.data != null) _equipos = res.data!;
+      _agrupar();
+      _recargando = false;
+    });
+  }
+
   void _agrupar() {
+    _porDep.clear();
+    _sinUbicar.clear();
     for (final d in kPeruDepartamentos) {
       _porDep[d.nombre] = _DepEstado();
     }
-    for (final e in widget.equipos) {
+    for (final e in _equipos) {
       final dep = _depDe(e.ubicacionNombre);
       if (dep == null) {
         _sinUbicar.add(e);
@@ -228,6 +251,17 @@ class _PantallaMapaParqueState extends State<PantallaMapaParque>
                 onPressed: _verSinUbicar,
               ),
             ),
+          IconButton(
+            tooltip: 'Refrescar',
+            onPressed: _recargando ? null : _recargar,
+            icon: _recargando
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: _kGreen))
+                : const Icon(Icons.refresh, color: _kGreen),
+          ),
         ],
       ),
       body: Column(
@@ -388,10 +422,14 @@ class _PantallaMapaParqueState extends State<PantallaMapaParque>
         e.clienteNombre!,
     ].join(' · ');
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => DetalleEquipoIntervenido(equipo: e)),
-      ),
+      onTap: () async {
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => DetalleEquipoIntervenido(equipo: e)),
+        );
+        // Al volver del detalle, refrescar por si finalizó un mantenimiento.
+        await _recargar();
+      },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
         child: Row(
