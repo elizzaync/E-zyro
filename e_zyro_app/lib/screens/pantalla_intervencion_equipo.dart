@@ -1,11 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../models/intervencion_models.dart';
 import '../services/intervencion_service.dart';
 import '../utils/procedimientos_locales.dart';
+import 'pantalla_camara_campo.dart';
 import 'pantalla_certificado_equipo.dart';
 
 const _green = Color(0xFF8FD11B);
@@ -46,7 +46,6 @@ class _PantallaIntervencionEquipoState
   InspeccionActiva? _data;
   final _obsCtrl = TextEditingController();
   String _proximaFecha = '';
-  final Set<int> _subiendoFoto = {};
 
   @override
   void initState() {
@@ -120,7 +119,6 @@ class _PantallaIntervencionEquipoState
   bool get _estaFinalizado =>
       _data?.equipo.estadoIntervencion == 'completado' ||
       _data?.estado == 'completado';
-  bool get _hayAlgoSubiendo => _subiendoFoto.isNotEmpty;
   String get _tipoCertificado =>
       (_data?.equipo.tipoNombre ?? '').toUpperCase().contains('POZO')
           ? 'pozo'
@@ -138,46 +136,24 @@ class _PantallaIntervencionEquipoState
     ));
   }
 
-  // ── Foto: subir / reemplazar / quitar ───────────────────────────────────────
+  // ── Foto: cámara de campo unificada (in-app) sobre el checklist ─────────────
+  // Abre la cámara ya apuntando a este paso; las flechas permiten recorrer el
+  // resto y el "Almacén" sube fotos tomadas fuera del app. La cámara muta los
+  // mismos objetos PasoInspeccion, así que al volver solo hay que repintar.
   Future<void> _subirFoto(PasoInspeccion paso) async {
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Wrap(children: [
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: const Text('Tomar foto'),
-            onTap: () => Navigator.pop(ctx, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: const Text('Elegir de galería'),
-            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-          ),
-        ]),
-      ),
+    final d = _data;
+    if (d == null) return;
+    final idx = _pasos.indexOf(paso);
+    await CamaraCampoScreen.paraInspeccion(
+      context,
+      servicioId: widget.servicioId,
+      eiId: widget.eiId,
+      servicioNombre: d.equipo.clienteNombre ?? '',
+      equipoNombre: d.equipo.nombre,
+      insp: d,
+      pasoInicial: idx < 0 ? 0 : idx,
     );
-    if (source == null || !mounted) return;
-    final file = await ImagePicker()
-        .pickImage(source: source, imageQuality: 80, maxWidth: 1600);
-    if (file == null || !mounted) return;
-
-    setState(() => _subiendoFoto.add(paso.orden));
-    final res = await _svc!
-        .subirFotoInspeccion(_data!.inspeccionId, paso.orden, file.path);
-    if (!mounted) return;
-    setState(() {
-      _subiendoFoto.remove(paso.orden);
-      if (res.ok && res.data != null) {
-        paso.fotoUrl = res.data!.url;
-        paso.fotoPublicId = res.data!.publicId;
-      }
-    });
-    if (!res.ok) {
-      _snack(
-          res.errorMessage.isEmpty ? 'Error al subir la foto.' : res.errorMessage,
-          _danger);
-    }
+    if (mounted) setState(() {});
   }
 
   Future<void> _quitarFoto(PasoInspeccion paso) async {
@@ -622,7 +598,6 @@ class _PantallaIntervencionEquipoState
                         _PasoCard(
                           paso: paso,
                           readOnly: _estaFinalizado,
-                          subiendo: _subiendoFoto.contains(paso.orden),
                           onToggle: _estaFinalizado
                               ? null
                               : () => setState(
@@ -665,9 +640,7 @@ class _PantallaIntervencionEquipoState
                           children: [
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: (_guardando || _hayAlgoSubiendo)
-                                    ? null
-                                    : _guardar,
+                                onPressed: _guardando ? null : _guardar,
                                 style: OutlinedButton.styleFrom(
                                   side: const BorderSide(color: _green),
                                   padding: const EdgeInsets.symmetric(
@@ -693,7 +666,6 @@ class _PantallaIntervencionEquipoState
                             Expanded(
                               child: ElevatedButton.icon(
                                 onPressed: (_finalizando ||
-                                        _hayAlgoSubiendo ||
                                         !(_mostrarFinalizar ||
                                             _todosCompletados ||
                                             _completados > 0))
@@ -835,7 +807,6 @@ class _HeaderEquipo extends StatelessWidget {
 class _PasoCard extends StatelessWidget {
   final PasoInspeccion paso;
   final bool readOnly;
-  final bool subiendo;
   final VoidCallback? onToggle;
   final VoidCallback? onFoto;
   final VoidCallback? onQuitarFoto;
@@ -843,7 +814,6 @@ class _PasoCard extends StatelessWidget {
   const _PasoCard({
     required this.paso,
     this.readOnly = false,
-    this.subiendo = false,
     this.onToggle,
     this.onFoto,
     this.onQuitarFoto,
@@ -897,20 +867,7 @@ class _PasoCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             // Foto del paso: miniatura + reemplazar/quitar, o botón de cámara.
-            if (subiendo)
-              const SizedBox(
-                width: 44,
-                height: 44,
-                child: Center(
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                        strokeWidth: 2, color: _green),
-                  ),
-                ),
-              )
-            else if ((paso.fotoUrl ?? '').isNotEmpty)
+            if ((paso.fotoUrl ?? '').isNotEmpty)
               Stack(
                 children: [
                   InkWell(

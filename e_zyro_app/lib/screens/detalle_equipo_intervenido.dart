@@ -4,7 +4,7 @@ import '../models/equipo_intervenido_models.dart';
 import '../services/equipo_intervenido_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
-import 'pantalla_camara_campo.dart';
+import 'pantalla_intervencion_equipo.dart';
 
 /// Detalle de un equipo intervenido: identidad, gauge de próximo
 /// mantenimiento, recordatorio local, historial (timeline), ficha técnica
@@ -394,11 +394,11 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                       _tituloSeccion('HISTORIAL DE MANTENIMIENTOS'),
                       const SizedBox(height: 8),
                       _historialCard(isDark, surface),
-                      if (_equipo.procedimientos.isNotEmpty) ...[
+                      if (_equipo.proyectoServicioId != null) ...[
                         const SizedBox(height: 18),
-                        _tituloSeccion('PROCEDIMIENTOS DEL EQUIPO'),
+                        _tituloSeccion('INSPECCIÓN EN SERVICIO'),
                         const SizedBox(height: 8),
-                        _procedimientosCard(isDark, surface),
+                        _inspeccionCard(isDark, surface),
                       ],
                       const SizedBox(height: 18),
                       _tituloSeccion('FICHA TÉCNICA'),
@@ -905,109 +905,64 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
     );
   }
 
-  Color _colorEstadoProc(String estado) => switch (estado) {
-        'completado' => _green,
-        'en_proceso' => Colors.orange.shade700,
-        _            => Colors.grey,
-      };
-
-  String _labelEstadoProc(String estado) => switch (estado) {
-        'completado' => 'Completado',
-        'en_proceso' => 'En proceso',
-        _            => 'Pendiente',
-      };
-
-  /// Pasos fijos (avance/informe) del servicio al que está vinculado este
-  /// equipo — designados por tipo de servicio en Procedimientos Estándar.
-  /// El botón de cámara abre "cámara de campo" (pantalla_camara_campo.dart)
-  /// ya apuntando a este paso, para capturar evidencia sin salir del flujo
-  /// de Equipos Intervenidos.
-  Widget _procedimientosCard(bool isDark, Color surface) {
-    final pasos = _equipo.procedimientos;
+  /// Acceso al checklist de mantenimiento del servicio vinculado: los
+  /// procedimientos viven en el tipo de equipo y se trabajan (fotos, avance,
+  /// finalizar) desde la pantalla de inspección con su cámara integrada.
+  Widget _inspeccionCard(bool isDark, Color surface) {
     return _card(
       isDark, surface,
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (int i = 0; i < pasos.length; i++)
-            Padding(
-              padding: EdgeInsets.only(bottom: i < pasos.length - 1 ? 14 : 0),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 26, height: 26,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      color: _colorEstadoProc(pasos[i].estado).withValues(alpha: 0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: pasos[i].estado == 'completado'
-                        ? Icon(Icons.check_rounded, size: 15, color: _colorEstadoProc(pasos[i].estado))
-                        : Text('${pasos[i].orden}',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                                color: _colorEstadoProc(pasos[i].estado))),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(pasos[i].nombre,
-                            style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w700)),
-                        if (pasos[i].descripcion.isNotEmpty) ...[
-                          const SizedBox(height: 2),
-                          Text(pasos[i].descripcion,
-                              style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                        ],
-                        const SizedBox(height: 4),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: _colorEstadoProc(pasos[i].estado).withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(_labelEstadoProc(pasos[i].estado),
-                                  style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700,
-                                      color: _colorEstadoProc(pasos[i].estado))),
-                            ),
-                            if (pasos[i].evidencias.isNotEmpty)
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.photo_camera_outlined, size: 13, color: Colors.grey),
-                                  const SizedBox(width: 3),
-                                  Text('${pasos[i].evidencias.length}',
-                                      style: const TextStyle(fontSize: 11, color: Colors.grey)),
-                                ],
-                              ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_equipo.proyectoServicioId != null)
-                    IconButton(
-                      tooltip: 'Capturar evidencia',
-                      icon: const Icon(Icons.add_a_photo_outlined, size: 20, color: _green),
-                      onPressed: () async {
-                        await CamaraCampoScreen.openPara(
-                          context,
-                          procId: pasos[i].id,
-                          procNombre: pasos[i].nombre,
-                          servicioId: _equipo.proyectoServicioId!,
-                          servicioNombre:
-                              _equipo.proyectoServicioNombre ?? _equipo.nombre,
-                        );
-                        await _refrescarEquipo();
-                      },
-                    ),
-                ],
+          Row(
+            children: [
+              const Icon(Icons.assignment_turned_in_outlined,
+                  size: 18, color: _green),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _equipo.proyectoServicioNombre ?? 'Servicio en curso',
+                  style: const TextStyle(
+                      fontSize: 13.5, fontWeight: FontWeight.w700),
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'El checklist de mantenimiento (por tipo de equipo), las fotos por '
+            'paso y el cierre de la inspección se trabajan aquí.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PantallaIntervencionEquipo(
+                      servicioId: _equipo.proyectoServicioId!,
+                      eiId: _equipo.id,
+                      nombreEquipo: _equipo.nombre,
+                    ),
+                  ),
+                );
+                await Future.wait([_refrescarEquipo(), _cargarHistorial()]);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _green,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+              icon: const Icon(Icons.checklist_rounded, size: 18),
+              label: const Text('Abrir checklist e inspección',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
             ),
+          ),
         ],
       ),
     );
