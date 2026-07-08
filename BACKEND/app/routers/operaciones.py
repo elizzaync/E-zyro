@@ -1139,6 +1139,15 @@ async def actualizar_estado_servicio(
 
     ps.estado     = nuevo
     ps.updated_at = datetime.utcnow()
+
+    # Al ENTRAR en ejecución se vinculan (por primera vez) los equipos de la
+    # sede a este servicio. Antes de En_Proceso no se toca ningún equipo, así
+    # un servicio que aún no arranca no "roba" equipos de la sede.
+    if nuevo == "En_Proceso" and estado_actual != "En_Proceso":
+        _proy = db.query(Proyecto).filter(Proyecto.id == ps.proyecto_id).first()
+        if _proy:
+            _vincular_equipos_al_servicio(db, ps, ps.empresa_id, _proy)
+
     db.commit()
 
     # Avisar a los técnicos del servicio cuando se cierra o cancela.
@@ -3546,12 +3555,17 @@ def _vincular_equipos_al_servicio(
 
     Reglas:
     - Solo actúa cuando tiene_equipos_intervenidos=True y ubicacion_id está definido.
+    - **Solo en fase de ejecución** (estado 'En_Proceso'): así un equipo no salta
+      a servicios que aún no empiezan (evita el "robo" entre servicios de la misma
+      sede que solo están en Pendiente). Regla de negocio 2026-07-08.
     - Filtra por zona exacta si hay zona_id; si no, por ubicacion completa.
     - Resetea estado_intervencion='pendiente' excepto en equipos que ya están
       'en_proceso' para ESTE mismo servicio (no interrumpe inspecciones activas).
     - Propaga proyecto_id y cliente_id a todos los equipos vinculados.
     """
     if not getattr(ps, "tiene_equipos_intervenidos", False):
+        return 0
+    if ps.estado != "En_Proceso":
         return 0
     if not ps.ubicacion_id:
         return 0
@@ -4488,6 +4502,14 @@ def crear_equipo_catalogo(
     # Heredar ubicacion/zona/cliente del servicio si no vienen en el body.
     # Asi el equipo nuevo queda ligado a la misma ubicacion+zona del servicio.
     ps = _assert_servicio_abierto(servicio_id, db, empresa_id)
+    # Regla 2026-07-08: los equipos solo se dan de alta cuando el servicio está
+    # en ejecución (no en Pendiente), para no crear equipos de servicios que
+    # aún no arrancan. La UI ya oculta el alta fuera de ejecución; esto lo blinda.
+    if ps.estado != "En_Proceso":
+        raise HTTPException(
+            status_code=409,
+            detail="Inicia el servicio (fase de ejecución) para registrar equipos intervenidos.",
+        )
     ubic_id    = ubic_id    or (str(ps.ubicacion_id) if ps.ubicacion_id else None)
     zona_id    = zona_id    or (str(ps.zona_id)      if ps.zona_id      else None)
     cliente_id = cliente_id or (str(ps.cliente_id)   if getattr(ps, "cliente_id", None) else None)
