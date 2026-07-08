@@ -89,6 +89,11 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
   SeleccionProcedimientoCampo? _sel;
   String _etapa = 'durante';
 
+  // Procedimientos del servicio activo, para navegar con flechas sin abrir
+  // el selector (el técnico avanza al siguiente paso sin soltar la cámara).
+  List<ProcedimientoDetalle> _procsServicio = [];
+  String? _procsServicioId; // servicio al que pertenece la lista cargada
+
   // Servicio de datos
   ProyectoService? _svc;
 
@@ -110,6 +115,47 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
     _svc = await getProyectoService();
     await _restaurarSeleccion();
     await _checkPermissionAndInit();
+    _cargarProcsServicio();
+  }
+
+  /// Carga (en segundo plano) los procedimientos del servicio seleccionado
+  /// para habilitar las flechas anterior/siguiente.
+  Future<void> _cargarProcsServicio() async {
+    final sel = _sel;
+    if (sel == null || _svc == null) return;
+    if (_procsServicioId == sel.servicioId && _procsServicio.isNotEmpty) return;
+    try {
+      final detalle = await _svc!.getDetalleServicio(sel.servicioId);
+      if (!mounted) return;
+      setState(() {
+        _procsServicio = detalle?.procedimientos ?? [];
+        _procsServicioId = sel.servicioId;
+      });
+    } catch (_) {
+      // Sin lista no hay flechas; el selector manual sigue disponible.
+    }
+  }
+
+  int get _idxProc {
+    final sel = _sel;
+    if (sel == null) return -1;
+    return _procsServicio.indexWhere((p) => p.id == sel.procId);
+  }
+
+  void _cambiarProc(int delta) {
+    final i = _idxProc;
+    if (i < 0) return;
+    final j = i + delta;
+    if (j < 0 || j >= _procsServicio.length) return;
+    final p = _procsServicio[j];
+    final sel = SeleccionProcedimientoCampo(
+      procId: p.id,
+      procNombre: p.nombre,
+      servicioId: _sel!.servicioId,
+      servicioNombre: _sel!.servicioNombre,
+    );
+    setState(() => _sel = sel);
+    _guardarSeleccion(sel);
   }
 
   Future<void> _restaurarSeleccion() async {
@@ -336,6 +382,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
     if (resultado != null && mounted) {
       setState(() => _sel = resultado);
       await _guardarSeleccion(resultado);
+      _cargarProcsServicio();
     }
   }
 
@@ -438,6 +485,14 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
                 enabled: _ready && _sel != null,
                 onEtapaChanged: (e) => setState(() => _etapa = e),
                 onCaptura: _capturar,
+                procIndice: _idxProc,
+                procTotal: _procsServicio.length,
+                onProcAnterior:
+                    _idxProc > 0 ? () => _cambiarProc(-1) : null,
+                onProcSiguiente: (_idxProc >= 0 &&
+                        _idxProc < _procsServicio.length - 1)
+                    ? () => _cambiarProc(1)
+                    : null,
               ),
             ),
           ),
@@ -534,6 +589,10 @@ class _OverlayInferior extends StatelessWidget {
   final bool enabled;
   final ValueChanged<String> onEtapaChanged;
   final VoidCallback onCaptura;
+  final int procIndice; // -1 si no hay lista cargada
+  final int procTotal;
+  final VoidCallback? onProcAnterior;
+  final VoidCallback? onProcSiguiente;
 
   const _OverlayInferior({
     required this.etapa,
@@ -541,6 +600,10 @@ class _OverlayInferior extends StatelessWidget {
     required this.enabled,
     required this.onEtapaChanged,
     required this.onCaptura,
+    this.procIndice = -1,
+    this.procTotal = 0,
+    this.onProcAnterior,
+    this.onProcSiguiente,
   });
 
   static const _etapas = [
@@ -606,16 +669,85 @@ class _OverlayInferior extends StatelessWidget {
               );
             }).toList(),
           ),
-          const SizedBox(height: 20),
-          // Botón de captura
-          Opacity(
-            opacity: enabled ? 1.0 : 0.35,
-            child: _BtnCaptura(
-              onTap: enabled ? onCaptura : null,
-              capturing: capturing,
+          if (procIndice >= 0 && procTotal > 1) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Procedimiento ${procIndice + 1} de $procTotal',
+              style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w500),
             ),
+          ],
+          const SizedBox(height: 12),
+          // Flechas anterior/siguiente procedimiento + botón de captura:
+          // el técnico recorre el checklist sin soltar la cámara.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _FlechaProc(
+                icon: Icons.chevron_left,
+                label: 'Anterior',
+                onTap: onProcAnterior,
+              ),
+              const SizedBox(width: 26),
+              Opacity(
+                opacity: enabled ? 1.0 : 0.35,
+                child: _BtnCaptura(
+                  onTap: enabled ? onCaptura : null,
+                  capturing: capturing,
+                ),
+              ),
+              const SizedBox(width: 26),
+              _FlechaProc(
+                icon: Icons.chevron_right,
+                label: 'Siguiente',
+                onTap: onProcSiguiente,
+              ),
+            ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── Flecha para cambiar de procedimiento sin abrir el selector ───────────────
+
+class _FlechaProc extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+
+  const _FlechaProc({required this.icon, required this.label, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final habilitada = onTap != null;
+    return GestureDetector(
+      onTap: onTap,
+      child: Opacity(
+        opacity: habilitada ? 1.0 : 0.3,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.15),
+                border: Border.all(
+                    color: _kGreen.withValues(alpha: habilitada ? 0.9 : 0.4),
+                    width: 1.5),
+              ),
+              child: Icon(icon, color: _kGreen, size: 30),
+            ),
+            const SizedBox(height: 4),
+            Text(label,
+                style: const TextStyle(color: Colors.white60, fontSize: 10)),
+          ],
+        ),
       ),
     );
   }

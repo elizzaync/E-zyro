@@ -10,6 +10,7 @@ import '../core/api_result.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
 import 'detalle_equipo_intervenido.dart';
+import 'pantalla_mapa_parque.dart';
 
 class PantallaEquiposIntervenidos extends StatefulWidget {
   const PantallaEquiposIntervenidos({super.key});
@@ -565,6 +566,19 @@ class _State extends State<PantallaEquiposIntervenidos> {
                       const Expanded(
                         child: Text('Mantenimientos',
                             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+                      ),
+                      IconButton(
+                        tooltip: 'Mapa del Perú',
+                        onPressed: _todos.isEmpty
+                            ? null
+                            : () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        PantallaMapaParque(equipos: _todos),
+                                  ),
+                                ),
+                        icon: const Icon(Icons.public_rounded, color: _green),
                       ),
                       IconButton(
                         tooltip: _vistaParque
