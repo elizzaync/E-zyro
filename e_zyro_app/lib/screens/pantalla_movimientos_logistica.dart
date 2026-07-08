@@ -94,7 +94,6 @@ class _PantallaMovimientosLogisticaState
         title: const Text('Movimientos',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         elevation: 0,
-        backgroundColor: Colors.transparent,
         actions: [
           _BadgeAccion(
             count: _reposicion.length,

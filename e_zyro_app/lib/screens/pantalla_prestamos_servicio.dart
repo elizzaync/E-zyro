@@ -229,7 +229,6 @@ class _PantallaPrestamosServicioState extends State<PantallaPrestamosServicio> {
           ],
         ),
         elevation: 0,
-        backgroundColor: Colors.transparent,
       ),
       floatingActionButton: widget.isClosed
           ? null

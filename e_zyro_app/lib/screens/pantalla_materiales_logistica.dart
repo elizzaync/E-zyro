@@ -230,7 +230,6 @@ class _PantallaMaterialesLogisticaState
         title: const Text('Materiales',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         elevation: 0,
-        backgroundColor: Colors.transparent,
         actions: [
           TextButton.icon(
             onPressed: _service == null ? null : _gestionarCategorias,

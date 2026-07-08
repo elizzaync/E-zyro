@@ -99,7 +99,6 @@ class _PantallaProveedoresLogisticaState
         title: const Text('Proveedores',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         elevation: 0,
-        backgroundColor: Colors.transparent,
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _service == null ? null : () => _abrirForm(),
