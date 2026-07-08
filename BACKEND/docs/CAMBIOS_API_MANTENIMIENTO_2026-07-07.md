@@ -113,6 +113,26 @@ Decisión de negocio: **los procedimientos pertenecen a los tipos de equipo**
   checklist de inspección (`GET .../equipos-intervenidos/{eiId}/inspeccion` +
   `POST /operaciones/inspeccion/{id}/foto/{orden}`), como ya hace la app.
 
+## 10. Vinculación equipo↔servicio solo en ejecución + alta bloqueada (2026-07-08)
+
+- `_vincular_equipos_al_servicio` solo actúa si el servicio está **En_Proceso**
+  (antes lo hacía también en Pendiente, y un equipo saltaba a servicios que aún
+  no arrancaban). Se dispara al pasar Pendiente→En_Proceso.
+- `POST /operaciones/servicio/{id}/equipos-intervenidos` responde **409** si el
+  servicio no está En_Proceso.
+- **Angular**: mostrar el acceso a Equipos Intervenidos y el alta solo en fase
+  de ejecución (o en servicios cerrados, para consultar histórico).
+
+## 11. "Registrar mantenimiento" manual: retirado de la app (2026-07-08)
+
+- El botón manual de registrar mantenimiento se quitó de la app: el
+  mantenimiento se registra por el flujo de inspección del servicio (checklist
+  + fotos), que ya recalcula último/próximo al finalizar.
+- El endpoint `POST /equipos-intervenidos/{id}/mantenimiento` **sigue vivo** por
+  compatibilidad, pero Flutter ya no lo usa. **Angular**: retirar el alta manual
+  para paridad; si hace falta sembrar la fecha del último mantenimiento
+  histórico, hacerlo por el formulario de edición del equipo, no como evento.
+
 ## Pendiente (no acoplado aún, avisaremos)
 
 - Seed de `tipo_equipo` + plantillas de procedimientos (`procedimientos_template`).
