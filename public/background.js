@@ -149,14 +149,19 @@
     }
   }
 
-  function linkPair(a, b, lineRGB) {
+  // `strokeStyle` se fija UNA vez por frame en drawLines() (más abajo) — es
+  // el mismo color para todas las líneas del frame. Aquí solo varía la
+  // opacidad por línea, vía `globalAlpha` (número) en vez de reconstruir un
+  // string 'rgba(...)' y reasignar `strokeStyle` en cada llamada: evita que
+  // el navegador reparsee un color CSS por cada línea, cientos de veces por
+  // frame — el resultado pintado es idéntico (alpha efectivo = mismo valor).
+  function linkPair(a, b) {
     const dx = a.x - b.x;
     const dy = a.y - b.y;
     const d2 = dx * dx + dy * dy;
     if (d2 >= LINK_DIST * LINK_DIST) return;
     const d = Math.sqrt(d2);
-    const o = (1 - d / LINK_DIST) * cur[10];
-    ctx.strokeStyle = 'rgba(' + lineRGB + ',' + o + ')';
+    ctx.globalAlpha = (1 - d / LINK_DIST) * cur[10];
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -166,6 +171,7 @@
   function drawLines() {
     const lineRGB = (cur[6] | 0) + ',' + (cur[7] | 0) + ',' + (cur[8] | 0);
     ctx.lineWidth = 0.6;
+    ctx.strokeStyle = 'rgb(' + lineRGB + ')';
     buildGrid();
     // for each occupied cell: pairs within the cell, plus the 4 "forward"
     // neighbors (E, SW, S, SE) so every neighboring pair is checked exactly once
@@ -173,7 +179,7 @@
       const cx = ((key % 4096) + 4096) % 4096;
       const cy = Math.round((key - (key % 4096)) / 4096);
       for (let i = 0; i < bucket.length; i++) {
-        for (let j = i + 1; j < bucket.length; j++) linkPair(bucket[i], bucket[j], lineRGB);
+        for (let j = i + 1; j < bucket.length; j++) linkPair(bucket[i], bucket[j]);
       }
       const neighbors = [
         grid.get(cellKey(cx + 1, cy)),
@@ -185,10 +191,11 @@
         const other = neighbors[n];
         if (!other) continue;
         for (let i = 0; i < bucket.length; i++) {
-          for (let j = 0; j < other.length; j++) linkPair(bucket[i], other[j], lineRGB);
+          for (let j = 0; j < other.length; j++) linkPair(bucket[i], other[j]);
         }
       }
     });
+    ctx.globalAlpha = 1; // las partículas de más abajo llevan su propio alpha en fillStyle
   }
 
   // --- main loop ---------------------------------------------------------------
