@@ -776,3 +776,75 @@ def cerrar_todas_las_sesiones(
         "mensaje": f"Se cerraron {len(hashes_cerrados)} sesión(es) en otros dispositivos.",
         "data": {"cerradas": len(hashes_cerrados)},
     }
+
+
+# =========================================================================
+# SOPORTE DE ACCESO (público, pre-login)
+# Botón "Soporte técnico" de la pantalla de login: crea un ticket de
+# categoría 'acceso' SIN sesión. Anti-abuso: rate limit por IP (3/hora) y
+# anti-enumeración (misma respuesta exista o no el correo). Si el correo
+# corresponde a un usuario registrado, el ticket entra al sistema
+# ticket_soporte normal de su empresa y el equipo de TI lo ve en su bandeja.
+# =========================================================================
+
+class SoporteAccesoBody(BaseModel):
+    nombre:      str
+    email:       str
+    descripcion: str
+
+
+@router.post("/soporte-acceso")
+def soporte_acceso(body: SoporteAccesoBody, request: Request, db: Session = Depends(get_db)):
+    ip = _ip_real(request)
+
+    if not verificar_limite(f"soporte-acceso:{ip or 'sin-ip'}", 3, 3600):
+        registrar_evento(
+            accion="RATE_LIMITED", ruta="/auth/soporte-acceso", metodo_http="POST",
+            ip=ip, resultado="denegado", detalle={"email": body.email[:150]},
+        )
+        raise HTTPException(status_code=429, detail="Demasiadas solicitudes. Intenta más tarde.")
+
+    nombre = (body.nombre or "").strip()[:120]
+    email = (body.email or "").strip().lower()[:150]
+    descripcion = (body.descripcion or "").strip()
+    if not email or not descripcion:
+        raise HTTPException(status_code=422, detail="Correo y descripción son obligatorios.")
+
+    RESPUESTA_OK = {
+        "status": "success",
+        "mensaje": "Recibimos tu solicitud. El equipo de soporte te contactará al correo indicado.",
+    }
+
+    usuario = db.query(Usuario).filter(Usuario.email == email, Usuario.activo == True).first()
+    if not usuario:
+        # Anti-enumeración: misma respuesta. Queda rastro en audit_log para
+        # que soporte pueda revisar solicitudes con correo no registrado.
+        registrar_evento(
+            accion="SECURITY", ruta="/auth/soporte-acceso", metodo_http="POST",
+            ip=ip, resultado="fallo",
+            detalle={"motivo": "correo_no_registrado", "email": email, "nombre": nombre,
+                     "descripcion": descripcion[:500]},
+        )
+        return RESPUESTA_OK
+
+    try:
+        from app.routers.soporte import CrearTicketBody, crear_ticket
+        crear_ticket(
+            CrearTicketBody(
+                titulo      = f"[Acceso] Problema para iniciar sesión — {nombre or email}",
+                descripcion = (
+                    "Solicitud desde la pantalla de login (sin sesión).\n"
+                    f"Nombre: {nombre or '—'}\nCorreo: {email}\nIP: {ip or '—'}\n\n"
+                    f"{descripcion}"
+                ),
+                categoria   = "acceso",
+                prioridad   = "alta",
+                pantalla    = "Login",
+            ),
+            {"empresa_id": str(usuario.empresa_id), "id": str(usuario.id)},
+            db,
+        )
+    except Exception as exc:
+        print(f"[soporte-acceso] error creando ticket: {exc}")
+        # No filtrar el error al usuario anónimo.
+    return RESPUESTA_OK
