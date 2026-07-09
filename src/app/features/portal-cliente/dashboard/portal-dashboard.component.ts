@@ -1,7 +1,7 @@
 import {
   Component, OnInit, OnDestroy,
   ElementRef, ViewChild, inject,
-  ChangeDetectionStrategy, ChangeDetectorRef,
+  ChangeDetectionStrategy, ChangeDetectorRef, NgZone,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -59,6 +59,7 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
   private svc   = inject(PortalClienteService);
   private auth  = inject(AuthService);
   private cdr   = inject(ChangeDetectorRef);
+  private ngZone = inject(NgZone);
   readonly theme = inject(ThemeService);           // ← FASE 2: servicio reactivo
   private themeSub!: Subscription;
 
@@ -347,7 +348,12 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
         this.kpis = kpis; this.historial = historial; this.cargando = false;
         this.precalcularDerivadosDeHistorial();
         this.cdr.markForCheck();
-        setTimeout(() => this.initAllCharts(), 60);
+        // Chart.js registra sus propios listeners (mousemove/click) por cada
+        // canvas para tooltips/hover. Creados fuera de la Angular zone, esos
+        // listeners quedan fuera para siempre: mover el mouse sobre cualquiera
+        // de los 8 gráficos ya no dispara change detection de toda la app
+        // (mismo patrón que el fix de public/background.js).
+        setTimeout(() => this.ngZone.runOutsideAngular(() => this.initAllCharts()), 60);
       },
       error: () => {
         this.error = 'No se pudo cargar el panel ejecutivo.';
