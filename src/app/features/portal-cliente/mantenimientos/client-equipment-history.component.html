@@ -1,17 +1,18 @@
 <div class="eh-page">
 
-  <!-- Encabezado -->
-  <div class="eh-page-header">
+  <!-- Encabezado + toggle Lista/Mapa -->
+  <div class="eh-header">
     <div>
-      <h1 class="eh-title">Historial de Mantenimientos</h1>
-      <p class="eh-subtitle">Registro completo del parque de equipos intervenidos</p>
+      <h1 class="eh-title">Historial de mantenimientos</h1>
+      <p class="eh-subtitle">Estado, próximo mantenimiento y ubicación de todos tus equipos.</p>
     </div>
-    <a routerLink="/portal-cliente/dashboard" class="eh-btn-back">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M15 18l-6-6 6-6"/>
-      </svg>
-      Volver al Panel
-    </a>
+    <div class="eh-toggle">
+      <button class="eh-toggle-btn" [class.active]="vista === 'lista'" (click)="setVista('lista')">Lista</button>
+      <button class="eh-toggle-btn" [class.active]="vista === 'mapa'" (click)="setVista('mapa')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+        Mapa
+      </button>
+    </div>
   </div>
 
   @if (cargando) {
@@ -25,14 +26,12 @@
   <div class="eh-error-banner">{{ error }}</div>
   }
 
-  @if (!cargando && !error) {
-  <div class="eh-section">
+  <!-- ═══════════ VISTA LISTA ═══════════ -->
+  @if (!cargando && !error && vista === 'lista') {
+  <div class="pc-glass eh-section">
 
     <div class="eh-toolbar">
-      <div class="eh-toolbar-left">
-        <h2 class="eh-section-title">Equipos Intervenidos</h2>
-        <span class="eh-count-chip">{{ historialFiltrado.length }} de {{ historial.length }} equipos</span>
-      </div>
+      <span class="eh-count">{{ historialFiltrado.length }} de {{ historial.length }} equipos</span>
       <div class="eh-toolbar-right">
         <div class="eh-search-wrap">
           <svg class="eh-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -40,9 +39,6 @@
           </svg>
           <input class="eh-search" type="text" placeholder="Buscar equipo, código, ubicación…"
             [(ngModel)]="busqueda" (ngModelChange)="onFiltroChange()" />
-          @if (busqueda) {
-          <button class="eh-search-clear" (click)="busqueda = ''; onFiltroChange()">×</button>
-          }
         </div>
         <select class="eh-select" [(ngModel)]="filtroUbicacion" (ngModelChange)="onFiltroChange()">
           @for (u of ubicacionesDisponibles; track u) {
@@ -52,94 +48,56 @@
       </div>
     </div>
 
-    <!-- Chips de estado — FASE 1 -->
     <div class="eh-chips">
-      <button class="eh-chip" [class.active]="filtroEstado === 'todos'"
-              (click)="filtroEstado = 'todos'; onFiltroChange()">
-        Todos <span class="eh-chip-count">{{ historial.length }}</span>
+      <button class="eh-chip" [class.active]="filtroEstado === 'todos'" (click)="setFiltroEstado('todos')">
+        Todos ({{ historial.length }})
       </button>
-      <button class="eh-chip eh-chip-success" [class.active]="filtroEstado === 'badge-success'"
-              (click)="filtroEstado = 'badge-success'; onFiltroChange()">
-        Vigente / Operativo <span class="eh-chip-count">{{ countPorBadge('badge-success') }}</span>
+      <button class="eh-chip" [class.active]="filtroEstado === 'badge-success'" (click)="setFiltroEstado('badge-success')">
+        Vigentes ({{ countPorBadge('badge-success') }})
       </button>
-      <button class="eh-chip eh-chip-warn" [class.active]="filtroEstado === 'badge-warning'"
-              (click)="filtroEstado = 'badge-warning'; onFiltroChange()">
-        Próximo a Vencer <span class="eh-chip-count">{{ countPorBadge('badge-warning') }}</span>
+      <button class="eh-chip" [class.active]="filtroEstado === 'badge-warning'" (click)="setFiltroEstado('badge-warning')">
+        Próximos ({{ countPorBadge('badge-warning') }})
       </button>
-      <button class="eh-chip eh-chip-danger" [class.active]="filtroEstado === 'badge-danger'"
-              (click)="filtroEstado = 'badge-danger'; onFiltroChange()">
-        Vencido <span class="eh-chip-count">{{ countPorBadge('badge-danger') }}</span>
+      <button class="eh-chip" [class.active]="filtroEstado === 'badge-danger'" (click)="setFiltroEstado('badge-danger')">
+        Vencidos ({{ countPorBadge('badge-danger') }})
       </button>
       @if (hayFiltrosActivos) {
-      <button class="eh-chip-reset" (click)="resetFiltros()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" d="M6 18L18 6M6 6l12 12"/>
-        </svg>
-        Limpiar
-      </button>
+      <button class="eh-chip-reset" (click)="resetFiltros()">✕ Limpiar</button>
       }
     </div>
-
-    @if (historialFiltrado.length === 0) {
-    <div class="eh-empty">
-      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
-        <circle cx="24" cy="24" r="20"/><path stroke-linecap="round" d="M24 16v8l5 3"/>
-      </svg>
-      <p>No se encontraron equipos con los filtros aplicados.</p>
-      <button class="eh-chip-reset" (click)="resetFiltros()">Limpiar filtros</button>
-    </div>
-    }
 
     @if (historialPaginado.length > 0) {
     <div class="eh-table-wrap">
       <table class="eh-table">
         <thead>
           <tr>
-            <th>#</th>
             <th>Equipo</th>
             <th>Proyecto</th>
             <th>Ubicación</th>
-            <th>Último Mtto.</th>
-            <th>Próximo Mtto.</th>
+            <th>Último</th>
+            <th>Próximo</th>
             <th>Estado</th>
             <th></th>
           </tr>
         </thead>
         <tbody>
-          @for (eq of historialPaginado; track eq.id; let i = $index) {
+          @for (eq of historialPaginado; track eq.id) {
           <tr>
-            <td class="eh-td-num">{{ (paginaActual - 1) * PAGE_SIZE + i + 1 }}</td>
             <td>
               <div class="eh-eq-name">{{ eq.nombre }}</div>
-              @if (eq.marca || eq.modelo || eq.codigo) {
-              <div class="eh-eq-sub">
-                @if (eq.codigo) { <span class="eh-code-tag">{{ eq.codigo }}</span> }
-                {{ eq.marca }} {{ eq.modelo }}
-              </div>
-              }
+              <div class="eh-eq-sub">{{ eq.codigo }}@if (eq.marca) { · {{ eq.marca }} {{ eq.modelo }}}</div>
             </td>
             <td class="eh-td-muted">{{ eq.proyecto || '—' }}</td>
             <td class="eh-td-muted">{{ eq.ubicacion || '—' }}</td>
-            <td class="eh-td-date">
-              {{ eq.ultimo_mantenimiento ? (eq.ultimo_mantenimiento | date:'dd/MM/yyyy') : '—' }}
-            </td>
-            <td class="eh-td-date">
-              <span [class.eh-prox-alerta]="proximoAlerta(eq.proximo_mantenimiento)">
+            <td class="eh-td-muted">{{ eq.ultimo_mantenimiento ? (eq.ultimo_mantenimiento | date:'dd/MM/yyyy') : '—' }}</td>
+            <td>
+              <span class="eh-td-prox" [class.alerta]="proximoAlerta(eq.proximo_mantenimiento)">
                 {{ eq.proximo_mantenimiento ? (eq.proximo_mantenimiento | date:'dd/MM/yyyy') : '—' }}
               </span>
             </td>
-            <td>
-              <span class="eh-badge" [ngClass]="maintenanceStatus(eq).badge">
-                {{ maintenanceStatus(eq).label }}
-              </span>
-            </td>
-            <td>
-              <a class="eh-btn-detalle" [routerLink]="['/portal-cliente/mantenimiento', eq.id]">
-                Ver Detalles
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 18l6-6-6-6"/>
-                </svg>
-              </a>
+            <td><pc-status-badge [status]="stOf(eq)" [label]="stLabel(eq)"></pc-status-badge></td>
+            <td class="eh-td-cta">
+              <a class="eh-btn-detalle" [routerLink]="['/portal-cliente/mantenimiento', eq.id]">Ver detalles →</a>
             </td>
           </tr>
           }
@@ -147,28 +105,85 @@
       </table>
     </div>
 
-    @if (totalPaginas > 1) {
     <div class="eh-pagination">
-      <div class="eh-pagination-info">
-        Mostrando {{ (paginaActual - 1) * PAGE_SIZE + 1 }}–{{ paginaActual * PAGE_SIZE < historialFiltrado.length ? paginaActual * PAGE_SIZE : historialFiltrado.length }}
-        de {{ historialFiltrado.length }} equipos
-      </div>
-      <div class="eh-pagination-controls">
-        <button class="eh-page-btn eh-page-nav" (click)="irAPagina(1)" [disabled]="paginaActual === 1">«</button>
-        <button class="eh-page-btn eh-page-nav" (click)="irAPagina(paginaActual - 1)" [disabled]="paginaActual === 1">‹</button>
-        @if (paginasVisibles[0] > 1) { <span class="eh-page-ellipsis">…</span> }
-        @for (p of paginasVisibles; track p) {
-        <button class="eh-page-btn" [class.active]="p === paginaActual" (click)="irAPagina(p)">{{ p }}</button>
-        }
-        @if (paginasVisibles[paginasVisibles.length - 1] < totalPaginas) { <span class="eh-page-ellipsis">…</span> }
-        <button class="eh-page-btn eh-page-nav" (click)="irAPagina(paginaActual + 1)" [disabled]="paginaActual === totalPaginas">›</button>
-        <button class="eh-page-btn eh-page-nav" (click)="irAPagina(totalPaginas)" [disabled]="paginaActual === totalPaginas">»</button>
-      </div>
+      <pc-pagination [page]="paginaActual" [pages]="totalPaginas" (pageChange)="irAPagina($event)"></pc-pagination>
     </div>
-    }
+    } @else {
+    <pc-empty-state title="Sin equipos" subtitle="No hay equipos que coincidan con los filtros aplicados.">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M14 3v4a1 1 0 0 0 1 1h4M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/>
+      </svg>
+    </pc-empty-state>
     }
 
   </div>
+  }
+
+  <!-- ═══════════ VISTA MAPA DEL PERÚ ═══════════ -->
+  @if (!cargando && !error && vista === 'mapa') {
+  <div class="pc-glass eh-map-card">
+    <div class="eh-map-head">
+      <div>
+        <div class="eh-map-eyebrow">Mapa del parque · Perú</div>
+        <div class="eh-map-hint">
+          {{ zonaSel ? 'Zona ampliada · toca un equipo para ver su detalle' : 'Toca una región para ampliar y ver sus equipos' }}
+        </div>
+      </div>
+      <div class="eh-map-legend">
+        <span class="eh-leg"><span class="eh-leg-dot ok"></span>Vigente</span>
+        <span class="eh-leg"><span class="eh-leg-dot warn"></span>Próximo</span>
+        <span class="eh-leg"><span class="eh-leg-dot err"></span>Vencido</span>
+      </div>
+    </div>
+
+    <div class="eh-map-wrap">
+      <div id="pc-peru-map" class="eh-map"></div>
+
+      @if (zonaSel) {
+      <button class="eh-map-back" (click)="verTodoElPeru()">← Ver todo el Perú</button>
+      <div class="eh-map-panel">
+        <div class="eh-map-panel-head">
+          <div class="eh-map-panel-title">{{ zonaSel.region }}</div>
+          <div class="eh-map-panel-sub">{{ zonaSel.equipos.length }} equipo(s) en esta región</div>
+        </div>
+        <div class="eh-map-panel-list">
+          @for (eq of zonaSel.equipos; track eq.id) {
+          <div class="eh-map-panel-item" (click)="abrirEquipo(eq)">
+            <div class="eh-map-panel-info">
+              <div class="eh-map-panel-nombre">{{ eq.nombre }}</div>
+              <div class="eh-map-panel-meta">
+                {{ eq.sede || eq.ubicacion || '—' }} · Próx: {{ eq.proximo_mantenimiento ? (eq.proximo_mantenimiento | date:'dd/MM/yy') : '—' }}
+              </div>
+            </div>
+            <pc-status-badge [status]="stOf(eq)" [label]="stLabel(eq)"></pc-status-badge>
+          </div>
+          }
+        </div>
+      </div>
+      }
+    </div>
+  </div>
+
+  @if (sinUbicacion.length > 0) {
+  <div class="pc-glass eh-noloc">
+    <div class="eh-noloc-head">
+      <h3 class="eh-noloc-title">Sin ubicación asignada</h3>
+      <span class="eh-noloc-count">{{ sinUbicacion.length }}</span>
+    </div>
+    <p class="eh-noloc-sub">Estos equipos aún no tienen una región registrada, por eso no aparecen en el mapa.</p>
+    <div class="eh-noloc-grid">
+      @for (eq of sinUbicacion; track eq.id) {
+      <div class="eh-noloc-item" (click)="abrirEquipo(eq)">
+        <div class="eh-noloc-info">
+          <div class="eh-noloc-nombre">{{ eq.nombre }}</div>
+          <div class="eh-noloc-meta">{{ eq.ubicacion || eq.proyecto || '—' }}</div>
+        </div>
+        <pc-status-badge [status]="stOf(eq)" [label]="stLabel(eq)"></pc-status-badge>
+      </div>
+      }
+    </div>
+  </div>
+  }
   }
 
 </div>

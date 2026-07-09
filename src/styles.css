@@ -90,6 +90,22 @@ app-root {
   --radius-xl:        20px;
   --font-base:        'Inter', 'Segoe UI', Roboto, sans-serif;
 
+  /* ── Glass (Portal Cliente rediseño 2026-07) ── */
+  --card-glass:        rgba(255, 255, 255, 0.62);
+  --card-glass-strong: rgba(255, 255, 255, 0.8);
+  --card-glass-border: rgba(0, 0, 0, 0.06);
+  --track-bg:          rgba(17, 24, 39, 0.09);
+  --shadow-glass:      0 4px 20px rgba(0,0,0,.08), 0 1px 3px rgba(0,0,0,.05);
+
+  /* ── Sistema unificado de estados (badges/acentos) ──
+     Un solo vocabulario para TODO el portal: ok | prog | warn | err | neutral.
+     Reemplaza a los pares badge-success/badge-ok, badge-danger/badge-err, etc. */
+  --st-ok:         #0f9d58;  --st-ok-bg:      rgba(16, 185, 129, .14);
+  --st-prog:       #2563eb;  --st-prog-bg:    rgba(59, 130, 246, .14);
+  --st-warn:       #b45309;  --st-warn-bg:    rgba(245, 158, 11, .17);
+  --st-err:        #dc2626;  --st-err-bg:     rgba(239, 68, 68, .13);
+  --st-neutral:    #6b7280;  --st-neutral-bg: rgba(107, 114, 128, .13);
+
   /* ── Sistema responsive (breakpoints de referencia) ──
      CSS no permite var() dentro de @media, así que estos valores son la
      CONVENCIÓN del proyecto. Usar siempre estos cortes en los @media:
@@ -142,6 +158,16 @@ app-root {
     --border-color:    #334155;
     --shadow-panel:    0 4px 20px rgba(0,0,0,.3);
     --shadow-modal:    0 20px 60px rgba(0,0,0,.5);
+    --card-glass:        rgba(30, 41, 59, 0.6);
+    --card-glass-strong: rgba(30, 41, 59, 0.8);
+    --card-glass-border: rgba(255, 255, 255, 0.09);
+    --track-bg:          rgba(255, 255, 255, 0.12);
+    --shadow-glass:      0 4px 20px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.25);
+    --st-ok:      #34d399;
+    --st-prog:    #60a5fa;
+    --st-warn:    #fbbf24;
+    --st-err:     #f87171;
+    --st-neutral: #94a3b8;
   }
 }
 
@@ -163,6 +189,16 @@ app-root {
   --border-color:    #334155;
   --shadow-panel:    0 4px 20px rgba(0,0,0,.3);
   --shadow-modal:    0 20px 60px rgba(0,0,0,.5);
+  --card-glass:        rgba(30, 41, 59, 0.6);
+  --card-glass-strong: rgba(30, 41, 59, 0.8);
+  --card-glass-border: rgba(255, 255, 255, 0.09);
+  --track-bg:          rgba(255, 255, 255, 0.12);
+  --shadow-glass:      0 4px 20px rgba(0,0,0,.35), 0 1px 3px rgba(0,0,0,.25);
+  --st-ok:      #34d399;
+  --st-prog:    #60a5fa;
+  --st-warn:    #fbbf24;
+  --st-err:     #f87171;
+  --st-neutral: #94a3b8;
 }
 /* =======================================================
    AISLAMIENTO DEL CONTENIDO DE PÁGINA
@@ -431,6 +467,21 @@ main.portal-mode {
     border-color:           rgba(255, 255, 255, 0.08);
     box-shadow:             0 8px 32px rgba(0,0,0,.35), 0 1px 2px rgba(0,0,0,.25);
   }
+}
+
+/* ── Portal Cliente (rediseño 2026-07): card glass única ──
+   Los tokens --card-glass/* ya se adaptan a claro/oscuro en :root, así que
+   esta clase NO necesita reglas dark propias. Úsala en TODAS las cards del
+   portal en lugar de fondos hardcodeados. */
+.pc-glass {
+  background:              var(--card-glass);
+  backdrop-filter:         blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border:                  1px solid var(--card-glass-border);
+  border-radius:           var(--radius-lg, 16px);
+  box-shadow:              var(--shadow-glass);
+  padding:                 20px;
+  color:                   var(--text-main);
 }
 
 /* ── Drive-style grid (Nube de Planos y otras vistas) ─── */

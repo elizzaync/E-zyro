@@ -1,0 +1,82 @@
+/* Soporte técnico del Portal Cliente — Rediseño 2026-07. */
+
+.psop-page {
+  width: 100%; box-sizing: border-box;
+  max-width: 1440px; margin: 0 auto;
+  padding: clamp(20px, 3vw, 36px) clamp(16px, 3vw, 32px) 72px;
+}
+
+.psop-header { margin-bottom: 20px; }
+.psop-title    { margin: 0 0 4px; font-size: clamp(24px, 3vw, 30px); font-weight: 800; letter-spacing: -.5px; color: var(--text-main); }
+.psop-subtitle { margin: 0; color: var(--text-muted); font-size: 14px; max-width: 640px; }
+
+.psop-grid {
+  display: grid; grid-template-columns: minmax(320px, 480px) 1fr;
+  gap: 18px; align-items: start;
+}
+@media (max-width: 900px) { .psop-grid { grid-template-columns: 1fr; } }
+
+.psop-block-title { margin: 0 0 14px; font-size: 16px; font-weight: 700; color: var(--text-main); }
+
+/* Formulario */
+.psop-label {
+  display: block; font-size: 12px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: .3px; margin: 14px 0 5px;
+}
+.psop-label:first-of-type { margin-top: 0; }
+.psop-input {
+  width: 100%; box-sizing: border-box;
+  padding: 10px 12px; border-radius: 10px;
+  border: 1px solid var(--input-border); background: var(--input-bg);
+  color: var(--text-main); font-size: 14px; font-family: inherit;
+  outline: none; transition: border-color .2s;
+}
+.psop-input:focus { border-color: var(--brand-green); }
+.psop-textarea { resize: vertical; min-height: 110px; line-height: 1.5; }
+.psop-row { display: flex; gap: 12px; }
+.psop-col { flex: 1; min-width: 0; }
+
+.psop-submit {
+  width: 100%; margin-top: 18px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px; border-radius: 11px; border: none;
+  background: var(--brand-green); color: #fff;
+  font-size: 14px; font-weight: 700; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(141,198,63,.35);
+  transition: transform .2s var(--anim-easing, ease), opacity .2s;
+}
+.psop-submit:hover:not(:disabled) { transform: translateY(-2px); }
+.psop-submit:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
+
+/* Lista de tickets */
+.psop-loading { display: flex; align-items: center; gap: 1rem; padding: 2rem; justify-content: center; color: var(--text-muted); }
+.spinner-ring { width: 26px; height: 26px; border: 3px solid var(--border-color); border-top-color: var(--brand-green); border-radius: 50%; animation: spin .7s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.psop-error {
+  background: var(--st-err-bg); border: 1px solid var(--st-err);
+  border-radius: var(--radius-md, 10px); color: var(--st-err); padding: 1rem;
+}
+
+.psop-tickets { display: flex; flex-direction: column; gap: 12px; }
+.psop-ticket {
+  background: var(--card-glass); border: 1px solid var(--card-glass-border);
+  border-radius: 12px; padding: 14px 15px;
+}
+.psop-ticket-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.psop-ticket-codigo {
+  font-size: 11px; font-weight: 800; font-family: monospace;
+  padding: 2px 8px; border-radius: 6px;
+  background: var(--hover-bg); color: var(--text-muted);
+}
+.psop-ticket-titulo { font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 8px; line-height: 1.35; }
+.psop-ticket-meta   { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+.psop-ticket-resp {
+  margin-top: 10px; padding: 10px 12px; border-radius: 9px;
+  background: var(--st-ok-bg); color: var(--text-main);
+  font-size: 13px; line-height: 1.5;
+  border-left: 3px solid var(--st-ok);
+}
+.psop-ticket-resp-label {
+  font-size: 10px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--st-ok); margin-bottom: 3px;
+}

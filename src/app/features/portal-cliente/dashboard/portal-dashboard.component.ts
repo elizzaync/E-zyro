@@ -125,6 +125,46 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
     return this.kpiTrends[badge ?? 'null'] ?? { pct: 0, up: true };
   }
 
+  /** Clase de color de la tendencia. Para 'próximos'/'vencidos' subir es MALO. */
+  trendClass(badge: string | null): string {
+    const t = this.kpiTrend(badge);
+    if (t.pct === 0) return 't-neutral';
+    const invertido = badge === 'badge-warning' || badge === 'badge-danger';
+    const positivo = invertido ? !t.up : t.up;
+    return positivo ? 't-up' : 't-down';
+  }
+
+  trendText(badge: string | null): string {
+    const t = this.kpiTrend(badge);
+    if (t.pct === 0) return '— sin variación';
+    return `${t.up ? '▲' : '▼'} ${t.pct}% vs mes anterior`;
+  }
+
+  // ── Agenda "Próximos 7 días" (chips de día + plazo) ───────────────────────
+  agendaSt(ev: any): string {
+    const c = this.eventClass(ev.proximo_mantenimiento);
+    if (c === 'ev-danger') return 'st-err';
+    if (c === 'ev-warning') return 'st-warn';
+    return 'st-ok';
+  }
+
+  dayTop(dateStr: string): string {
+    return new Date(dateStr).toLocaleDateString('es-PE', { weekday: 'short' })
+      .replace('.', '').toUpperCase();
+  }
+
+  dayNum(dateStr: string): number {
+    return new Date(dateStr).getDate();
+  }
+
+  plazoLabel(dateStr: string): string {
+    const d = this.daysUntil(dateStr);
+    if (d < 0) return 'Vencido';
+    if (d === 0) return 'Hoy';
+    if (d === 1) return 'Mañana';
+    return `En ${d} días`;
+  }
+
   /** Deriva de `historial` todo lo que el template antes recalculaba en cada
    *  change detection (getters). Se llama una sola vez, al cargar los datos. */
   private precalcularDerivadosDeHistorial(): void {
@@ -284,7 +324,7 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
         options: {
           responsive: true, maintainAspectRatio: false,
           plugins: {
-            legend: { position: 'top', labels: { color: t.text, font: { size: 12, weight: 600 }, boxWidth: 12, padding: 16 } },
+            legend: { position: 'bottom', labels: { color: t.text, font: { size: 12, weight: 600 }, usePointStyle: true, boxWidth: 8, padding: 16 } },
             tooltip: { backgroundColor: t.panelBg, titleColor: t.title, bodyColor: t.text, borderColor: t.border, borderWidth: 1, padding: 12, cornerRadius: 10 },
           },
           scales: {
@@ -319,10 +359,9 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
     // Barras Horizontales: Por Ubicación
     if (this.horizBarCanvas?.nativeElement) {
       const { labels, counts } = this.buildLocationData();
-      const maxC = Math.max(...counts, 1);
       this.charts[7] = new Chart(this.horizBarCanvas.nativeElement, {
         type: 'bar',
-        data: { labels, datasets: [{ label: 'Equipos', data: counts, backgroundColor: counts.map(c => `rgba(59,130,246,${(0.35 + (c/maxC)*0.65).toFixed(2)})`), borderRadius: 4, borderSkipped: false }] },
+        data: { labels, datasets: [{ label: 'Equipos', data: counts, backgroundColor: P.cyan, borderRadius: 6, maxBarThickness: 16, borderSkipped: false }] },
         options: {
           indexAxis: 'y', responsive: true, maintainAspectRatio: false,
           plugins: { legend: { display: false }, tooltip: { backgroundColor: t.panelBg, titleColor: t.title, bodyColor: t.text, borderColor: t.border, borderWidth: 1, padding: 10, cornerRadius: 8 } },

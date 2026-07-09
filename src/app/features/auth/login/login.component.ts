@@ -1,15 +1,18 @@
 ﻿import { Component, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
+import { ReactiveFormsModule, FormsModule } from '@angular/forms';
+import { FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
 import { AlertComponent } from '../../../shared/components/login/alert.component';
 import { SpinnerComponent } from '../../../shared/components/spinner/spinner.component';
 import { AuthService } from '../../../core/services/auth.service';
+import { environment } from '../../../../environments/environment';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterModule, AlertComponent, SpinnerComponent],
+  imports: [CommonModule, ReactiveFormsModule, FormsModule, RouterModule, AlertComponent, SpinnerComponent],
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.css']
 })
@@ -22,9 +25,19 @@ export class LoginComponent {
   successMessage = signal('');
   isPreparingEnv = signal(false);
 
+  // ── Soporte técnico pre-login (modal) ──
+  showSupportModal = signal(false);
+  supportSending   = signal(false);
+  supportDone      = signal(false);
+  supportError     = signal('');
+  supportNombre = '';
+  supportEmail  = '';
+  supportDesc   = '';
+
   constructor(
     private fb: FormBuilder,
     private router: Router,
+    private http: HttpClient,
     private authService: AuthService // 2. INYECTAR EL SERVICIO
   ) {
     this.loginForm = this.fb.group({
@@ -89,6 +102,47 @@ export class LoginComponent {
           this.errorMessage.set('Error de conexión con el servidor.');
         }
       }
+    });
+  }
+
+  // ── Soporte técnico pre-login ─────────────────────────────────────────
+
+  abrirSoporte(): void {
+    this.supportDone.set(false);
+    this.supportError.set('');
+    this.showSupportModal.set(true);
+  }
+
+  cerrarSoporte(): void {
+    this.showSupportModal.set(false);
+  }
+
+  get puedeEnviarSoporte(): boolean {
+    return !this.supportSending() &&
+           this.supportEmail.trim().includes('@') &&
+           this.supportDesc.trim().length > 10;
+  }
+
+  enviarSoporte(): void {
+    if (!this.puedeEnviarSoporte) return;
+    this.supportSending.set(true);
+    this.supportError.set('');
+    this.http.post(`${environment.apiUrl}/auth/soporte-acceso`, {
+      nombre: this.supportNombre.trim(),
+      email: this.supportEmail.trim(),
+      descripcion: this.supportDesc.trim(),
+    }).subscribe({
+      next: () => {
+        this.supportSending.set(false);
+        this.supportDone.set(true);
+        this.supportNombre = ''; this.supportEmail = ''; this.supportDesc = '';
+      },
+      error: (err) => {
+        this.supportSending.set(false);
+        this.supportError.set(err.status === 429
+          ? 'Demasiadas solicitudes. Intenta más tarde.'
+          : 'No se pudo enviar la solicitud. Intenta nuevamente.');
+      },
     });
   }
 }

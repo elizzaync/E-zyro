@@ -1,7 +1,10 @@
 <div class="pdoc-page">
+
   <div class="pdoc-header">
-    <h1 class="pdoc-title">Galería Documental</h1>
-    <p class="pdoc-subtitle">Informes, certificados y documentos generados para su empresa</p>
+    <h1 class="pdoc-title">Documentos</h1>
+    <p class="pdoc-subtitle">
+      {{ filtrados.length }} {{ filtrados.length === 1 ? 'documento' : 'documentos' }} · informes, garantías y certificados de tus servicios.
+    </p>
   </div>
 
   @if (cargando) {
@@ -13,70 +16,63 @@
 
   @if (!cargando && !error) {
 
-  <!-- Filtros por tipo -->
-  @if (tipos.length > 1) {
-  <div class="pdoc-filters">
-    <button class="pdoc-filter-btn" [class.active]="filtroTipo === ''" (click)="filtroTipo = ''">
-      Todos ({{ documentos.length }})
-    </button>
-    @for (t of tipos; track t) {
-    <button class="pdoc-filter-btn" [class.active]="filtroTipo === t" (click)="filtroTipo = t">
-      {{ tipoLabel(t) }}
-    </button>
+  <!-- Toolbar: búsqueda + filtros por tipo -->
+  <div class="pdoc-toolbar">
+    <div class="pdoc-search-wrap">
+      <svg class="pdoc-search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="M21 21l-4.35-4.35"/>
+      </svg>
+      <input class="pdoc-search" type="text" placeholder="Buscar documento…"
+        [(ngModel)]="busqueda" (ngModelChange)="onFiltroChange()" />
+    </div>
+    @if (tipos.length > 1) {
+    <div class="pdoc-chips">
+      <button class="pdoc-chip" [class.active]="filtroTipo === ''" (click)="setTipo('')">Todos</button>
+      @for (t of tipos; track t) {
+      <button class="pdoc-chip" [class.active]="filtroTipo === t" (click)="setTipo(t)">{{ tipoLabel(t) }}</button>
+      }
+    </div>
     }
   </div>
-  }
 
-  @if (documentosFiltrados.length === 0) {
-  <div class="pdoc-empty">
-    <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5">
-      <rect x="8" y="4" width="32" height="40" rx="3"/>
-      <path stroke-linecap="round" d="M16 14h16M16 22h16M16 30h8"/>
-    </svg>
-    <p>No hay documentos disponibles.</p>
-    <span>Los documentos aparecerán aquí una vez sean generados por el equipo técnico.</span>
-  </div>
-  }
-
-  <!-- Grid de documentos -->
+  @if (filtrados.length > 0) {
   <div class="pdoc-grid">
-    @for (doc of documentosFiltrados; track doc.id) {
-    <div class="pdoc-card" [class]="tipoIcon(doc.tipo)">
-      <div class="pdoc-card-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round"
-                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-        </svg>
+    @for (doc of filtrados; track doc.id) {
+    <div class="pc-glass pdoc-card" [class]="'pc-glass pdoc-card ' + tipoClase(doc.tipo)">
+      <div class="pdoc-card-top">
+        <span class="pdoc-card-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M14 3v4a1 1 0 0 0 1 1h4M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/>
+          </svg>
+        </span>
+        <span class="pdoc-tipo-pill">{{ tipoLabel(doc.tipo) }}</span>
       </div>
       <div class="pdoc-card-body">
-        <span class="pdoc-tipo-badge">{{ tipoLabel(doc.tipo) }}</span>
-        <h3 class="pdoc-card-titulo">{{ doc.titulo || 'Documento sin título' }}</h3>
-        <p class="pdoc-card-servicio">{{ doc.proyecto }}</p>
-        @if (doc.servicio) {
-        <p class="pdoc-card-meta">{{ doc.servicio }}</p>
-        }
-        @if (doc.fecha) {
-        <p class="pdoc-card-fecha">{{ doc.fecha | date:'dd/MM/yyyy' }}</p>
-        }
+        <div class="pdoc-card-titulo">{{ doc.titulo || 'Documento sin título' }}</div>
+        <div class="pdoc-card-meta">
+          {{ doc.proyecto }}@if (doc.servicio) { · {{ doc.servicio }}}@if (doc.fecha) { · {{ doc.fecha | date:'dd/MM/yyyy' }}}
+        </div>
       </div>
       <div class="pdoc-card-actions">
         @if (doc.url) {
-        <a [href]="doc.url" target="_blank" rel="noopener" class="pdoc-btn-ver">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/><path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/></svg>
-          Ver
-        </a>
-        <button class="pdoc-btn-dl" (click)="descargar(doc.url, doc.titulo ?? 'documento')">
-          <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-          Descargar
-        </button>
-        }
-        @if (!doc.url) {
-        <span class="pdoc-no-link">En procesamiento</span>
+        <a [href]="doc.url" target="_blank" rel="noopener" class="pdoc-btn-ver">Ver</a>
+        <button class="pdoc-btn-dl" (click)="descargar(doc.url, doc.titulo ?? 'documento')">Descargar</button>
+        } @else {
+        <span class="pdoc-no-link">En procesamiento…</span>
         }
       </div>
     </div>
     }
   </div>
+  } @else {
+  <div class="pc-glass">
+    <pc-empty-state title="Sin documentos" subtitle="No hay documentos que coincidan con tu búsqueda o filtro. Los informes y certificados aparecerán aquí en cuanto se generen.">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+        <path d="M14 3v4a1 1 0 0 0 1 1h4M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/>
+      </svg>
+    </pc-empty-state>
+  </div>
+  }
 
   }
 </div>

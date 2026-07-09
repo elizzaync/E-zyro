@@ -1,302 +1,184 @@
-.pdet-page { max-width: 1100px; margin: 0 auto; padding: 2rem 1.5rem; }
+/* Detalle de Proyecto — Rediseño 2026-07. Cards .pc-glass globales, badges y
+   progreso compartidos, cronograma en <app-modal> (reemplaza al drawer).
+   Todo por tokens: se adapta solo a claro/oscuro. */
+
+.pdet-page {
+  width: 100%; box-sizing: border-box;
+  max-width: 1440px; margin: 0 auto;
+  padding: clamp(20px, 3vw, 36px) clamp(16px, 3vw, 32px) 72px;
+}
 
 .pdet-loading { display: flex; align-items: center; gap: 1rem; padding: 3rem; justify-content: center; color: var(--text-muted); }
-.spinner-ring { width: 28px; height: 28px; border: 3px solid var(--border-color,#e5e7eb); border-top-color: var(--brand-green,#8dc63f); border-radius: 50%; animation: spin .7s linear infinite; }
+.spinner-ring { width: 28px; height: 28px; border: 3px solid var(--border-color); border-top-color: var(--brand-green); border-radius: 50%; animation: spin .7s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-.pdet-error { background: #fef2f2; border: 1px solid #fca5a5; border-radius: var(--radius-md,10px); color: #dc2626; padding: 1rem; }
+.pdet-error {
+  background: var(--st-err-bg); border: 1px solid var(--st-err);
+  border-radius: var(--radius-md, 10px); color: var(--st-err);
+  padding: 1rem; margin-bottom: 1.5rem;
+}
 
-.pdet-back { display: inline-block; color: var(--brand-green,#8dc63f); font-size: 14px; font-weight: 500; text-decoration: none; margin-bottom: 1.25rem; }
-.pdet-back:hover { text-decoration: underline; }
+.pdet-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 600; color: var(--brand-green);
+  text-decoration: none; margin-bottom: 16px;
+}
+.pdet-back:hover { color: var(--brand-green-hover); }
 
-.pdet-hero { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
-.pdet-title { margin: 0; font-size: 22px; font-weight: 700; color: var(--text-main); }
-.pdet-meta  { display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 6px; font-size: 13px; color: var(--text-muted); }
-
-/* Card base */
-.pdet-card { background: var(--card-bg,#fff); border-radius: var(--radius-lg,16px); box-shadow: var(--shadow-panel); padding: 1.5rem; margin-bottom: 1.25rem; }
-.pdet-section-title { display: flex; align-items: center; gap: 0.4rem; margin: 0 0 1.25rem 0; font-size: 16px; font-weight: 700; color: var(--text-main); }
-.pdet-section-title svg { width: 18px; height: 18px; color: var(--brand-green,#8dc63f); }
+/* Hero */
+.pdet-hero {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  justify-content: space-between; gap: 16px; margin-bottom: 18px;
+}
+.pdet-title {
+  margin: 0 0 6px; font-size: clamp(22px, 3vw, 28px);
+  font-weight: 800; letter-spacing: -.5px; color: var(--text-main);
+}
+.pdet-meta { display: flex; flex-wrap: wrap; gap: 14px; font-size: 13px; color: var(--text-muted); }
+.pdet-meta-item { display: inline-flex; align-items: center; gap: 5px; }
 
 /* Avance */
-.pdet-avance-card { border-left: 4px solid var(--brand-green,#8dc63f); }
-.pdet-avance-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-.pdet-avance-pct { font-size: 36px; font-weight: 800; color: var(--brand-green,#8dc63f); line-height: 1; }
-.pdet-progress-track { height: 10px; background: var(--border-color,#e5e7eb); border-radius: 99px; overflow: hidden; margin-bottom: 0.5rem; }
-.pdet-progress-bar   { height: 100%; background: var(--brand-green,#8dc63f); border-radius: 99px; transition: width .6s ease; min-width: 4px; }
-.pdet-bar-done       { background: #10b981; }
-.pdet-avance-sub { margin: 0; font-size: 13px; color: var(--text-muted); }
+.pdet-avance { border-left: 4px solid var(--brand-green); margin-bottom: 18px; }
+.pdet-avance-label { font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.pdet-avance-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.pdet-avance-pct { font-size: 40px; font-weight: 800; letter-spacing: -1px; color: var(--st-ok); }
+.pdet-avance-bar { flex: 1; min-width: 200px; }
+.pdet-avance-sub { font-size: 13px; color: var(--text-muted); }
 
-/* Two-col grid */
-.pdet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
-@media (max-width: 700px) { .pdet-grid { grid-template-columns: 1fr; } }
+/* Bloques */
+.pdet-block { margin-bottom: 18px; }
+.pdet-block-title { margin: 0 0 4px; font-size: 17px; font-weight: 700; color: var(--text-main); }
+.pdet-block-sub { margin: 0 0 16px; font-size: 13px; color: var(--text-muted); }
+.pdet-empty-sm { margin: 0; font-size: 13px; color: var(--text-muted); font-style: italic; }
 
-/* Services */
-.pdet-service-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.pdet-service-item { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0.75rem; border-radius: var(--radius-sm,6px); background: var(--bg-color,#f3f4f6); }
-.pdet-service-info { display: flex; flex-direction: column; flex: 1; }
-.pdet-service-name { font-size: 13px; font-weight: 500; color: var(--text-main); }
-.pdet-service-date { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
-.pdet-check { width: 18px; height: 18px; color: #10b981; flex-shrink: 0; }
-
-/* Personal */
-.pdet-personal-list { display: flex; flex-direction: column; gap: 0.75rem; }
-.pdet-personal-item { display: flex; align-items: center; gap: 0.875rem; }
-.pdet-avatar {
-  width: 38px; height: 38px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--brand-green,#8dc63f) 0%, #7ab530 100%);
-  color: #fff; font-size: 13px; font-weight: 700;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.pdet-personal-nombre { margin: 0; font-size: 14px; font-weight: 600; color: var(--text-main); }
-.pdet-personal-cargo  { margin: 2px 0 0; font-size: 12px; color: var(--text-muted); }
-.pdet-empty-sm { color: var(--text-muted); font-size: 14px; margin: 0; }
-
-/* Equipos */
-.pdet-equipos-card {}
-.pdet-equipo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px,1fr)); gap: 0.875rem; }
-.pdet-equipo-item { padding: 0.875rem; border: 1px solid var(--border-color,#e5e7eb); border-radius: var(--radius-md,10px); }
-.pdet-equipo-nombre { margin: 6px 0 0; font-size: 14px; font-weight: 600; color: var(--text-main); }
-.pdet-equipo-code   { margin: 3px 0 0; font-size: 11px; color: var(--text-muted); }
-.pdet-equipo-model  { margin: 2px 0 0; font-size: 11px; color: var(--text-muted); }
-
-/* ── Servicios con avance + equipo (distribución por servicio) ── */
-.pdet-svc-total {
-  min-width: 20px; height: 20px; padding: 0 6px; margin-left: 2px;
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 99px; background: var(--brand-green,#8dc63f); color: #fff;
-  font-size: 11px; font-weight: 700;
-}
+/* Cards de servicio */
 .pdet-svc-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1rem;
+  gap: 14px;
 }
 @media (max-width: 700px) { .pdet-svc-grid { grid-template-columns: 1fr; } }
 
 .pdet-svc-card {
-  border: 1px solid var(--border-color,#e5e7eb);
-  border-radius: var(--radius-md,10px);
-  padding: 1rem 1.125rem;
-  background: var(--bg-color,#f9fafb);
-  display: flex; flex-direction: column; gap: 0.875rem;
-  transition: box-shadow .2s ease, transform .2s ease;
+  background: var(--card-glass); border: 1px solid var(--card-glass-border);
+  border-radius: 12px; padding: 15px; cursor: pointer;
+  display: flex; flex-direction: column; gap: 11px;
+  transition: border-color .2s var(--anim-easing, ease), transform .2s var(--anim-easing, ease);
 }
-.pdet-svc-card:hover { box-shadow: var(--shadow-panel); transform: translateY(-2px); }
-.pdet-svc-card--done { border-left: 3px solid #10b981; }
+.pdet-svc-card:hover { border-color: var(--brand-green); transform: translateY(-2px); }
 
-.pdet-svc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
-.pdet-svc-titles { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.pdet-svc-name { font-size: 14px; font-weight: 700; color: var(--text-main); line-height: 1.3; }
-.pdet-svc-date {
-  display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11.5px; color: var(--text-muted);
-}
-.pdet-svc-date svg { width: 12px; height: 12px; }
+.pdet-svc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.pdet-svc-nombre { font-size: 14px; font-weight: 700; line-height: 1.3; color: var(--text-main); }
+.pdet-svc-fecha  { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
 
-.pdet-svc-prog-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
-.pdet-svc-prog-label {
-  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
-  color: var(--text-muted);
+.pdet-svc-team {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px; border-radius: 9px; background: var(--hover-bg);
+  cursor: pointer; transition: background .15s;
 }
-.pdet-svc-prog-pct { font-size: 14px; font-weight: 800; }
-.pdet-svc-prog-pct.pg-gris  { color: var(--text-muted,#6b7280); }
-.pdet-svc-prog-pct.pg-ambar { color: #d97706; }
-.pdet-svc-prog-pct.pg-azul  { color: #2563eb; }
-.pdet-svc-prog-pct.pg-verde { color: #059669; }
-.pdet-svc-track { height: 7px; border-radius: 99px; overflow: hidden; background: var(--border-color,#e5e7eb); }
-.pdet-svc-fill  { height: 100%; border-radius: 99px; transition: width .5s ease; }
-.pdet-svc-fill.pg-gris  { background: #9ca3af; }
-.pdet-svc-fill.pg-ambar { background: linear-gradient(90deg,#fbbf24,#f59e0b); }
-.pdet-svc-fill.pg-azul  { background: linear-gradient(90deg,#60a5fa,#3b82f6); }
-.pdet-svc-fill.pg-verde { background: linear-gradient(90deg,#34d399,#10b981); }
+.pdet-svc-team:hover { background: var(--border-color); }
+.pdet-svc-team-n {
+  width: 28px; height: 28px; border-radius: 50%; flex: none;
+  background: rgba(141,198,63,.18); color: var(--brand-green);
+  display: grid; place-items: center; font-size: 11px; font-weight: 800;
+}
+.pdet-svc-team-label { font-size: 12px; font-weight: 600; color: var(--text-main); }
+.pdet-svc-team--empty {
+  font-size: 12px; font-style: italic; color: var(--text-muted);
+  cursor: default; justify-content: center;
+}
+.pdet-svc-team--empty:hover { background: var(--hover-bg); }
 
-.pdet-svc-equipo-label {
-  display: block; margin-bottom: 7px;
-  font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px;
-  color: var(--text-muted);
+/* Equipos e instalaciones */
+.pdet-eq-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 12px;
 }
-.pdet-svc-equipo-vacio { font-size: 12.5px; font-style: italic; color: var(--text-muted); }
+.pdet-eq-item {
+  background: var(--card-glass); border: 1px solid var(--card-glass-border);
+  border-radius: 12px; padding: 13px;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+}
+.pdet-eq-nombre { font-size: 13px; font-weight: 700; line-height: 1.3; color: var(--text-main); }
+.pdet-eq-sub { font-size: 11px; color: var(--text-muted); }
 
-/* Resumen clickeable del equipo: "N técnicos asignados" (abre el modal) */
-.pdet-svc-equipo-btn {
-  display: flex; align-items: center; gap: 9px; width: 100%;
-  padding: 9px 12px; border-radius: var(--radius-sm,8px);
-  border: 1px solid var(--border-color,#e5e7eb);
-  background: var(--card-bg,#fff);
-  cursor: pointer; text-align: left;
-  transition: border-color .15s ease, box-shadow .15s ease;
+/* ── Modal servicio: cronograma + pasos ── */
+.pdet-modal-body { padding: 18px 20px 20px; }
+.pdet-mod-label { font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+.pdet-mod-section {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: .4px; color: var(--brand-green);
+  margin: 18px 0 12px;
 }
-.pdet-svc-equipo-btn:hover {
-  border-color: var(--brand-green,#8dc63f);
-  box-shadow: 0 2px 8px rgba(141, 198, 63, .18);
+.pdet-mod-count {
+  font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+  background: var(--hover-bg); color: var(--text-muted); text-transform: none;
 }
-.pdet-svc-equipo-icon { width: 17px; height: 17px; color: var(--brand-green,#8dc63f); flex-shrink: 0; }
-.pdet-svc-equipo-resumen { flex: 1; font-size: 13px; font-weight: 700; color: var(--text-main); }
-.pdet-svc-equipo-chevron { width: 15px; height: 15px; color: var(--text-muted); flex-shrink: 0; }
-.rol-lider        { color: #d97706; font-weight: 700; }
-.rol-tecnico-lider { color: #2563eb; font-weight: 600; }
 
-/* ── Drawer lateral: detalle del servicio + cronograma (solo lectura) ── */
-.pdet-svc-card--clickable { cursor: pointer; }
+.pdet-timeline { position: relative; padding-left: 26px; }
+.pdet-timeline::before {
+  content: ''; position: absolute; left: 7px; top: 4px; bottom: 4px;
+  width: 2px; background: var(--border-color);
+}
+.pdet-tl-item { position: relative; padding-bottom: 16px; }
+.pdet-tl-item:last-child { padding-bottom: 0; }
+.pdet-tl-dot {
+  position: absolute; left: -26px; top: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: var(--st-neutral);
+  border: 3px solid var(--card-bg); box-shadow: 0 0 0 1px var(--st-neutral);
+}
+.pdet-tl-item.act-done .pdet-tl-dot { background: var(--st-ok);   box-shadow: 0 0 0 1px var(--st-ok); }
+.pdet-tl-item.act-prog .pdet-tl-dot { background: var(--st-prog); box-shadow: 0 0 0 1px var(--st-prog); }
+.pdet-tl-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pdet-tl-titulo { font-size: 13px; font-weight: 700; color: var(--text-main); }
+.pdet-tl-fecha  { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+.pdet-tl-detalle { font-size: 12px; color: var(--text-muted); margin-top: 3px; line-height: 1.45; }
 
-.pdet-dw-overlay {
-  position: fixed; inset: 0; z-index: 990;
-  background: rgba(15, 23, 42, .45);
-  display: flex; justify-content: flex-end;
-  animation: pdetFade .18s ease;
+.pdet-pasos { display: flex; flex-direction: column; gap: 8px; }
+.pdet-paso { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-muted); }
+.pdet-paso.done { color: var(--text-main); }
+.pdet-paso-ic {
+  width: 22px; height: 22px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  background: var(--hover-bg); color: var(--text-muted);
 }
-.pdet-dw {
-  width: 100%; max-width: 480px; height: 100%;
-  background: var(--card-bg,#fff);
-  box-shadow: -12px 0 40px rgba(0,0,0,.18);
-  display: flex; flex-direction: column;
-  animation: pdetSlide .25s ease;
-}
-@keyframes pdetSlide { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+.pdet-paso.done .pdet-paso-ic { background: var(--brand-green); color: #fff; }
 
-.pdet-dw-head {
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;
-  padding: 1.375rem 1.5rem 1.125rem;
-  border-bottom: 1px solid var(--border-color,#e5e7eb);
+.pdet-mod-team-btn {
+  width: 100%; margin-top: 18px; padding: 11px; border-radius: 10px;
+  border: 1px solid var(--border-color); background: var(--hover-bg);
+  color: var(--text-main); font-size: 14px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  transition: border-color .2s;
 }
-.pdet-dw-head-info { min-width: 0; }
-.pdet-dw-title { margin: 8px 0 0; font-size: 18px; font-weight: 800; color: var(--text-main); line-height: 1.3; }
-.pdet-dw-desc  { margin: 5px 0 0; font-size: 13px; color: var(--text-muted); line-height: 1.45; }
-.pdet-dw-fechas {
-  display: flex; gap: 1rem; flex-wrap: wrap; margin-top: 8px;
-  font-size: 12px; color: var(--text-muted);
-}
-.pdet-dw-fechas strong { color: var(--text-main); font-weight: 600; }
+.pdet-mod-team-btn:hover { border-color: var(--brand-green); }
 
-.pdet-dw-body { padding: 1.25rem 1.5rem 2rem; overflow-y: auto; display: flex; flex-direction: column; gap: 1.5rem; }
-.pdet-dw-section-title {
-  display: flex; align-items: center; gap: 6px; margin-bottom: 10px;
-  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px;
-  color: var(--text-muted);
+/* ── Modal equipo del servicio ── */
+.pdet-team-list { display: flex; flex-direction: column; gap: 14px; }
+.pdet-miembro {
+  display: flex; gap: 14px; padding: 12px; border-radius: 12px;
+  background: var(--card-glass); border: 1px solid var(--card-glass-border);
 }
-.pdet-dw-vacio { margin: 0; font-size: 13px; font-style: italic; color: var(--text-muted); }
-
-/* Timeline del cronograma */
-.pdet-dw-timeline { display: flex; flex-direction: column; }
-.pdet-dw-act {
-  position: relative;
-  display: flex; align-items: flex-start; gap: 12px;
-  padding: 10px 0;
-}
-.pdet-dw-act:not(:last-child)::before {
-  content: ''; position: absolute; left: 10px; top: 34px; bottom: -4px;
-  width: 2px; background: var(--border-color,#e5e7eb);
-}
-.pdet-dw-act-marker {
-  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0; margin-top: 1px;
-  display: flex; align-items: center; justify-content: center;
-  border: 2px solid var(--border-color,#cbd5e1); background: var(--card-bg,#fff);
-  z-index: 1;
-}
-.pdet-dw-act-marker svg { width: 12px; height: 12px; color: #fff; }
-.pdet-dw-act-marker.act-done { background: #10b981; border-color: #10b981; }
-.pdet-dw-act-marker.act-prog { border-color: #3b82f6; box-shadow: inset 0 0 0 3px rgba(59,130,246,.25); }
-.pdet-dw-act-body { flex: 1; min-width: 0; }
-.pdet-dw-act-nombre { display: block; font-size: 13.5px; font-weight: 700; color: var(--text-main); line-height: 1.35; }
-.pdet-dw-act-meta { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
-.pdet-dw-act-resp, .pdet-dw-act-fechas {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; color: var(--text-muted);
-}
-.pdet-dw-act-resp svg, .pdet-dw-act-fechas svg { width: 12px; height: 12px; flex-shrink: 0; }
-.pdet-dw-act-estado {
-  flex-shrink: 0; padding: 2px 9px; border-radius: 99px;
-  font-size: 10px; font-weight: 700; text-transform: uppercase; white-space: nowrap;
-  background: #f1f5f9; color: #64748b;
-}
-.pdet-dw-act-estado.act-done { background: #d1fae5; color: #065f46; }
-.pdet-dw-act-estado.act-prog { background: #dbeafe; color: #1d4ed8; }
-
-/* Pasos del servicio */
-.pdet-dw-pasos-count {
-  padding: 1px 8px; border-radius: 99px;
-  background: var(--brand-green,#8dc63f); color: #fff;
-  font-size: 10.5px; font-weight: 800;
-}
-.pdet-dw-pasos { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
-.pdet-dw-paso {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 13px; color: var(--text-main);
-}
-.pdet-dw-paso-check {
-  width: 18px; height: 18px; border-radius: 5px; flex-shrink: 0;
-  border: 1.5px solid var(--border-color,#cbd5e1);
-  display: flex; align-items: center; justify-content: center;
-}
-.pdet-dw-paso-check svg { width: 11px; height: 11px; color: #fff; }
-.pdet-dw-paso--done .pdet-dw-paso-check { background: #10b981; border-color: #10b981; }
-.pdet-dw-paso--done { color: var(--text-muted); text-decoration: line-through; }
-
-.pdet-dw-nota { margin: 0; font-size: 11.5px; color: var(--text-muted); font-style: italic; text-align: center; }
-
-@media (max-width: 540px) { .pdet-dw { max-width: 100%; } }
-
-/* Botón de cerrar redondo, reutilizado por el drawer lateral (pdet-dw-head) */
-.pdet-eq-close {
-  width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
-  border: none; background: var(--bg-color,#f3f4f6); color: var(--text-muted);
-  display: flex; align-items: center; justify-content: center; cursor: pointer;
-  transition: background .15s ease, color .15s ease;
-}
-.pdet-eq-close:hover { background: #fee2e2; color: #dc2626; }
-.pdet-eq-close svg { width: 16px; height: 16px; }
-
-/* ── Modal: equipo del servicio ── */
-.pdet-eq-body {
-  padding: 1.125rem 1.5rem 1.5rem;
-  display: flex; flex-direction: column; gap: 0.875rem;
-  overflow-y: auto;
-}
-.pdet-eq-miembro {
-  display: flex; align-items: flex-start; gap: 1.125rem;
-  padding: 1.125rem 1.25rem;
-  border: 1px solid var(--border-color,#e5e7eb);
-  border-radius: var(--radius-md,12px);
-  background: var(--bg-color,#f9fafb);
-}
-.pdet-eq-miembro--lider { border-color: #f59e0b; background: rgba(245, 158, 11, .06); }
-.pdet-eq-foto {
-  width: 76px; height: 76px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 24px; font-weight: 700;
-  overflow: hidden;
+.pdet-miembro--lider { border-color: var(--st-warn); background: var(--st-warn-bg); }
+.pdet-miembro-foto {
+  width: 56px; height: 56px; border-radius: 50%; object-fit: cover; flex: none;
   box-shadow: 0 3px 10px rgba(0,0,0,.15);
 }
-.pdet-eq-foto img { width: 100%; height: 100%; object-fit: cover; }
-.pdet-eq-datos { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
-.pdet-eq-linea-top { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-.pdet-eq-nombre { font-size: 16.5px; font-weight: 800; color: var(--text-main); }
-.pdet-eq-rol-badge {
-  font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 99px;
-  background: var(--border-color,#e5e7eb); color: var(--text-muted);
+.pdet-miembro-ini {
+  display: grid; place-items: center; color: #fff;
+  font-weight: 800; font-size: 18px;
+}
+.pdet-miembro-info { flex: 1; min-width: 0; }
+.pdet-miembro-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pdet-miembro-nombre { font-size: 15px; font-weight: 700; color: var(--text-main); }
+.pdet-rol {
+  font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
   white-space: nowrap;
 }
-.pdet-eq-rol-badge.rol-lider        { background: #fef3c7; color: #92400e; }
-.pdet-eq-rol-badge.rol-tecnico-lider { background: #dbeafe; color: #1d4ed8; }
-.pdet-eq-cargo  { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: capitalize; }
-.pdet-eq-contacto {
-  display: flex; flex-direction: column; gap: 5px;
-  margin-top: 8px; padding-top: 8px;
-  border-top: 1px dashed var(--border-color,#e5e7eb);
-}
-.pdet-eq-dato {
-  display: inline-flex; align-items: center; gap: 7px;
-  font-size: 13px; color: var(--text-main);
-  text-decoration: none; min-width: 0;
-}
-.pdet-eq-dato svg { width: 14px; height: 14px; color: var(--brand-green,#8dc63f); flex-shrink: 0; }
-.pdet-eq-dato--link:hover { color: var(--brand-green,#8dc63f); text-decoration: underline; }
-.pdet-eq-dato--vacio { color: var(--text-muted); font-style: italic; }
-.pdet-eq-dato--vacio svg { color: var(--text-muted); }
-
-/* Badges */
-.pdet-badge { display: inline-block; padding: 3px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
-.pdet-badge-sm { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
-.badge-pend { background: #fef3c7; color: #92400e; }
-.badge-prog { background: #dbeafe; color: #1d4ed8; }
-.badge-ok   { background: #d1fae5; color: #065f46; }
-.badge-err  { background: #fee2e2; color: #991b1b; }
+.rol-lider  { background: var(--st-warn-bg); color: var(--st-warn); }
+.rol-tec    { background: var(--st-prog-bg); color: var(--st-prog); }
+.rol-normal { background: var(--hover-bg); color: var(--text-muted); }
+.pdet-miembro-cargo { font-size: 12px; color: var(--text-muted); margin: 2px 0 6px; }
+.pdet-miembro-contacto { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; }
+.pdet-contact { display: inline-flex; align-items: center; gap: 5px; color: var(--brand-green); text-decoration: none; }
+.pdet-contact:hover { text-decoration: underline; }
+.pdet-contact--none { color: var(--text-muted); font-style: italic; }

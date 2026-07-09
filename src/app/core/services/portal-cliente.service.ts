@@ -39,4 +39,14 @@ export class PortalClienteService {
   getPortalPerfil(): Observable<any> {
     return this.http.get(`${this.base}/perfil`);
   }
+
+  // ── Soporte técnico (tickets — reusa ticket_soporte de Gestión TIC) ──
+
+  getTickets(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.base}/tickets`);
+  }
+
+  crearTicket(body: { titulo: string; descripcion: string; categoria: string; prioridad: string }): Observable<any> {
+    return this.http.post(`${this.base}/tickets`, body);
+  }
 }

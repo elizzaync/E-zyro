@@ -302,6 +302,12 @@ export const routes: Routes = [
     canActivate: [clientPortalGuard],
   },
   {
+    path: 'portal-cliente/soporte',
+    loadComponent: () => import('./features/portal-cliente/soporte/portal-soporte.component').then(m => m.PortalSoporteComponent),
+    title: 'Soporte Técnico | Portal Cliente',
+    canActivate: [clientPortalGuard],
+  },
+  {
     path: 'soporte/tickets',
     component: TicketsSoporteComponent,
     title: 'Tickets TI | e-zyro TIC',

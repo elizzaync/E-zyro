@@ -1,0 +1,94 @@
+<div class="psop-page">
+
+  <div class="psop-header">
+    <h1 class="psop-title">Soporte técnico</h1>
+    <p class="psop-subtitle">¿Algo no funciona o necesitas ayuda? Envíanos un ticket y el equipo de soporte te responderá.</p>
+  </div>
+
+  <div class="psop-grid">
+
+    <!-- ── Formulario nuevo ticket ── -->
+    <div class="pc-glass psop-form">
+      <h3 class="psop-block-title">Nuevo ticket</h3>
+
+      <label class="psop-label">Asunto</label>
+      <input class="psop-input" type="text" maxlength="200" placeholder="Resumen breve del problema…"
+        [(ngModel)]="titulo" />
+
+      <div class="psop-row">
+        <div class="psop-col">
+          <label class="psop-label">Categoría</label>
+          <select class="psop-input" [(ngModel)]="categoria">
+            @for (c of categorias; track c.key) {
+            <option [value]="c.key">{{ c.label }}</option>
+            }
+          </select>
+        </div>
+        <div class="psop-col">
+          <label class="psop-label">Prioridad</label>
+          <select class="psop-input" [(ngModel)]="prioridad">
+            @for (p of prioridades; track p.key) {
+            <option [value]="p.key">{{ p.label }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <label class="psop-label">Descripción del problema</label>
+      <textarea class="psop-input psop-textarea" rows="6"
+        placeholder="Cuéntanos qué pasó, en qué pantalla, y qué esperabas que sucediera…"
+        [(ngModel)]="descripcion"></textarea>
+
+      <button class="psop-submit" [disabled]="!puedeEnviar" (click)="enviar()">
+        @if (enviando) { Enviando… } @else {
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path stroke-linecap="round" stroke-linejoin="round" d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        Enviar ticket
+        }
+      </button>
+    </div>
+
+    <!-- ── Mis tickets ── -->
+    <div class="pc-glass psop-list">
+      <h3 class="psop-block-title">Mis tickets</h3>
+
+      @if (cargando) {
+      <div class="psop-loading"><div class="spinner-ring"></div><span>Cargando…</span></div>
+      }
+      @if (!cargando && error) {
+      <div class="psop-error">{{ error }}</div>
+      }
+
+      @if (!cargando && !error) {
+        @if (tickets.length === 0) {
+        <pc-empty-state title="Aún no tienes tickets" subtitle="Cuando envíes un ticket de soporte aparecerá aquí con su estado y la respuesta del equipo.">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M18.4 5.6a9 9 0 0 1 0 12.8M15 9a4 4 0 0 1 0 6M5.6 18.4a9 9 0 0 1 0-12.8M9 15a4 4 0 0 1 0-6"/>
+          </svg>
+        </pc-empty-state>
+        } @else {
+        <div class="psop-tickets">
+          @for (t of tickets; track t.id) {
+          <div class="psop-ticket">
+            <div class="psop-ticket-head">
+              <span class="psop-ticket-codigo">{{ t.codigo }}</span>
+              <pc-status-badge [status]="estadoSt(t.estado)" [label]="estadoLabel(t.estado)"></pc-status-badge>
+            </div>
+            <div class="psop-ticket-titulo">{{ t.titulo }}</div>
+            <div class="psop-ticket-meta">
+              {{ categoriaLabel(t.categoria) }} · {{ t.creado_en | date:'dd/MM/yyyy HH:mm' }}
+            </div>
+            @if (t.respuesta_ti) {
+            <div class="psop-ticket-resp">
+              <div class="psop-ticket-resp-label">Respuesta de soporte</div>
+              {{ t.respuesta_ti }}
+            </div>
+            }
+          </div>
+          }
+        </div>
+        }
+      }
+    </div>
+
+  </div>
+</div>

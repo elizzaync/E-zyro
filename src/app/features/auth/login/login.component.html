@@ -85,6 +85,14 @@
 
             <div class="forgot-row">
                 <a routerLink="/reset-password" class="forgot-link">¿Olvidaste tu contraseña?</a>
+                <button type="button" class="support-link" (click)="abrirSoporte()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M18.364 5.636a9 9 0 010 12.728m-3.536-3.536a4 4 0 000-5.656m-9.192 9.192a9 9 0 010-12.728m3.536 3.536a4 4 0 000 5.656"/>
+                        <circle cx="12" cy="12" r="1"/>
+                    </svg>
+                    Soporte técnico
+                </button>
             </div>
         </form>
     </div>
@@ -94,6 +102,59 @@
         <div class="loading-container">
             <app-spinner [size]="50" [thickness]="4" theme="primary" variant="loader"></app-spinner>
             <p class="loading-text">Preparando tu entorno de trabajo...</p>
+        </div>
+    </div>
+    }
+
+    <!-- ── Modal Soporte técnico (pre-login) ── -->
+    @if (showSupportModal()) {
+    <div class="support-backdrop" (click)="cerrarSoporte()"></div>
+    <div class="support-modal fade-in">
+        <div class="support-head">
+            <span class="support-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M18.364 5.636a9 9 0 010 12.728m-3.536-3.536a4 4 0 000-5.656m-9.192 9.192a9 9 0 010-12.728m3.536 3.536a4 4 0 000 5.656"/>
+                    <circle cx="12" cy="12" r="1"/>
+                </svg>
+            </span>
+            <div class="support-texts">
+                <p class="support-title">Soporte técnico</p>
+                <p class="support-sub">¿Problemas para iniciar sesión? Cuéntanos y te contactamos.</p>
+            </div>
+            <button type="button" class="support-close" (click)="cerrarSoporte()">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            </button>
+        </div>
+
+        <div class="support-body">
+            @if (supportDone()) {
+            <div class="support-ok">
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                <p class="support-ok-title">¡Solicitud enviada!</p>
+                <p class="support-ok-sub">El equipo de soporte te contactará al correo indicado.</p>
+                <button type="button" class="support-submit" (click)="cerrarSoporte()">Entendido</button>
+            </div>
+            } @else {
+            @if (supportError()) {
+            <div class="support-error">{{ supportError() }}</div>
+            }
+            <label class="support-label">Nombre</label>
+            <input class="support-input" type="text" maxlength="120" placeholder="Tu nombre"
+                [(ngModel)]="supportNombre" [ngModelOptions]="{ standalone: true }" />
+            <label class="support-label">Correo registrado</label>
+            <input class="support-input" type="email" maxlength="150" placeholder="tu.correo@empresa.com"
+                [(ngModel)]="supportEmail" [ngModelOptions]="{ standalone: true }" />
+            <label class="support-label">¿Qué problema tienes?</label>
+            <textarea class="support-input support-textarea" rows="4"
+                placeholder="Ej: no recibo el código de recuperación, mi cuenta aparece desactivada…"
+                [(ngModel)]="supportDesc" [ngModelOptions]="{ standalone: true }"></textarea>
+            <button type="button" class="support-submit" [disabled]="!puedeEnviarSoporte" (click)="enviarSoporte()">
+                @if (supportSending()) { Enviando… } @else { Enviar solicitud }
+            </button>
+            }
         </div>
     </div>
     }
