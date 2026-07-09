@@ -128,7 +128,7 @@ export class AuthService {
       const payload = JSON.parse(atob(token.split('.')[1]));
       // Rechaza tokens expirados (exp está en segundos UNIX)
       if (payload?.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-        this.logout();
+        this.forceLogout();
         return false;
       }
       return true;
@@ -303,8 +303,11 @@ export class AuthService {
     }
   }
 
-  /** Logout forzado (sin llamar al backend): el servidor ya cerró la sesión. */
-  private forceLogout(): void {
+  /** Logout forzado (sin llamar al backend): usar cuando el backend o el propio
+   * token ya confirmaron que la sesión está muerta (401 de un endpoint protegido,
+   * expiración local del JWT, expulsión por WebSocket) — llamar de nuevo a
+   * /auth/logout en esos casos solo produciría otro 401 redundante. */
+  forceLogout(): void {
     this.clearSessionTimers();
     this.disconnectSessionSocket();
     this.showSessionWarningSubject.next(false);
@@ -362,7 +365,8 @@ export class AuthService {
   extenderSesion(): void {
     this.refreshToken().pipe(
       catchError(() => {
-        this.logout();
+        // El refresh ya fue al backend y falló → no repetir con /auth/logout.
+        this.forceLogout();
         return of(null);
       })
     ).subscribe((res: any) => {
@@ -393,7 +397,7 @@ export class AuthService {
     const ttlMs = (exp - now) * 1000;
 
     if (ttlMs <= 0) {
-      this.logout();
+      this.forceLogout();
       return;
     }
 
@@ -414,7 +418,7 @@ export class AuthService {
     this.sessionTimers.push(setTimeout(() => {
       this.showSessionWarningSubject.next(false);
       document.body.style.overflow = '';
-      this.logout();
+      this.forceLogout();
     }, ttlMs));
   }
 }

@@ -30,9 +30,12 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       if (error.status === 403 && error.error?.detail === 'cuenta_desactivada') {
         authService.triggerCuentaDesactivada();
       } else if (error.status === 401 && !req.url.includes('/auth/')) {
-        // Token rechazado por el backend → cerrar sesión automáticamente
-        // Excluir rutas /auth/ para evitar bucles en login/logout/refresh
-        authService.logout();
+        // Token rechazado por el backend → cerrar sesión automáticamente.
+        // Usamos forceLogout() (sin llamar de nuevo al backend): el 401 que
+        // acabamos de recibir YA es la confirmación de que la sesión está
+        // muerta, así que un POST /auth/logout aquí solo generaría otro 401
+        // redundante. Excluimos rutas /auth/ para evitar bucles en login/logout/refresh.
+        authService.forceLogout();
       }
       return throwError(() => error);
     })
