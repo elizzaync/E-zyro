@@ -1,5 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { DashboardService } from '../../../../core/services/dashboard.service';
 
 @Component({
@@ -9,7 +10,7 @@ import { DashboardService } from '../../../../core/services/dashboard.service';
   templateUrl: './monthly-summary-widget.component.html',
   styleUrls: ['./monthly-summary-widget.component.css']
 })
-export class MonthlySummaryWidgetComponent implements OnInit {
+export class MonthlySummaryWidgetComponent implements OnInit, OnDestroy {
 
   // 🔥 1. Inicializamos con el mes real del navegador para que no diga "Resumen de "
   mesActual = this.obtenerNombreMesActual();
@@ -25,13 +26,19 @@ export class MonthlySummaryWidgetComponent implements OnInit {
   // 🔥 3. Estadísticas en cero para mantener la forma
   stats: any = { tasaExito: '0%', totalServicios: 0, esteMes: 0 };
 
+  private refreshWidgetsSub!: Subscription;
+
   constructor(private dashboardService: DashboardService) {}
 
 ngOnInit(): void {
     // 🔥 Escucha en tiempo real
-    this.dashboardService.refreshWidgets$.subscribe(() => {
+    this.refreshWidgetsSub = this.dashboardService.refreshWidgets$.subscribe(() => {
       this.cargarRendimiento();
     });
+  }
+
+  ngOnDestroy(): void {
+    if (this.refreshWidgetsSub) this.refreshWidgetsSub.unsubscribe();
   }
 
   obtenerNombreMesActual(): string {

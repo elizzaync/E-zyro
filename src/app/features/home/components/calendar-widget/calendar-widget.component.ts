@@ -4,6 +4,7 @@ import { SpinnerComponent } from '../../../../shared/components/spinner/spinner.
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { Subscription } from 'rxjs';
 import { DashboardService } from '../../../../core/services/dashboard.service';
 import { ToastService } from '../../../../core/services/toast.service';
 
@@ -59,16 +60,19 @@ export class CalendarWidgetComponent implements OnInit, OnDestroy {
   cargandoServicio  = false;
   servicioModoNota  = false;
 
+  private refreshWidgetsSub!: Subscription;
+
   constructor(private dashboardService: DashboardService) {}
 
   ngOnInit(): void {
     this.generarCalendario();
-    this.dashboardService.refreshWidgets$.subscribe(() => {
+    this.refreshWidgetsSub = this.dashboardService.refreshWidgets$.subscribe(() => {
       this.cargarDatosCalendario();
     });
   }
 
   ngOnDestroy(): void {
+    if (this.refreshWidgetsSub) this.refreshWidgetsSub.unsubscribe();
     document.body.style.overflow = '';
   }
 

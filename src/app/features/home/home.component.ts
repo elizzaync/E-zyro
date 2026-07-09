@@ -35,6 +35,7 @@ export class HomeComponent implements OnInit, AfterViewInit, OnDestroy {
   climaData: { icono: string; temperatura: number; descripcion: string; ciudad: string } | null = null;
 
   perfilSub!: Subscription;
+  private refreshWidgetsSub!: Subscription;
 
   // 👇 AQUÍ ESTÁ LA VARIABLE QUE SOLUCIONA TU ERROR
   permisosUsuario: string[] = [];
@@ -52,7 +53,7 @@ ngOnInit(): void {
     this.cargarUsuario();
     this.cargarClima();
 
-    this.dashboardService.refreshWidgets$.subscribe(() => {
+    this.refreshWidgetsSub = this.dashboardService.refreshWidgets$.subscribe(() => {
       this.cargarTarjetasDesdeBackend();
     });
 
@@ -65,6 +66,7 @@ ngOnInit(): void {
 
   ngOnDestroy(): void {
     if (this.perfilSub) this.perfilSub.unsubscribe();
+    if (this.refreshWidgetsSub) this.refreshWidgetsSub.unsubscribe();
   }
 
   ngAfterViewInit(): void {
