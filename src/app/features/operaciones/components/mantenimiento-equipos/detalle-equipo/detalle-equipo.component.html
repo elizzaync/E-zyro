@@ -1,0 +1,122 @@
+<div class="de-layout fade-in">
+
+  @if (isLoading) {
+  <div class="loading-state"><app-spinner></app-spinner><span>Cargando equipo...</span></div>
+  } @else if (errorMessage) {
+  <div class="empty-state">
+    <p>{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="volver()">Volver</button>
+  </div>
+  } @else if (equipo) {
+
+  <button class="btn-volver" (click)="volver()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+    Volver al catálogo
+  </button>
+
+  <!-- IDENTIDAD -->
+  <div class="card identidad-card">
+    <div class="identidad-top">
+      <div>
+        <h2 class="eq-nombre">{{ equipo.nombre }}</h2>
+        @if (equipo.codigo) { <span class="eq-codigo">{{ equipo.codigo }}</span> }
+      </div>
+      <span class="estado-badge" [class]="estadoClass(equipo.estado)">{{ estadoLabel(equipo.estado) }}</span>
+    </div>
+    <div class="identidad-chips">
+      @if (equipo.tipo_equipo_nombre) { <span class="chip">{{ equipo.tipo_equipo_nombre }}</span> }
+      @if (equipo.frecuencia_meses) { <span class="chip">Cada {{ equipo.frecuencia_meses }} meses</span> }
+      @if (equipo.marca) { <span class="chip">{{ equipo.marca }}</span> }
+    </div>
+    <p class="eq-ubicacion">{{ ubicacionCompleta() }}</p>
+  </div>
+
+  <div class="grid-2">
+    <!-- GAUGE -->
+    <div class="card gauge-card">
+      <h3 class="card-titulo">Próximo mantenimiento</h3>
+      <div class="gauge-wrap">
+        <svg viewBox="0 0 140 140" class="gauge-svg">
+          <circle cx="70" cy="70" [attr.r]="gaugeRadio" class="gauge-fondo" />
+          <circle cx="70" cy="70" [attr.r]="gaugeRadio" class="gauge-progreso" [class]="'gauge-' + gaugeSemaforo"
+                  [attr.stroke-dasharray]="gaugeCircunferencia" [attr.stroke-dashoffset]="gaugeOffset"
+                  transform="rotate(-90 70 70)" />
+        </svg>
+        <div class="gauge-centro">
+          <span class="gauge-valor">{{ gaugeTexto }}</span>
+          <span class="gauge-fecha">{{ formatFecha(equipo.proximo_mantenimiento) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECORDATORIO -->
+    <div class="card recordatorio-card">
+      <h3 class="card-titulo">Recordatorio</h3>
+      <p class="card-hint">Aviso local en este dispositivo (no se sincroniza con el servidor).</p>
+      <label class="switch-row">
+        <input type="checkbox" [(ngModel)]="recordatorioActivo" (ngModelChange)="guardarRecordatorio()">
+        <span>Activar recordatorio</span>
+      </label>
+      @if (recordatorioActivo) {
+      <div class="select-wrap">
+        <select class="filter-select" [(ngModel)]="recordatorioAnticipacion" (ngModelChange)="guardarRecordatorio()">
+          <option value="1sem">1 semana antes</option>
+          <option value="2sem">2 semanas antes</option>
+          <option value="1mes">1 mes antes</option>
+        </select>
+      </div>
+      }
+    </div>
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="card">
+    <h3 class="card-titulo">Historial de mantenimientos</h3>
+    @if (historial.length === 0) {
+    <p class="card-hint">Sin eventos registrados.</p>
+    } @else {
+    <div class="timeline">
+      @for (ev of historial; track ev.fecha + ev.titulo) {
+      <div class="timeline-item">
+        <span class="timeline-icono" [class]="'ic-' + ev.icono"></span>
+        <div class="timeline-body">
+          <div class="timeline-top">
+            <span class="timeline-titulo">{{ ev.titulo }}</span>
+            <span class="timeline-fecha">{{ formatFecha(ev.fecha) }}</span>
+          </div>
+          @if (ev.descripcion) { <p class="timeline-desc">{{ ev.descripcion }}</p> }
+          @if (ev.realizadoPor) { <span class="timeline-realizado">Por: {{ ev.realizadoPor }}</span> }
+        </div>
+      </div>
+      }
+    </div>
+    }
+  </div>
+
+  <!-- FICHA TÉCNICA -->
+  <div class="card">
+    <h3 class="card-titulo">Ficha técnica</h3>
+    <div class="ficha-grid">
+      <div class="ficha-fila"><span class="ficha-clave">Tipo</span><span class="ficha-valor">{{ equipo.tipo_equipo_nombre || '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Marca</span><span class="ficha-valor">{{ equipo.marca || '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Modelo</span><span class="ficha-valor">{{ equipo.modelo || '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">N° de serie</span><span class="ficha-valor">{{ equipo.numero_serie || '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Fecha instalación</span><span class="ficha-valor">{{ formatFecha(equipo.fecha_instalacion) }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Frecuencia</span><span class="ficha-valor">{{ equipo.frecuencia_meses ? equipo.frecuencia_meses + ' meses' : '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">N° mantenimientos</span><span class="ficha-valor">{{ mantenimientos.length }}</span></div>
+      @for (f of fichaTecnicaDinamica; track f.clave) {
+      <div class="ficha-fila"><span class="ficha-clave">{{ f.clave }}</span><span class="ficha-valor">{{ f.valor }}</span></div>
+      }
+    </div>
+  </div>
+
+  <!-- OBSERVACIONES -->
+  @if (equipo.observaciones) {
+  <div class="card">
+    <h3 class="card-titulo">Observaciones</h3>
+    <p class="card-hint">{{ equipo.observaciones }}</p>
+  </div>
+  }
+
+  }
+</div>

@@ -1,0 +1,81 @@
+<div class="mp-layout fade-in">
+
+  <div class="header-section">
+    <div class="header-left">
+      <button class="btn-volver" (click)="volver()" title="Volver al catálogo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div>
+        <h2 class="page-title">Mapa del Parque de Equipos</h2>
+        <p class="page-subtitle">Semáforo de mantenimiento por departamento</p>
+      </div>
+    </div>
+    <div class="leyenda">
+      <span class="leyenda-item"><span class="dot" style="background:#E53935"></span>Vencido</span>
+      <span class="leyenda-item"><span class="dot" style="background:#F59E0B"></span>Próximo ≤30d</span>
+      <span class="leyenda-item"><span class="dot" style="background:#8FD11B"></span>Al día</span>
+      <span class="leyenda-item"><span class="dot" style="background:#243044"></span>Sin equipos</span>
+    </div>
+  </div>
+
+  @if (isLoading) {
+  <div class="loading-state"><app-spinner></app-spinner><span>Cargando parque de equipos...</span></div>
+  } @else if (errorMessage) {
+  <div class="empty-state">
+    <p>{{ errorMessage }}</p>
+    <button class="btn-retry" (click)="cargar()">Reintentar</button>
+  </div>
+  } @else {
+
+  <div class="mapa-wrap">
+    <div class="mapa-scroll">
+      <svg [attr.viewBox]="'0 0 ' + ancho + ' ' + alto" class="mapa-svg" xmlns="http://www.w3.org/2000/svg">
+        @for (d of departamentosVista; track d.nombre) {
+        <g class="dep-grupo" [class.dep-seleccionado]="seleccionado === d.nombre" (click)="seleccionar(d.nombre)">
+          @for (points of d.anillosPoints; track points) {
+          <polygon [attr.points]="points" [attr.fill]="d.color" [class.dep-pulso]="d.pulso" class="dep-poligono" />
+          }
+          @if (d.total > 0) {
+          <circle [attr.cx]="d.cx" [attr.cy]="d.cy" r="16" class="dep-badge-circulo" />
+          <text [attr.x]="d.cx" [attr.y]="d.cy + 5" class="dep-badge-texto">{{ d.total }}</text>
+          }
+        </g>
+        }
+      </svg>
+    </div>
+
+    @if (sinUbicar.length > 0) {
+    <button class="chip-sin-ubicar" (click)="verSinUbicar()">
+      {{ sinUbicar.length }} equipo{{ sinUbicar.length !== 1 ? 's' : '' }} sin ubicar en el mapa
+    </button>
+    }
+  </div>
+
+  @if (seleccionado) {
+  <div class="panel-overlay" (click)="cerrarPanel()">
+    <div class="panel-dep" (click)="$event.stopPropagation()">
+      <div class="panel-header">
+        <h3>{{ seleccionado === 'SIN_UBICAR' ? 'Equipos sin ubicar' : seleccionado }}</h3>
+        <button class="modal-close" (click)="cerrarPanel()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="panel-body">
+        @if (equiposDelSeleccionado.length === 0) {
+        <p class="panel-vacio">Sin equipos en este departamento.</p>
+        } @else {
+        @for (e of equiposDelSeleccionado; track e.id) {
+        <div class="panel-equipo" (click)="irADetalle(e.id)">
+          <span class="panel-equipo-nombre">{{ e.nombre }}</span>
+          <span class="panel-equipo-ubi">{{ e.ubicacion_nombre }}{{ e.zona_nombre ? ' · ' + e.zona_nombre : '' }}</span>
+          <span class="panel-equipo-semaforo">{{ textoSemaforo(e) }}</span>
+        </div>
+        }
+        }
+      </div>
+    </div>
+  </div>
+  }
+  }
+
+</div>

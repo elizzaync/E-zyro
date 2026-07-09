@@ -15,7 +15,9 @@ import { RequerimientosComponent } from './features/logistica/components/requeri
 import { ComprasComponent } from './features/logistica/components/compras/compras.component';
 import { SalidasComponent } from './features/logistica/components/salidas/salidas.component';
 import { LogisticaServiciosComponent } from './features/logistica/components/servicios/logistica-servicios.component';
-import { LogisticaMantenimientoComponent } from './features/logistica/components/mantenimiento/logistica-mantenimiento.component';
+import { MantenimientoEquiposComponent } from './features/operaciones/components/mantenimiento-equipos/mantenimiento-equipos.component';
+import { MapaParqueComponent } from './features/operaciones/components/mantenimiento-equipos/mapa-parque/mapa-parque.component';
+import { DetalleEquipoComponent } from './features/operaciones/components/mantenimiento-equipos/detalle-equipo/detalle-equipo.component';
 import { OperacionesDetalleComponent } from './features/operaciones/components/operaciones-detalle/operaciones-detalle.component';
 import { OperacionesServiciosListaComponent } from './features/operaciones/components/operaciones-servicios-lista/operaciones-servicios-lista.component';
 import { OperacionesCronogramaComponent } from './features/operaciones/components/operaciones-cronograma/operaciones-cronograma.component';
@@ -203,8 +205,20 @@ export const routes: Routes = [
   },
   {
     path: 'operaciones/mantenimiento',
-    component: LogisticaMantenimientoComponent,
+    component: MantenimientoEquiposComponent,
     title: 'Mantenimiento de Equipos | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'operaciones/mantenimiento/mapa',
+    component: MapaParqueComponent,
+    title: 'Mapa del Parque de Equipos | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
+    path: 'operaciones/mantenimiento/:id',
+    component: DetalleEquipoComponent,
+    title: 'Detalle de Equipo | e-zyro TIC',
     canActivate: [authGuard]
   },
   {

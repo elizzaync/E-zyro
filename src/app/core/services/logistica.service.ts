@@ -518,10 +518,6 @@ export class LogisticaService {
     return this.http.get<any[]>(`${this.api}/logistica/servicios`);
   }
 
-  getMantenimientoGlobal(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.api}/logistica/mantenimiento`);
-  }
-
   // ── Historial de movimientos de un equipo/herramienta ─────────────────
   getMovimientosEquipo(equipoId: string): Observable<any[]> {
     return this.http.get<any[]>(`${this.api}/logistica/equipos/${equipoId}/movimientos`);
