@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
 
@@ -8,9 +8,11 @@ import { PortalClienteService } from '../../../core/services/portal-cliente.serv
   imports: [CommonModule],
   templateUrl: './portal-documentos.component.html',
   styleUrls: ['./portal-documentos.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PortalDocumentosComponent implements OnInit {
   private svc = inject(PortalClienteService);
+  private cdr = inject(ChangeDetectorRef);
 
   cargando     = true;
   error        = '';
@@ -21,8 +23,8 @@ export class PortalDocumentosComponent implements OnInit {
 
   ngOnInit(): void {
     this.svc.getDocumentos().subscribe({
-      next: (data) => { this.documentos = data; this.cargando = false; },
-      error: () => { this.error = 'No se pudo cargar la galería documental.'; this.cargando = false; },
+      next: (data) => { this.documentos = data; this.cargando = false; this.cdr.markForCheck(); },
+      error: () => { this.error = 'No se pudo cargar la galería documental.'; this.cargando = false; this.cdr.markForCheck(); },
     });
   }
 

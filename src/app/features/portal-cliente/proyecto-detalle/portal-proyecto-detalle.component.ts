@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, inject } from '@angular/core';
+import { Component, HostListener, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
@@ -51,10 +51,12 @@ export interface ServicioPortal {
   imports: [CommonModule, RouterLink, AppModalComponent],
   templateUrl: './portal-proyecto-detalle.component.html',
   styleUrls: ['./portal-proyecto-detalle.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PortalProyectoDetalleComponent implements OnInit {
   private svc    = inject(PortalClienteService);
   private route  = inject(ActivatedRoute);
+  private cdr    = inject(ChangeDetectorRef);
 
   cargando    = true;
   error       = '';
@@ -63,8 +65,8 @@ export class PortalProyectoDetalleComponent implements OnInit {
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
     this.svc.getProyectoDetalle(id).subscribe({
-      next: (d) => { this.data = d; this.cargando = false; },
-      error: () => { this.error = 'No se pudo cargar el detalle del proyecto.'; this.cargando = false; },
+      next: (d) => { this.data = d; this.cargando = false; this.cdr.markForCheck(); },
+      error: () => { this.error = 'No se pudo cargar el detalle del proyecto.'; this.cargando = false; this.cdr.markForCheck(); },
     });
   }
 

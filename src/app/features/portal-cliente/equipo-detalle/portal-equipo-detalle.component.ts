@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, ActivatedRoute } from '@angular/router';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
@@ -9,14 +9,26 @@ import { PortalClienteService } from '../../../core/services/portal-cliente.serv
   imports: [CommonModule, RouterLink],
   templateUrl: './portal-equipo-detalle.component.html',
   styleUrls: ['./portal-equipo-detalle.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PortalEquipoDetalleComponent implements OnInit {
   private svc   = inject(PortalClienteService);
   private route = inject(ActivatedRoute);
+  private cdr   = inject(ChangeDetectorRef);
 
   cargando = true;
   error    = '';
   data: any = null;
+
+  // Precalculado una sola vez al cargar `data` (ver ngOnInit) — antes era un
+  // getter que reconstruía y ordenaba el arreglo en cada change detection.
+  timelineItems: Array<{
+    fecha: string | null;
+    titulo: string;
+    subtitulo: string;
+    observaciones: string | null;
+    tipo: 'completed' | 'vigente' | 'upcoming' | 'overdue';
+  }> = [];
 
   get equipo()       { return this.data?.equipo       ?? null; }
   get proyecto()     { return this.data?.proyecto      ?? {}; }
@@ -36,7 +48,12 @@ export class PortalEquipoDetalleComponent implements OnInit {
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id') ?? '';
     this.svc.getMantenimientoDetalle(id).subscribe({
-      next:  (d) => { this.data = d; this.cargando = false; },
+      next:  (d) => {
+        this.data = d;
+        this.cargando = false;
+        this.timelineItems = this.calcularTimelineItems();
+        this.cdr.markForCheck();
+      },
       error: (e) => {
         const status = e?.status;
         this.error = status === 404
@@ -45,6 +62,7 @@ export class PortalEquipoDetalleComponent implements OnInit {
             ? 'No tiene permisos para ver este registro.'
             : 'No se pudo cargar el detalle. Intente nuevamente.';
         this.cargando = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -108,7 +126,7 @@ export class PortalEquipoDetalleComponent implements OnInit {
 
   // ── FASE 3: items para el Timeline ───────────────────────────────────────
   // ── FASE 5: timeline con lógica temporal FASE 1 ──────────────────────────
-  get timelineItems(): Array<{
+  private calcularTimelineItems(): Array<{
     fecha: string | null;
     titulo: string;
     subtitulo: string;

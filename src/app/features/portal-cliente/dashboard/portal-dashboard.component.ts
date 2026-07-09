@@ -1,6 +1,7 @@
 import {
   Component, OnInit, OnDestroy,
   ElementRef, ViewChild, inject,
+  ChangeDetectionStrategy, ChangeDetectorRef,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
@@ -42,6 +43,7 @@ const P = {
   imports: [CommonModule, RouterLink],
   templateUrl: './portal-dashboard.component.html',
   styleUrls: ['./portal-dashboard.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PortalDashboardComponent implements OnInit, OnDestroy {
   @ViewChild('spkTotal') spkTotal!: ElementRef<HTMLCanvasElement>;
@@ -56,6 +58,7 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
   private charts: (Chart | null)[] = new Array(8).fill(null);
   private svc   = inject(PortalClienteService);
   private auth  = inject(AuthService);
+  private cdr   = inject(ChangeDetectorRef);
   readonly theme = inject(ThemeService);           // ← FASE 2: servicio reactivo
   private themeSub!: Subscription;
 
@@ -63,6 +66,14 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
   error     = '';
   kpis: any = null;
   historial: any[] = [];
+
+  // Precalculados una sola vez al cargar `historial` (no cambia después) —
+  // nunca en el template, para no recorrer el arreglo en cada change detection.
+  countVencidos = 0;
+  countProximos = 0;
+  countVigentes = 0;
+  upcomingEvents: any[] = [];
+  private kpiTrends: Record<string, { pct: number; up: boolean }> = {};
 
   get saludo() { return this.auth.getUsuario()?.nombre_completo ?? 'Portal Cliente'; }
   get hoy() {
@@ -89,10 +100,6 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
     return fb[eq.estado_intervencion] ?? { label: 'Vencido', badge: 'badge-danger' };
   }
 
-  get countVencidos(): number { return this.historial.filter(e => this.maintenanceStatus(e).badge === 'badge-danger').length;  }
-  get countProximos(): number { return this.historial.filter(e => this.maintenanceStatus(e).badge === 'badge-warning').length; }
-  get countVigentes(): number { return this.historial.length - this.countVencidos - this.countProximos; }
-
   private countByMonthBadge(badge: string | null, offset: number): number {
     const t = new Date();
     const d = new Date(t.getFullYear(), t.getMonth() + offset, 1);
@@ -104,7 +111,7 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
     }).length;
   }
 
-  kpiTrend(badge: string | null): { pct: number; up: boolean } {
+  private calcularKpiTrend(badge: string | null): { pct: number; up: boolean } {
     const curr = this.countByMonthBadge(badge, 0);
     const prev = this.countByMonthBadge(badge, -1);
     if (prev === 0 && curr === 0) return { pct: 0, up: true };
@@ -113,10 +120,27 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
     return { pct: Math.abs(pct), up: pct >= 0 };
   }
 
-  get upcomingEvents(): any[] {
+  kpiTrend(badge: string | null): { pct: number; up: boolean } {
+    return this.kpiTrends[badge ?? 'null'] ?? { pct: 0, up: true };
+  }
+
+  /** Deriva de `historial` todo lo que el template antes recalculaba en cada
+   *  change detection (getters). Se llama una sola vez, al cargar los datos. */
+  private precalcularDerivadosDeHistorial(): void {
+    this.countVencidos = this.historial.filter(e => this.maintenanceStatus(e).badge === 'badge-danger').length;
+    this.countProximos = this.historial.filter(e => this.maintenanceStatus(e).badge === 'badge-warning').length;
+    this.countVigentes = this.historial.length - this.countVencidos - this.countProximos;
+
+    this.kpiTrends = {
+      'null':           this.calcularKpiTrend(null),
+      'badge-success':  this.calcularKpiTrend('badge-success'),
+      'badge-warning':  this.calcularKpiTrend('badge-warning'),
+      'badge-danger':   this.calcularKpiTrend('badge-danger'),
+    };
+
     const today = new Date(); today.setHours(0,0,0,0);
     const next7 = new Date(today); next7.setDate(today.getDate() + 7);
-    return this.historial
+    this.upcomingEvents = this.historial
       .filter(eq => { if (!eq.proximo_mantenimiento) return false; const d = new Date(eq.proximo_mantenimiento); return d >= today && d <= next7; })
       .sort((a,b) => new Date(a.proximo_mantenimiento).getTime() - new Date(b.proximo_mantenimiento).getTime())
       .slice(0, 12);
@@ -321,9 +345,15 @@ export class PortalDashboardComponent implements OnInit, OnDestroy {
     forkJoin({ kpis: this.svc.getKpis(), historial: this.svc.getHistorial() }).subscribe({
       next: ({ kpis, historial }) => {
         this.kpis = kpis; this.historial = historial; this.cargando = false;
+        this.precalcularDerivadosDeHistorial();
+        this.cdr.markForCheck();
         setTimeout(() => this.initAllCharts(), 60);
       },
-      error: () => { this.error = 'No se pudo cargar el panel ejecutivo.'; this.cargando = false; },
+      error: () => {
+        this.error = 'No se pudo cargar el panel ejecutivo.';
+        this.cargando = false;
+        this.cdr.markForCheck();
+      },
     });
   }
 

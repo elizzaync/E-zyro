@@ -34,6 +34,27 @@
 (function () {
   'use strict';
 
+  // --- run outside Angular's zone -------------------------------------------
+  // zone.js (loaded as an Angular polyfill before this script) monkey-patches
+  // requestAnimationFrame/addEventListener on window/document *globally*, not
+  // just calls made by Angular. Without this, every particle animation frame
+  // (and every mousemove sample) would re-enter NgZone and trigger a full
+  // Angular change-detection pass across the whole app, ~60 times/sec, for as
+  // long as the portal is open. Grabbing the pre-patch native functions (the
+  // convention zone.js itself uses: `__zone_symbol__<name>`) keeps this
+  // entirely outside Angular, with zero behavior change and no Angular dep.
+  function zoneSymbol(name) {
+    return (window.Zone && typeof window.Zone.__symbol__ === 'function')
+      ? window.Zone.__symbol__(name) : name;
+  }
+  function native(name, ctx) {
+    const fn = ctx[zoneSymbol(name)] || ctx[name];
+    return fn.bind(ctx);
+  }
+  const rafNative = native('requestAnimationFrame', window);
+  const windowAddEventListenerNative = native('addEventListener', window);
+  const documentAddEventListenerNative = native('addEventListener', document);
+
   // --- canvas as background layer -------------------------------------------
   const canvas = document.createElement('canvas');
   canvas.setAttribute('aria-hidden', 'true');
@@ -230,13 +251,13 @@
     }
     ctx.shadowBlur = 0;
 
-    requestAnimationFrame(step);
+    rafNative(step);
   }
 
   function start() {
     if (running || !enabled) return;
     running = true;
-    requestAnimationFrame(step);
+    rafNative(step);
   }
 
   window.setParticleBackground = function (on) {
@@ -247,7 +268,7 @@
   };
 
   // pause completely while the tab is hidden
-  document.addEventListener('visibilitychange', function () {
+  documentAddEventListenerNative('visibilitychange', function () {
     if (document.hidden) running = false;
     else start();
   });
@@ -262,30 +283,30 @@
     mouseRafQueued = false;
   }
 
-  window.addEventListener('mousemove', function (e) {
+  windowAddEventListenerNative('mousemove', function (e) {
     pendingX = e.clientX;
     pendingY = e.clientY;
     if (!mouseRafQueued) {
       mouseRafQueued = true;
-      requestAnimationFrame(applyMouse);
+      rafNative(applyMouse);
     }
   }, { passive: true });
 
-  document.addEventListener('mouseleave', function () { mouse.active = false; });
+  documentAddEventListenerNative('mouseleave', function () { mouse.active = false; });
 
-  window.addEventListener('touchmove', function (e) {
+  windowAddEventListenerNative('touchmove', function (e) {
     if (e.touches[0]) {
       pendingX = e.touches[0].clientX;
       pendingY = e.touches[0].clientY;
       if (!mouseRafQueued) {
         mouseRafQueued = true;
-        requestAnimationFrame(applyMouse);
+        rafNative(applyMouse);
       }
     }
   }, { passive: true });
-  window.addEventListener('touchend', function () { mouse.active = false; });
+  windowAddEventListenerNative('touchend', function () { mouse.active = false; });
 
-  window.addEventListener('resize', function () { resize(); init(); });
+  windowAddEventListenerNative('resize', function () { resize(); init(); });
 
   resize();
   init();

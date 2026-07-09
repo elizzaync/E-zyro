@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
@@ -9,9 +9,11 @@ import { PortalClienteService } from '../../../core/services/portal-cliente.serv
   imports: [CommonModule, RouterLink],
   templateUrl: './portal-proyectos.component.html',
   styleUrls: ['./portal-proyectos.component.css'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PortalProyectosComponent implements OnInit {
   private svc = inject(PortalClienteService);
+  private cdr = inject(ChangeDetectorRef);
 
   cargando    = true;
   error       = '';
@@ -19,8 +21,8 @@ export class PortalProyectosComponent implements OnInit {
 
   ngOnInit(): void {
     this.svc.getProyectos().subscribe({
-      next: (data) => { this.proyectos = data; this.cargando = false; },
-      error: () => { this.error = 'Error al cargar proyectos.'; this.cargando = false; },
+      next: (data) => { this.proyectos = data; this.cargando = false; this.cdr.markForCheck(); },
+      error: () => { this.error = 'Error al cargar proyectos.'; this.cargando = false; this.cdr.markForCheck(); },
     });
   }
 

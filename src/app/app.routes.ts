@@ -58,12 +58,7 @@ import { ActivosFijosComponent } from './features/administracion/components/acti
 // Roles que NO pueden acceder a Requerimientos, Compras, Salidas y Planos
 const _ROLES_BLOQUEADOS_LOGISTICA_AVANZADA = ['Técnico', 'Jefe de Operaciones'];
 const _ROLES_BLOQUEADOS_TECNICO = ['Técnico'];
-import { PortalDashboardComponent } from './features/portal-cliente/dashboard/portal-dashboard.component';
-import { PortalProyectosComponent } from './features/portal-cliente/proyectos/portal-proyectos.component';
-import { PortalProyectoDetalleComponent } from './features/portal-cliente/proyecto-detalle/portal-proyecto-detalle.component';
-import { PortalDocumentosComponent } from './features/portal-cliente/documentos/portal-documentos.component';
-import { PortalEquipoDetalleComponent } from './features/portal-cliente/equipo-detalle/portal-equipo-detalle.component';
-import { ClientEquipmentHistoryComponent } from './features/portal-cliente/mantenimientos/client-equipment-history.component';
+// Portal Cliente: lazy (loadComponent) — ver bloque de rutas 'portal-cliente/*' más abajo.
 
 export const routes: Routes = [
   {
@@ -272,37 +267,37 @@ export const routes: Routes = [
   },
   {
     path: 'portal-cliente/dashboard',
-    component: PortalDashboardComponent,
+    loadComponent: () => import('./features/portal-cliente/dashboard/portal-dashboard.component').then(m => m.PortalDashboardComponent),
     title: 'Dashboard | Portal Cliente',
     canActivate: [clientPortalGuard],
   },
   {
     path: 'portal-cliente/proyectos',
-    component: PortalProyectosComponent,
+    loadComponent: () => import('./features/portal-cliente/proyectos/portal-proyectos.component').then(m => m.PortalProyectosComponent),
     title: 'Proyectos | Portal Cliente',
     canActivate: [clientPortalGuard],
   },
   {
     path: 'portal-cliente/proyecto/:id',
-    component: PortalProyectoDetalleComponent,
+    loadComponent: () => import('./features/portal-cliente/proyecto-detalle/portal-proyecto-detalle.component').then(m => m.PortalProyectoDetalleComponent),
     title: 'Detalle Proyecto | Portal Cliente',
     canActivate: [clientPortalGuard],
   },
   {
     path: 'portal-cliente/documentos',
-    component: PortalDocumentosComponent,
+    loadComponent: () => import('./features/portal-cliente/documentos/portal-documentos.component').then(m => m.PortalDocumentosComponent),
     title: 'Documentos | Portal Cliente',
     canActivate: [clientPortalGuard],
   },
   {
     path: 'portal-cliente/mantenimientos',
-    component: ClientEquipmentHistoryComponent,
+    loadComponent: () => import('./features/portal-cliente/mantenimientos/client-equipment-history.component').then(m => m.ClientEquipmentHistoryComponent),
     title: 'Historial de Mantenimientos | Portal Cliente',
     canActivate: [clientPortalGuard],
   },
   {
     path: 'portal-cliente/mantenimiento/:id',
-    component: PortalEquipoDetalleComponent,
+    loadComponent: () => import('./features/portal-cliente/equipo-detalle/portal-equipo-detalle.component').then(m => m.PortalEquipoDetalleComponent),
     title: 'Detalle Mantenimiento | Portal Cliente',
     canActivate: [clientPortalGuard],
   },
