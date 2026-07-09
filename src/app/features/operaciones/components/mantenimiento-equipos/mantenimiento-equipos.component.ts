@@ -56,8 +56,8 @@ export class MantenimientoEquiposComponent implements OnInit {
   private formVacio() {
     return {
       nombre: '', cliente_id: '', ubicacion_id: '', zona_id: '',
-      area_descripcion: '', tipo_equipo_id: '', marca: '', modelo: '',
-      numero_serie: '', frecuencia_meses: 6, estado: 'operativo', observaciones: '',
+      area_descripcion: '', tipo_equipo_id: '', ubicacion_referencia: '',
+      frecuencia_meses: 6, estado: 'operativo', observaciones: '',
     };
   }
 
@@ -204,8 +204,8 @@ export class MantenimientoEquiposComponent implements OnInit {
     this.form = {
       nombre: e.nombre || '', cliente_id: e.cliente_id || '', ubicacion_id: e.ubicacion_id || '',
       zona_id: e.zona_id || '', area_descripcion: e.area_descripcion || '',
-      tipo_equipo_id: e.tipo_equipo_id || '', marca: e.marca || '', modelo: e.modelo || '',
-      numero_serie: e.numero_serie || '', frecuencia_meses: e.frecuencia_meses || 6,
+      tipo_equipo_id: e.tipo_equipo_id || '', ubicacion_referencia: e.ubicacion_referencia || '',
+      frecuencia_meses: e.frecuencia_meses || 6,
       estado: e.estado || 'operativo', observaciones: e.observaciones || '',
     };
     this.cargarCatalogos();

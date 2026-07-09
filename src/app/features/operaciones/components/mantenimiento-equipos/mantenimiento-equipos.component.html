@@ -243,11 +243,12 @@
           </label>
         </div>
         <div class="campo-fila">
-          <label class="campo"><span>Marca</span><input type="text" [(ngModel)]="form.marca"></label>
-          <label class="campo"><span>Modelo</span><input type="text" [(ngModel)]="form.modelo"></label>
+          <label class="campo">
+            <span>Referencia (indicaciones físicas)</span>
+            <input type="text" [(ngModel)]="form.ubicacion_referencia" placeholder="Ej. Detrás del tablero principal, pasillo 2, sótano…">
+          </label>
         </div>
         <div class="campo-fila">
-          <label class="campo"><span>N° de serie</span><input type="text" [(ngModel)]="form.numero_serie"></label>
           <label class="campo"><span>Frecuencia (meses)</span><input type="number" min="1" [(ngModel)]="form.frecuencia_meses"></label>
         </div>
         <label class="campo">
