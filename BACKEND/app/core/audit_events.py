@@ -4,9 +4,10 @@ Middleware de captura CENTRALIZADA de eventos HTTP para audit_log (Fase 1).
 Observa cada respuesta y registra:
   - 403 → PERMISSION_DENIED (resultado=denegado), con las claims del token
     decodificadas en silencio (mismo criterio que audit_context.py).
-    Se excluye /portal-cliente: el candado de prefijos del rol ClienteExterno
-    devuelve 403 por diseño ante cualquier ruta interna y generaría ruido
-    masivo sin valor de seguridad.
+    Se excluye el candado de rol ClienteExterno (ver _PREFIJOS_PORTAL en
+    app/core/security.py): devuelve 403 por diseño ante CUALQUIER ruta fuera
+    de /portal-cliente y /auth, y generaría ruido masivo sin valor de
+    seguridad (incluso falsas alertas de "accesos denegados").
   - descargas/exportaciones con status 200 → DOWNLOAD (o EXPORT si es
     exportación tabular), detectadas por sufijo de ruta o por el header
     Content-Disposition: attachment.
@@ -23,11 +24,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.core.security import _PREFIJOS_PORTAL
+
 _SECRET: str = os.getenv("SECRET_KEY", "")
 _ALGO: str = "HS256"
-
-# Rutas cuyo 403 es ruido estructural (candado del portal cliente).
-_EXCLUIR_403 = ("/portal-cliente",)
 
 # Rutas que YA registran su propio evento (router o archivar()): el middleware
 # las salta para no duplicar filas en audit_log.
@@ -101,9 +101,10 @@ class AuditEventsMiddleware(BaseHTTPMiddleware):
 
         # ── 403 → PERMISSION_DENIED ──────────────────────────────────────────
         if response.status_code == 403:
-            if path.startswith(_EXCLUIR_403):
-                return
             claims = _claims_silenciosas(request)
+            rol = (claims.get("rol") or "").lower().strip().replace(" ", "")
+            if rol == "clienteexterno" and not path.startswith(_PREFIJOS_PORTAL):
+                return  # candado de rol (security.py): 403 por diseño, sin valor de seguridad
             ctx = contexto_desde_payload(claims, request)
             registrar_evento(accion="PERMISSION_DENIED", resultado="denegado",
                              detalle={"status": 403}, **ctx)
