@@ -10,11 +10,25 @@
         <p class="page-subtitle">Semáforo de mantenimiento por departamento</p>
       </div>
     </div>
-    <div class="leyenda">
-      <span class="leyenda-item"><span class="dot" style="background:#E53935"></span>Vencido</span>
-      <span class="leyenda-item"><span class="dot" style="background:#F59E0B"></span>Próximo ≤30d</span>
-      <span class="leyenda-item"><span class="dot" style="background:#8FD11B"></span>Al día</span>
-      <span class="leyenda-item"><span class="dot" style="background:#243044"></span>Sin equipos</span>
+
+    <!-- LEYENDA INTERACTIVA: clic filtra/resalta el mapa por estado -->
+    <div class="leyenda" role="group" aria-label="Filtrar mapa por estado">
+      <button type="button" class="leyenda-item" [class.leyenda-activa]="filtroLeyenda === 'vencido'"
+              [attr.aria-pressed]="filtroLeyenda === 'vencido'" (click)="toggleFiltroLeyenda('vencido')">
+        <span class="dot" style="background:#E53935"></span>Vencido
+      </button>
+      <button type="button" class="leyenda-item" [class.leyenda-activa]="filtroLeyenda === 'proximo'"
+              [attr.aria-pressed]="filtroLeyenda === 'proximo'" (click)="toggleFiltroLeyenda('proximo')">
+        <span class="dot" style="background:#F59E0B"></span>Próximo ≤30d
+      </button>
+      <button type="button" class="leyenda-item" [class.leyenda-activa]="filtroLeyenda === 'ok'"
+              [attr.aria-pressed]="filtroLeyenda === 'ok'" (click)="toggleFiltroLeyenda('ok')">
+        <span class="dot" style="background:#8FD11B"></span>Al día
+      </button>
+      <button type="button" class="leyenda-item" [class.leyenda-activa]="filtroLeyenda === 'sin_equipos'"
+              [attr.aria-pressed]="filtroLeyenda === 'sin_equipos'" (click)="toggleFiltroLeyenda('sin_equipos')">
+        <span class="dot" style="background:#243044"></span>Sin equipos
+      </button>
     </div>
   </div>
 
@@ -29,9 +43,20 @@
 
   <div class="mapa-wrap">
     <div class="mapa-scroll">
-      <svg [attr.viewBox]="'0 0 ' + ancho + ' ' + alto" class="mapa-svg" xmlns="http://www.w3.org/2000/svg">
+      <svg [attr.viewBox]="'0 0 ' + ancho + ' ' + alto" class="mapa-svg" xmlns="http://www.w3.org/2000/svg"
+           (mouseleave)="onHoverLeave()">
         @for (d of departamentosVista; track d.nombre) {
-        <g class="dep-grupo" [class.dep-seleccionado]="seleccionado === d.nombre" (click)="seleccionar(d.nombre)">
+        <g class="dep-grupo"
+           [class.dep-seleccionado]="seleccionado === d.nombre"
+           [class.dep-atenuado]="depAtenuado(d)"
+           tabindex="0" role="button"
+           [attr.aria-pressed]="seleccionado === d.nombre"
+           [attr.aria-label]="d.nombre + ': ' + d.total + ' equipos, ' + d.vencidos + ' vencidos, ' + d.proximos + ' próximos'"
+           (click)="seleccionar(d)"
+           (keydown.enter)="seleccionar(d)"
+           (keydown.space)="$event.preventDefault(); seleccionar(d)"
+           (mouseenter)="onHoverDep(d, $event)" (mousemove)="onHoverMove($event)" (mouseleave)="onHoverLeave()"
+           (focus)="onFocusDep(d, $event)" (blur)="onHoverLeave()">
           @for (points of d.anillosPoints; track points) {
           <polygon [attr.points]="points" [attr.fill]="d.color" [class.dep-pulso]="d.pulso" class="dep-poligono" />
           }
@@ -46,36 +71,96 @@
 
     @if (sinUbicar.length > 0) {
     <button class="chip-sin-ubicar" (click)="verSinUbicar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       {{ sinUbicar.length }} equipo{{ sinUbicar.length !== 1 ? 's' : '' }} sin ubicar en el mapa
     </button>
     }
   </div>
 
-  @if (seleccionado) {
-  <div class="panel-overlay" (click)="cerrarPanel()">
-    <div class="panel-dep" (click)="$event.stopPropagation()">
-      <div class="panel-header">
-        <h3>{{ seleccionado === 'SIN_UBICAR' ? 'Equipos sin ubicar' : seleccionado }}</h3>
-        <button class="modal-close" (click)="cerrarPanel()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+  <!-- TOOLTIP flotante (hover y foco por teclado) -->
+  @if (hoverDep && !seleccionado) {
+  <div class="mapa-tooltip" [ngStyle]="tooltipStyle">
+    <p class="tt-nombre">{{ hoverDep.nombre }}</p>
+    <p class="tt-total">{{ hoverDep.total }} equipo{{ hoverDep.total !== 1 ? 's' : '' }}</p>
+    @if (hoverDep.total > 0) {
+    <div class="tt-chips">
+      @if (hoverDep.vencidos > 0) { <span class="tt-chip tt-chip--rojo">{{ hoverDep.vencidos }} vencido{{ hoverDep.vencidos !== 1 ? 's' : '' }}</span> }
+      @if (hoverDep.proximos > 0) { <span class="tt-chip tt-chip--ambar">{{ hoverDep.proximos }} próximo{{ hoverDep.proximos !== 1 ? 's' : '' }}</span> }
+      @if (hoverDep.alDia > 0) { <span class="tt-chip tt-chip--verde">{{ hoverDep.alDia }} al día</span> }
+      @if (hoverDep.sinPlan > 0) { <span class="tt-chip tt-chip--gris">{{ hoverDep.sinPlan }} sin plan</span> }
+    </div>
+    }
+  </div>
+  }
+  }
+
+  <!-- ══════════════ PANEL DE DETALLE (app-modal compartido) ══════════════ -->
+  <app-modal
+    [open]="!!seleccionado"
+    [title]="tituloPanel"
+    [subtitle]="subtituloPanel"
+    maxWidth="640px"
+    [iconBg]="iconBgPanel"
+    [iconColor]="iconColorPanel"
+    (closeModal)="cerrarPanel()">
+
+    <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+    </svg>
+
+    <div class="panel-body">
+      <!-- Resumen por estado -->
+      @if (depSeleccionado && depSeleccionado.total > 0) {
+      <div class="resumen-chips">
+        @if (depSeleccionado.vencidos > 0) { <span class="resumen-chip resumen-chip--rojo">{{ depSeleccionado.vencidos }} vencido{{ depSeleccionado.vencidos !== 1 ? 's' : '' }}</span> }
+        @if (depSeleccionado.proximos > 0) { <span class="resumen-chip resumen-chip--ambar">{{ depSeleccionado.proximos }} próximo{{ depSeleccionado.proximos !== 1 ? 's' : '' }}</span> }
+        @if (depSeleccionado.alDia > 0) { <span class="resumen-chip resumen-chip--verde">{{ depSeleccionado.alDia }} al día</span> }
+        @if (depSeleccionado.sinPlan > 0) { <span class="resumen-chip resumen-chip--gris">{{ depSeleccionado.sinPlan }} sin plan</span> }
       </div>
-      <div class="panel-body">
+      }
+
+      <!-- Buscador (solo si hay suficientes equipos para justificarlo) -->
+      @if (equiposDelSeleccionado.length > 5) {
+      <div class="panel-search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" [(ngModel)]="filtroPanel" placeholder="Buscar por nombre, ubicación o zona...">
+      </div>
+      }
+
+      <!-- Lista de equipos -->
+      <div class="panel-lista">
         @if (equiposDelSeleccionado.length === 0) {
-        <p class="panel-vacio">Sin equipos en este departamento.</p>
-        } @else {
-        @for (e of equiposDelSeleccionado; track e.id) {
-        <div class="panel-equipo" (click)="irADetalle(e.id)">
-          <span class="panel-equipo-nombre">{{ e.nombre }}</span>
-          <span class="panel-equipo-ubi">{{ e.ubicacion_nombre }}{{ e.zona_nombre ? ' · ' + e.zona_nombre : '' }}</span>
-          <span class="panel-equipo-semaforo">{{ textoSemaforo(e) }}</span>
+        <div class="panel-vacio">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+          <p>Sin equipos registrados en este departamento.</p>
         </div>
+        } @else if (equiposFiltradosPanel.length === 0) {
+        <div class="panel-vacio">
+          <p>Ningún equipo coincide con "{{ filtroPanel }}".</p>
+        </div>
+        } @else {
+        @for (e of equiposFiltradosPanel; track e.id) {
+        <button type="button" class="panel-equipo" (click)="irADetalle(e.id)">
+          <div class="panel-equipo-info">
+            <span class="panel-equipo-nombre">{{ e.nombre }}</span>
+            <span class="panel-equipo-ubi">{{ ubicacionCorta(e) }}</span>
+          </div>
+          <span class="badge-estado" [class]="estadoBadgeClass(e)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              @switch (estadoDe(e)) {
+                @case ('vencido') { <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="13"/><circle cx="12" cy="16" r="0.5" fill="currentColor"/> }
+                @case ('proximo') { <circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/> }
+                @case ('ok') { <polyline points="20 6 9 17 4 12"/> }
+                @default { <line x1="6" y1="12" x2="18" y2="12"/> }
+              }
+            </svg>
+            {{ estadoLabel(e) }}
+          </span>
+        </button>
         }
         }
       </div>
     </div>
-  </div>
-  }
-  }
+  </app-modal>
 
 </div>

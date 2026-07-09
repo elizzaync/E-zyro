@@ -1,14 +1,23 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, HostListener, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { EquipoIntervenidoService } from '../../../../../core/services/equipo-intervenido.service';
 import { SpinnerComponent } from '../../../../../shared/components/spinner/spinner.component';
+import { AppModalComponent } from '../../../../../shared/components/modal/app-modal.component';
 import { PERU_DEPARTAMENTOS, PERU_GEO_ANCHO, PERU_GEO_ALTO, DepartamentoGeo } from '../../../../../shared/data/peru-departamentos';
+
+type EstadoSemaforo = 'vencido' | 'proximo' | 'ok' | 'sin_plan';
+type EstadoDep = 'vencido' | 'proximo' | 'ok' | 'sin_equipos';
 
 const KGREEN = '#8FD11B';
 const KAMBER = '#F59E0B';
 const KRED = '#E53935';
 const KSIN_EQUIPOS = '#243044';
+
+const COLOR_POR_ESTADO: Record<EstadoDep, string> = {
+  vencido: KRED, proximo: KAMBER, ok: KGREEN, sin_equipos: KSIN_EQUIPOS,
+};
 
 // Ciudades/provincias conocidas → departamento (nombres ya normalizados),
 // portado literal de pantalla_mapa_parque.dart (_ciudadADep).
@@ -37,22 +46,30 @@ interface DepEstado {
   equipos: any[];
   vencidos: number;
   proximos: number;
+  sinPlan: number;
 }
 
 interface DepVista {
   nombre: string;
   anillosPoints: string[];
   color: string;
+  estado: EstadoDep;
   total: number;
+  vencidos: number;
+  proximos: number;
+  alDia: number;
+  sinPlan: number;
   cx: number;
   cy: number;
   pulso: boolean; // vencidos > 0
 }
 
+interface TooltipPos { x: number; y: number; }
+
 @Component({
   selector: 'app-mapa-parque',
   standalone: true,
-  imports: [CommonModule, SpinnerComponent],
+  imports: [CommonModule, FormsModule, SpinnerComponent, AppModalComponent],
   templateUrl: './mapa-parque.component.html',
   styleUrls: ['./mapa-parque.component.css'],
 })
@@ -71,6 +88,16 @@ export class MapaParqueComponent implements OnInit {
   sinUbicar: any[] = [];
   seleccionado: string | null = null; // nombre de departamento, o 'SIN_UBICAR'
 
+  // ── Hover / tooltip ───────────────────────────────────────────────────
+  hoverDep: DepVista | null = null;
+  hoverPos: TooltipPos | null = null;
+
+  // ── Leyenda interactiva (filtra/resalta por estado) ──────────────────
+  filtroLeyenda: EstadoDep | null = null;
+
+  // ── Buscador dentro del panel ─────────────────────────────────────────
+  filtroPanel = '';
+
   ngOnInit(): void { this.cargar(); }
 
   cargar(): void {
@@ -87,6 +114,11 @@ export class MapaParqueComponent implements OnInit {
         this.isLoading = false;
       },
     });
+  }
+
+  @HostListener('document:keydown.escape')
+  onEsc(): void {
+    if (this.seleccionado) this.cerrarPanel();
   }
 
   private static normalizar(s: string): string {
@@ -116,9 +148,18 @@ export class MapaParqueComponent implements OnInit {
     return Math.round((prox.getTime() - hoy.getTime()) / 86400000);
   }
 
+  /** Estado individual de un equipo (para el badge en el panel). */
+  estadoDe(e: any): EstadoSemaforo {
+    const d = this.diasParaMantenimiento(e);
+    if (d === null) return 'sin_plan';
+    if (d < 0) return 'vencido';
+    if (d <= 30) return 'proximo';
+    return 'ok';
+  }
+
   private agrupar(): void {
     const porDep = new Map<string, DepEstado>();
-    for (const d of PERU_DEPARTAMENTOS) porDep.set(d.nombre, { equipos: [], vencidos: 0, proximos: 0 });
+    for (const d of PERU_DEPARTAMENTOS) porDep.set(d.nombre, { equipos: [], vencidos: 0, proximos: 0, sinPlan: 0 });
     this.sinUbicar = [];
 
     for (const e of this.equipos) {
@@ -126,11 +167,10 @@ export class MapaParqueComponent implements OnInit {
       if (!dep) { this.sinUbicar.push(e); continue; }
       const est = porDep.get(dep)!;
       est.equipos.push(e);
-      const dias = this.diasParaMantenimiento(e);
-      if (dias !== null) {
-        if (dias < 0) est.vencidos++;
-        else if (dias <= 30) est.proximos++;
-      }
+      const estado = this.estadoDe(e);
+      if (estado === 'vencido') est.vencidos++;
+      else if (estado === 'proximo') est.proximos++;
+      else if (estado === 'sin_plan') est.sinPlan++;
     }
     for (const est of porDep.values()) {
       est.equipos.sort((a, b) => (this.diasParaMantenimiento(a) ?? 99999) - (this.diasParaMantenimiento(b) ?? 99999));
@@ -139,15 +179,20 @@ export class MapaParqueComponent implements OnInit {
 
     this.departamentosVista = PERU_DEPARTAMENTOS.map(d => {
       const est = porDep.get(d.nombre)!;
-      const color = est.equipos.length === 0 ? KSIN_EQUIPOS
-        : est.vencidos > 0 ? KRED
-        : est.proximos > 0 ? KAMBER
-        : KGREEN;
+      const total = est.equipos.length;
+      const estado: EstadoDep = total === 0 ? 'sin_equipos'
+        : est.vencidos > 0 ? 'vencido'
+        : est.proximos > 0 ? 'proximo'
+        : 'ok';
       const { cx, cy } = MapaParqueComponent.centroide(d);
       return {
         nombre: d.nombre,
         anillosPoints: d.anillos.map(anillo => MapaParqueComponent.aPoints(anillo)),
-        color, total: est.equipos.length, cx, cy,
+        color: COLOR_POR_ESTADO[estado],
+        estado, total,
+        vencidos: est.vencidos, proximos: est.proximos, sinPlan: est.sinPlan,
+        alDia: total - est.vencidos - est.proximos - est.sinPlan,
+        cx, cy,
         pulso: est.vencidos > 0,
       };
     });
@@ -171,28 +216,135 @@ export class MapaParqueComponent implements OnInit {
     return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
   }
 
+  // ── Hover / foco (mouse + teclado) ───────────────────────────────────
+  onHoverDep(d: DepVista, ev: MouseEvent): void {
+    this.hoverDep = d;
+    this.hoverPos = { x: ev.clientX, y: ev.clientY };
+  }
+
+  onHoverMove(ev: MouseEvent): void {
+    if (this.hoverDep) this.hoverPos = { x: ev.clientX, y: ev.clientY };
+  }
+
+  onHoverLeave(): void {
+    this.hoverDep = null;
+    this.hoverPos = null;
+  }
+
+  onFocusDep(d: DepVista, ev: FocusEvent): void {
+    const rect = (ev.target as SVGGraphicsElement).getBoundingClientRect();
+    this.hoverDep = d;
+    this.hoverPos = { x: rect.left + rect.width / 2, y: rect.top };
+  }
+
+  get tooltipStyle(): { [k: string]: string } {
+    if (!this.hoverPos) return {};
+    const cerca_borde_derecho = this.hoverPos.x > window.innerWidth - 220;
+    const left = cerca_borde_derecho ? this.hoverPos.x - 220 : this.hoverPos.x + 16;
+    const top = Math.max(8, this.hoverPos.y - 12);
+    return { left: `${left}px`, top: `${top}px` };
+  }
+
+  // ── Leyenda interactiva ───────────────────────────────────────────────
+  toggleFiltroLeyenda(estado: EstadoDep): void {
+    this.filtroLeyenda = this.filtroLeyenda === estado ? null : estado;
+  }
+
+  depAtenuado(d: DepVista): boolean {
+    return this.filtroLeyenda !== null && d.estado !== this.filtroLeyenda;
+  }
+
+  // ── Selección / panel de detalle ─────────────────────────────────────
   get equiposDelSeleccionado(): any[] {
     if (!this.seleccionado) return [];
     if (this.seleccionado === 'SIN_UBICAR') return this.sinUbicar;
-    const d = this.departamentosVista.find(x => x.nombre === this.seleccionado);
-    if (!d) return [];
     const dep = PERU_DEPARTAMENTOS.find(x => x.nombre === this.seleccionado);
-    // Recuperar la lista real (no solo el conteo) desde el agrupamiento.
     return this.equipos.filter(e => this.depDe(e.ubicacion_nombre) === dep?.nombre);
   }
 
-  seleccionar(nombre: string): void { this.seleccionado = nombre; }
-  verSinUbicar(): void { this.seleccionado = 'SIN_UBICAR'; }
-  cerrarPanel(): void { this.seleccionado = null; }
+  get equiposFiltradosPanel(): any[] {
+    const term = this.filtroPanel.trim().toLowerCase();
+    const lista = this.equiposDelSeleccionado;
+    if (!term) return lista;
+    return lista.filter(e =>
+      (e.nombre || '').toLowerCase().includes(term) ||
+      (e.ubicacion_nombre || '').toLowerCase().includes(term) ||
+      (e.zona_nombre || '').toLowerCase().includes(term));
+  }
 
-  irADetalle(id: string): void { this.router.navigate(['/operaciones/mantenimiento', id]); }
+  get depSeleccionado(): DepVista | null {
+    if (!this.seleccionado || this.seleccionado === 'SIN_UBICAR') return null;
+    return this.departamentosVista.find(x => x.nombre === this.seleccionado) ?? null;
+  }
+
+  get tituloPanel(): string {
+    if (this.seleccionado === 'SIN_UBICAR') return 'Equipos sin ubicar';
+    return this.tituloCase(this.seleccionado || '');
+  }
+
+  get subtituloPanel(): string {
+    const n = this.equiposDelSeleccionado.length;
+    return `${n} equipo${n !== 1 ? 's' : ''} registrado${n !== 1 ? 's' : ''}`;
+  }
+
+  get iconBgPanel(): string {
+    const color = this.seleccionado === 'SIN_UBICAR' ? '#64748b' : (this.depSeleccionado?.color ?? '#64748b');
+    return this.hexARgba(color, 0.14);
+  }
+
+  get iconColorPanel(): string {
+    return this.seleccionado === 'SIN_UBICAR' ? '#64748b' : (this.depSeleccionado?.color ?? '#64748b');
+  }
+
+  private hexARgba(hex: string, alpha: number): string {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  private tituloCase(nombre: string): string {
+    return nombre.toLowerCase().replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+  }
+
+  seleccionar(d: DepVista): void {
+    this.seleccionado = d.nombre;
+    this.filtroPanel = '';
+  }
+
+  verSinUbicar(): void {
+    this.seleccionado = 'SIN_UBICAR';
+    this.filtroPanel = '';
+  }
+
+  cerrarPanel(): void {
+    this.seleccionado = null;
+    this.filtroPanel = '';
+  }
+
+  irADetalle(id: string): void {
+    this.cerrarPanel();
+    this.router.navigate(['/operaciones/mantenimiento', id]);
+  }
+
   volver(): void { this.router.navigate(['/operaciones/mantenimiento']); }
 
-  textoSemaforo(e: any): string {
+  // ── Presentación de estado por equipo (badge del panel) ──────────────
+  estadoLabel(e: any): string {
     const d = this.diasParaMantenimiento(e);
-    if (d === null) return 'Sin plan';
-    if (d < 0) return `Vencido hace ${Math.abs(d)} d`;
+    const estado = this.estadoDe(e);
+    if (estado === 'sin_plan') return 'Sin plan';
+    if (estado === 'vencido') return `Vencido hace ${Math.abs(d!)} d`;
     if (d === 0) return 'Hoy';
     return `En ${d} d`;
+  }
+
+  estadoBadgeClass(e: any): string {
+    return `badge-${this.estadoDe(e)}`;
+  }
+
+  ubicacionCorta(e: any): string {
+    return [e.ubicacion_nombre, e.zona_nombre].filter(Boolean).join(' · ') || '—';
   }
 }
