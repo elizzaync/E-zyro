@@ -93,19 +93,73 @@
     }
   </div>
 
-  <!-- FICHA TÉCNICA (alineada a los campos de Equipos Intervenidos) -->
+  <!-- FICHA TÉCNICA -->
   <div class="card">
     <h3 class="card-titulo">Ficha técnica</h3>
-    <div class="ficha-grid">
-      <div class="ficha-fila"><span class="ficha-clave">Código</span><span class="ficha-valor">{{ equipo.codigo || '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Tipo</span><span class="ficha-valor">{{ equipo.tipo_equipo_nombre || '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Ubicación</span><span class="ficha-valor">{{ equipo.ubicacion_nombre || '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Zona</span><span class="ficha-valor">{{ equipo.zona_nombre || '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Referencia</span><span class="ficha-valor">{{ equipo.ubicacion_referencia || '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Próximo mantenimiento</span><span class="ficha-valor">{{ formatFecha(equipo.proximo_mantenimiento) }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Estado</span><span class="ficha-valor">{{ estadoLabel(equipo.estado) }}</span></div>
-      @for (f of fichaTecnicaDinamica; track f.clave) {
-      <div class="ficha-fila"><span class="ficha-clave">{{ f.clave }}</span><span class="ficha-valor">{{ f.valor }}</span></div>
+
+    @if (equipo.activo === false) {
+    <div class="ficha-aviso-inactivo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Este activo está marcado como inactivo en el sistema.
+    </div>
+    }
+
+    <!-- Grupo 1: Identificación y propiedad -->
+    <div class="ficha-grupo">
+      <h4 class="ficha-grupo-titulo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 00-8 8c0 5.25 8 12 8 12s8-6.75 8-12a8 8 0 00-8-8z"/></svg>
+        Identificación y propiedad
+      </h4>
+      <div class="ficha-grid">
+        <div class="ficha-fila"><span class="ficha-clave">Código</span><span class="ficha-valor">{{ equipo.codigo || '—' }}</span></div>
+        <div class="ficha-fila"><span class="ficha-clave">Cliente</span><span class="ficha-valor">{{ equipo.cliente_nombre || '—' }}</span></div>
+        <div class="ficha-fila"><span class="ficha-clave">Proyecto</span><span class="ficha-valor">{{ equipo.proyecto_nombre || '—' }}</span></div>
+        <div class="ficha-fila"><span class="ficha-clave">Ubicación</span><span class="ficha-valor">{{ equipo.ubicacion_nombre || '—' }}</span></div>
+        <div class="ficha-fila"><span class="ficha-clave">Zona</span><span class="ficha-valor">{{ equipo.zona_nombre || '—' }}</span></div>
+        <div class="ficha-fila"><span class="ficha-clave">Referencia</span><span class="ficha-valor">{{ equipo.ubicacion_referencia || '—' }}</span></div>
+      </div>
+    </div>
+
+    <!-- Grupo 2: Salud de mantenimiento -->
+    <div class="ficha-grupo">
+      <h4 class="ficha-grupo-titulo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        Salud de mantenimiento
+      </h4>
+      <div class="ficha-grid">
+        <div class="ficha-fila"><span class="ficha-clave">Estado</span><span class="ficha-valor">{{ estadoLabel(equipo.estado) }}</span></div>
+        <div class="ficha-fila"><span class="ficha-clave">Último mantenimiento</span><span class="ficha-valor">{{ formatFecha(equipo.ultimo_mantenimiento) }}</span></div>
+        <div class="ficha-fila">
+          <span class="ficha-clave">Próximo mantenimiento</span>
+          <span class="ficha-valor" [class.ficha-valor--vencido]="gaugeSemaforo === 'vencido'" [class.ficha-valor--proximo]="gaugeSemaforo === 'proximo'">
+            {{ formatFecha(equipo.proximo_mantenimiento) }}
+          </span>
+        </div>
+        <div class="ficha-fila"><span class="ficha-clave">Frecuencia</span><span class="ficha-valor">{{ equipo.frecuencia_meses ? equipo.frecuencia_meses + ' meses' : '—' }}</span></div>
+      </div>
+      @if (equipo.proyecto_servicio_id) {
+      <button type="button" class="ficha-chip-servicio" (click)="irAlServicio()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>
+        En servicio activo: {{ equipo.proyecto_servicio_nombre || 'ver servicio' }}
+      </button>
+      }
+    </div>
+
+    <!-- Grupo 3: Especificaciones técnicas -->
+    <div class="ficha-grupo ficha-grupo--sin-borde">
+      <h4 class="ficha-grupo-titulo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>
+        Especificaciones técnicas
+      </h4>
+      <div class="ficha-grid">
+        <div class="ficha-fila"><span class="ficha-clave">Tipo</span><span class="ficha-valor">{{ equipo.tipo_equipo_nombre || '—' }}</span></div>
+        <div class="ficha-fila"><span class="ficha-clave">Fecha instalación</span><span class="ficha-valor">{{ formatFecha(equipo.fecha_instalacion) }}</span></div>
+        @for (f of fichaTecnicaDinamica; track f.clave) {
+        <div class="ficha-fila"><span class="ficha-clave">{{ f.clave }}</span><span class="ficha-valor">{{ f.valor }}</span></div>
+        }
+      </div>
+      @if (fichaTecnicaDinamica.length === 0) {
+      <p class="card-hint ficha-grupo-hint">Sin especificaciones técnicas adicionales registradas para este equipo.</p>
       }
     </div>
   </div>

@@ -63,6 +63,11 @@ export class DetalleEquipoComponent implements OnInit {
 
   volver(): void { this.router.navigate(['/operaciones/mantenimiento']); }
 
+  irAlServicio(): void {
+    if (!this.equipo?.proyecto_servicio_id) return;
+    this.router.navigate(['/operaciones/servicio', this.equipo.proyecto_servicio_id]);
+  }
+
   // ── Identidad / semáforo ────────────────────────────────────────────────
   estadoClass(estado: string): string {
     const map: Record<string, string> = {

@@ -85,11 +85,40 @@
 .timeline-realizado { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-muted, #94a3b8); }
 
 /* ── FICHA TÉCNICA ── */
+.ficha-grupo { padding: 16px 0; border-bottom: 1px solid var(--border-color, #e2e8f0); }
+.ficha-grupo:first-of-type { padding-top: 4px; }
+.ficha-grupo--sin-borde { border-bottom: none; padding-bottom: 0; }
+.ficha-grupo-titulo {
+  display: flex; align-items: center; gap: 7px; margin: 0 0 12px;
+  font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em;
+  color: var(--text-muted, #64748b);
+}
+.ficha-grupo-titulo svg { width: 14px; height: 14px; flex-shrink: 0; }
+.ficha-grupo-hint { margin-top: 8px; }
+
 .ficha-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 20px; }
 @media (max-width: 640px) { .ficha-grid { grid-template-columns: 1fr; } }
 .ficha-fila { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--border-color, #e2e8f0); }
 .ficha-clave { font-size: 12.5px; font-weight: 600; color: var(--text-muted, #64748b); }
 .ficha-valor { font-size: 13px; color: var(--text-main, #1e293b); font-weight: 600; text-align: right; }
+.ficha-valor--vencido { color: #dc2626; }
+.ficha-valor--proximo { color: #b45309; }
+
+.ficha-chip-servicio {
+  display: inline-flex; align-items: center; gap: 7px; margin-top: 12px;
+  padding: 6px 13px; border: none; border-radius: 20px; cursor: pointer;
+  background: rgba(59,130,246,0.1); color: #3b82f6; font-size: 12.5px; font-weight: 700;
+  transition: background 0.15s;
+}
+.ficha-chip-servicio svg { width: 14px; height: 14px; }
+.ficha-chip-servicio:hover { background: rgba(59,130,246,0.18); }
+
+.ficha-aviso-inactivo {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 14px;
+  padding: 10px 14px; border-radius: 10px;
+  background: rgba(239,68,68,0.1); color: #b91c1c; font-size: 13px; font-weight: 600;
+}
+.ficha-aviso-inactivo svg { width: 17px; height: 17px; flex-shrink: 0; }
 
 /* ── LOADING / EMPTY ── */
 .loading-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 100px 0; color: var(--text-muted, #64748b); font-size: 15px; font-weight: 600; }
