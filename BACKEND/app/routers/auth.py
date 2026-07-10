@@ -10,6 +10,7 @@ import uuid
 import random
 import json
 import hashlib
+import logging
 from zoneinfo import ZoneInfo
 # Importaciones de esquemas y modelos
 from app.schemas.auth import (
@@ -38,6 +39,7 @@ from app.services.audit_service import registrar_evento
 from app.services.cloudinary_service import subir_imagen_cloudinary, eliminar_imagen_cloudinary
 from jose import jwt, JWTError
 router = APIRouter(prefix="/auth", tags=["Autenticacion"])
+logger = logging.getLogger(__name__)
 _http_bearer = HTTPBearer()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ZONA_HORARIA = ZoneInfo("America/Lima")
@@ -245,6 +247,16 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
     es_nuevo_equipo  = False
     info_dispositivo = None
     sesion_id_actual = None
+
+    # Pre-cachea el token como válido ANTES de tocar BD (no depende de que el
+    # commit de abajo tenga éxito). El token que devolvemos en la respuesta es
+    # válido desde ya (firma correcta, recién emitido); si el registro en
+    # sesion_usuario falla o tarda en ser visible (p. ej. cold start de Railway
+    # justo después de iniciar sesión), el frontend dispara de inmediato
+    # /dashboard/perfil y /dashboard/notificaciones y verificar_token no debe
+    # rechazarlos con un 401 falso mientras la caché (TTL 30s) cubre esa ventana.
+    marcar_activa(token_hash)
+
     try:
         ip_cliente  = _ip_real(request)
         user_agent  = request.headers.get("user-agent", "")[:255]
@@ -297,9 +309,6 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
             ))
 
         db.commit()
-        # Pre-cachea el token como válido para que el primer request protegido
-        # no pague una consulta a BD (verificar_token).
-        marcar_activa(token_hash)
         info_dispositivo = {
             "dispositivo": dispositivo,
             "ip":          ip_cliente or "—",
@@ -308,6 +317,7 @@ def login_usuario(credenciales: LoginData, request: Request, db: Session = Depen
         }
     except Exception:
         db.rollback()  # No bloqueamos el login si falla el registro de sesión
+        logger.exception("Fallo al registrar sesion_usuario en login (usuario_id=%s)", usuario_db.id)
 
     # Audit log: login exitoso (best-effort, sesión propia — nunca rompe el login)
     registrar_evento(
