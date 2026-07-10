@@ -23,6 +23,12 @@ export class App implements OnInit {
   showCuentaDesactivada = false;
   extendingSession = false;
 
+  // Cierre forzado por administrador
+  showForcedLogout = false;
+  forcedLogoutMotivo: string | null = null;
+  forcedLogoutCountdown = 6;
+  private forcedLogoutTimer: ReturnType<typeof setInterval> | null = null;
+
   constructor(
     private router: Router,
     private authService: AuthService
@@ -50,6 +56,16 @@ export class App implements OnInit {
 
     this.authService.showCuentaDesactivada$.subscribe(estado => {
       this.showCuentaDesactivada = estado;
+    });
+
+    this.authService.showForcedLogout$.subscribe(estado => {
+      this.showForcedLogout = estado;
+      if (estado) {
+        this.forcedLogoutMotivo = this.authService.forcedLogoutMotivo;
+        this.iniciarContadorCierreForzado();
+      } else {
+        this.detenerContadorCierreForzado();
+      }
     });
 
     if (this.authService.isAuthenticated()) {
@@ -108,5 +124,29 @@ export class App implements OnInit {
 
   confirmarCuentaDesactivada() {
     this.authService.confirmarCuentaDesactivada();
+  }
+
+  // ── Cierre forzado por administrador ──────────────────────────────────────
+  private iniciarContadorCierreForzado(): void {
+    this.detenerContadorCierreForzado();
+    this.forcedLogoutCountdown = 6;
+    this.forcedLogoutTimer = setInterval(() => {
+      this.forcedLogoutCountdown--;
+      if (this.forcedLogoutCountdown <= 0) {
+        this.confirmarCierreForzado();
+      }
+    }, 1000);
+  }
+
+  private detenerContadorCierreForzado(): void {
+    if (this.forcedLogoutTimer) {
+      clearInterval(this.forcedLogoutTimer);
+      this.forcedLogoutTimer = null;
+    }
+  }
+
+  confirmarCierreForzado() {
+    this.detenerContadorCierreForzado();
+    this.authService.confirmarCierreForzado();
   }
 }

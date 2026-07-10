@@ -93,6 +93,11 @@
                     <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
                 </button>
+                <button class="cc-action-btn" title="Cerrar sesión activa" (click)="abrirForceModal(u)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1"/>
+                  </svg>
+                </button>
                 <button class="cc-action-btn" [class.btn-activar]="!u.activo" [class.btn-desactivar]="u.activo"
                         [title]="u.activo ? 'Desactivar acceso' : 'Activar acceso'"
                         (click)="abrirToggleModal(u)">
@@ -363,6 +368,46 @@
             (click)="confirmarToggle()" [disabled]="toggling">
       @if (toggling) { Procesando… }
       @else { {{ toggleTarget.activo ? 'Sí, desactivar' : 'Sí, activar' }} }
+    </button>
+  </div>
+</app-modal>
+}
+
+<!-- ══ MODAL: CERRAR SESIÓN FORZADO ═══════════════════════════════════════ -->
+@if (forceTarget) {
+<app-modal
+  [open]="showForceModal"
+  title="Cerrar sesión activa"
+  maxWidth="480px"
+  iconBg="rgba(59,130,246,0.12)"
+  iconColor="#2563eb"
+  (closeModal)="cerrarForceModal()">
+
+  <svg modal-icon viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3h4a3 3 0 0 1 3 3v1"/>
+  </svg>
+
+  <div class="cc-modal-body">
+    <div class="cc-warn-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <div>
+        <strong>¿Cerrar la sesión de {{ forceTarget.nombre }} {{ forceTarget.apellido }}?</strong>
+        <p>Se cerrarán todas sus sesiones activas al instante y deberá volver a iniciar sesión. Su cuenta sigue activa.</p>
+      </div>
+    </div>
+    <label class="cc-field">
+      <span>Motivo <em>(opcional, se le mostrará al usuario)</em></span>
+      <textarea rows="2" [(ngModel)]="forceMotivo" maxlength="200"
+                placeholder="Ej: Mantenimiento de seguridad, cierre solicitado por el área…"></textarea>
+    </label>
+  </div>
+  <div class="cc-modal-foot">
+    <button class="cc-btn-cancel" (click)="cerrarForceModal()">Cancelar</button>
+    <button class="cc-btn-save" (click)="confirmarForce()" [disabled]="forzando">
+      @if (forzando) { Cerrando… } @else { Sí, cerrar sesión }
     </button>
   </div>
 </app-modal>

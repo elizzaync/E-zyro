@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { UsuariosService, UsuarioOut, RolOut, CrearUsuarioIn } from '../../../../core/services/usuarios.service';
 import { AppModalComponent } from '../../../../shared/components/modal/app-modal.component';
+import { ToastService } from '../../../../core/services/toast.service';
 
 @Component({
   selector: 'app-crear-cuentas',
@@ -13,6 +14,7 @@ import { AppModalComponent } from '../../../../shared/components/modal/app-modal
 })
 export class CrearCuentasComponent implements OnInit, OnDestroy {
   private svc = inject(UsuariosService);
+  private toast = inject(ToastService);
   private mainEl: HTMLElement | null = null;
   private modalCount = 0;
 
@@ -42,6 +44,12 @@ export class CrearCuentasComponent implements OnInit, OnDestroy {
   showToggleModal = false;
   toggleTarget: UsuarioOut | null = null;
   toggling = false;
+
+  // Modal cierre de sesión forzado
+  showForceModal  = false;
+  forceTarget: UsuarioOut | null = null;
+  forceMotivo     = '';
+  forzando        = false;
 
   // Modal reset password
   showResetModal  = false;
@@ -300,6 +308,38 @@ export class CrearCuentasComponent implements OnInit, OnDestroy {
       error: (err) => {
         this.resetMsg = err?.error?.detail ?? 'No se pudo restablecer.';
         this.resetandoPass = false;
+      },
+    });
+  }
+
+  // ── Modal cierre de sesión forzado ────────────────────────────────────────
+  abrirForceModal(u: UsuarioOut): void {
+    this.forceTarget   = u;
+    this.forceMotivo   = '';
+    this.showForceModal = true;
+    this._lockMain();
+  }
+  cerrarForceModal(): void { this.showForceModal = false; this.forceTarget = null; this._releaseMain(); }
+
+  confirmarForce(): void {
+    if (!this.forceTarget || this.forzando) return;
+    const u = this.forceTarget;
+    this.forzando = true;
+    this.svc.forzarCierreSesion(u.id, this.forceMotivo.trim() || undefined).subscribe({
+      next: (r) => {
+        this.forzando = false;
+        this.cerrarForceModal();
+        const n = r?.sesiones_cerradas ?? 0;
+        this.toast.mostrar(
+          n > 0
+            ? `Sesión de ${u.nombre} ${u.apellido} cerrada (${n} equipo${n !== 1 ? 's' : ''}).`
+            : `${u.nombre} ${u.apellido} no tenía sesiones activas.`,
+          'success'
+        );
+      },
+      error: (err) => {
+        this.forzando = false;
+        this.toast.mostrar(err?.error?.detail ?? 'No se pudo cerrar la sesión.', 'error');
       },
     });
   }

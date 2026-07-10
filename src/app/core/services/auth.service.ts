@@ -190,6 +190,34 @@ export class AuthService {
   private showCuentaDesactivadaSubject = new BehaviorSubject<boolean>(false);
   showCuentaDesactivada$ = this.showCuentaDesactivadaSubject.asObservable();
 
+  // ==========================================
+  // CIERRE FORZADO POR ADMINISTRADOR
+  // ==========================================
+  private showForcedLogoutSubject = new BehaviorSubject<boolean>(false);
+  showForcedLogout$ = this.showForcedLogoutSubject.asObservable();
+  /** Motivo opcional que indicó el administrador al forzar el cierre. */
+  forcedLogoutMotivo: string | null = null;
+
+  /** Muestra el modal de "sesión finalizada por un administrador".
+   * NO desloguea todavía: espera a que el usuario confirme o venza el contador
+   * (así alcanza a leer el aviso). El token ya está revocado en el servidor. */
+  private triggerCierreForzado(motivo: string | null): void {
+    this.clearSessionTimers();
+    this.disconnectSessionSocket();
+    this.showSessionWarningSubject.next(false);
+    this.showNewDeviceWarningSubject.next(false);
+    this.forcedLogoutMotivo = motivo;
+    this.showForcedLogoutSubject.next(true);
+    document.body.style.overflow = 'hidden';
+  }
+
+  /** Cierra el modal de cierre forzado y ejecuta el logout real en el cliente. */
+  confirmarCierreForzado(): void {
+    this.showForcedLogoutSubject.next(false);
+    this.forcedLogoutMotivo = null;
+    this.forceLogout();
+  }
+
   triggerCuentaDesactivada(): void {
     this.clearSessionTimers();
     this.disconnectSessionSocket();
@@ -264,6 +292,10 @@ export class AuthService {
       } else if (data?.tipo === 'sesion_cerrada') {
         // Este equipo fue cerrado desde otro dispositivo → expulsión real.
         this.forceLogout();
+      } else if (data?.tipo === 'cierre_forzado') {
+        // Un administrador cerró la sesión → mostrar modal informativo y luego
+        // desloguear (el token ya está revocado en el servidor).
+        this.triggerCierreForzado((data.motivo ?? null) || null);
       }
     };
 
@@ -314,8 +346,11 @@ export class AuthService {
     this.showNewDeviceWarningSubject.next(false);
     this.newDeviceInfo = null;
     document.body.style.overflow = '';
+    // Limpieza completa del estado en el cliente: token, datos de usuario y
+    // permisos cacheados. Sin esto, un guard podría leer permisos viejos.
     localStorage.removeItem('ezyro_token');
     localStorage.removeItem('ezyro_user');
+    localStorage.removeItem('ezyro_permisos');
     this.router.navigate(['/']);
   }
 

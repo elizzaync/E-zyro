@@ -92,6 +92,38 @@
 </div>
 }
 
+@if (showForcedLogout) {
+<!-- Backdrop sin (click): el modal es de lectura obligatoria, no se cierra
+     tocando afuera. Verde de marca, tono sobrio (no alarmista). -->
+<div class="modal-backdrop-pro"></div>
+<div class="modal-dialog-pro fade-in-up">
+    <div class="modal-body-pro">
+        <div class="logout-icon-wrapper" style="background: rgba(141,198,63,0.12); color: #6f9e26;">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+            </svg>
+        </div>
+        <h3>Sesión finalizada</h3>
+        <p>
+            Un administrador cerró tu sesión por motivos de gestión o seguridad.
+            @if (forcedLogoutMotivo) {
+            <br><br>
+            <strong>Motivo:</strong> {{ forcedLogoutMotivo }}
+            }
+            <br><br>
+            Serás redirigido al inicio de sesión.
+        </p>
+    </div>
+    <div class="modal-footer-pro">
+        <button class="btn-save-main" (click)="confirmarCierreForzado()"
+                style="background-color: #8dc63f; box-shadow: 0 4px 10px rgba(141,198,63,0.3);">
+            Entendido, ir al inicio ({{ forcedLogoutCountdown }})
+        </button>
+    </div>
+</div>
+}
+
 @if (showSessionWarning) {
 <div class="modal-backdrop-pro session-warn-backdrop" (click)="cerrarAvisoSesion()"></div>
 <div class="modal-dialog-pro session-warn-dialog fade-in-up">

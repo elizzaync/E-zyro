@@ -67,4 +67,12 @@ export class UsuariosService {
   resetPassword(id: string, password: string): Observable<{ status: string; mensaje: string }> {
     return this.http.post<{ status: string; mensaje: string }>(`${this.api}/usuarios/${id}/reset-password`, { password });
   }
+
+  /** Cierre de sesión forzado por administrador. Revoca todas las sesiones
+   * activas del usuario objetivo en el servidor y las notifica en tiempo real. */
+  forzarCierreSesion(id: string, motivo?: string): Observable<{ status: string; sesiones_cerradas: number }> {
+    return this.http.post<{ status: string; sesiones_cerradas: number }>(
+      `${this.api}/usuarios/${id}/force-logout`, { motivo: motivo || null }
+    );
+  }
 }
