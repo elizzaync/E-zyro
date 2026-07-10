@@ -104,9 +104,6 @@
       <div class="ficha-fila"><span class="ficha-clave">Referencia</span><span class="ficha-valor">{{ equipo.ubicacion_referencia || '—' }}</span></div>
       <div class="ficha-fila"><span class="ficha-clave">Próximo mantenimiento</span><span class="ficha-valor">{{ formatFecha(equipo.proximo_mantenimiento) }}</span></div>
       <div class="ficha-fila"><span class="ficha-clave">Estado</span><span class="ficha-valor">{{ estadoLabel(equipo.estado) }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Marca</span><span class="ficha-valor">{{ equipo.marca || '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Modelo</span><span class="ficha-valor">{{ equipo.modelo || '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">N° de serie</span><span class="ficha-valor">{{ equipo.numero_serie || '—' }}</span></div>
       @for (f of fichaTecnicaDinamica; track f.clave) {
       <div class="ficha-fila"><span class="ficha-clave">{{ f.clave }}</span><span class="ficha-valor">{{ f.valor }}</span></div>
       }
