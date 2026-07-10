@@ -645,6 +645,12 @@ get enRRHH(): boolean {
         // en localStorage, así que no alarmamos. El perfil se recargará al navegar.
         if (!err || err.status === 0) return;
 
+        // 401 aquí significa sesión rechazada — el interceptor ya ejecuta
+        // forceLogout() y redirige al login para ese caso; un segundo toast
+        // encima solo asusta al usuario sin aportar nada (y si fue un 401
+        // transitorio justo tras el login, no hay nada roto que reportar).
+        if (err.status === 401) return;
+
         // Solo mostramos la alerta ante un error real del servidor.
         this.toastService.mostrar('Error al conectar con el servidor', 'error');
       }
