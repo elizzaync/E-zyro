@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import logging
+import re
 import uuid as _uuid_mod
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -219,12 +223,24 @@ def revertir_registro(
     datos = registro.datos_anteriores
     reg_id = str(registro.registro_id)
 
+    # ── Blindaje anti SQL-injection de segundo orden ─────────────────────────
+    # `tabla` y las claves de `datos_anteriores` se interpolan como IDENTIFICADORES
+    # (SQL no permite parametrizar nombres de tabla/columna). Aunque provienen del
+    # registro de auditoría (no del request directo), validamos con regex estricto
+    # para que un identificador manipulado no pueda romper el entrecomillado e
+    # inyectar. Solo se aceptan nombres tipo [a-z_][a-z0-9_]* (patrón de Postgres).
+    _IDENT_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+    if not _IDENT_RE.match(tabla):
+        raise HTTPException(status_code=422, detail="Nombre de tabla no válido para revertir")
+
     # Construir SET clause solo con campos presentes en datos_anteriores
     # Excluir campos que nunca deben sobreescribirse
     CAMPOS_EXCLUIDOS = {"id", "empresa_id", "created_at", "updated_at"}
     campos = {k: v for k, v in datos.items() if k not in CAMPOS_EXCLUIDOS}
     if not campos:
         raise HTTPException(status_code=422, detail="No hay campos válidos para revertir")
+    if not all(_IDENT_RE.match(k) for k in campos.keys()):
+        raise HTTPException(status_code=422, detail="Nombre de columna no válido para revertir")
 
     set_parts = ", ".join([f'"{k}" = :{k}' for k in campos.keys()])
     params = {**campos, "_reg_id": reg_id}
@@ -235,9 +251,11 @@ def revertir_registro(
             params,
         )
         db.commit()
-    except Exception as e:
+    except Exception:
         db.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al revertir: {str(e)}")
+        # No filtrar el error de BD al cliente (podría revelar estructura interna).
+        logger.exception("Error al revertir registro de auditoría (tabla=%s, id=%s)", tabla, reg_id)
+        raise HTTPException(status_code=500, detail="No se pudo revertir el registro.")
 
     return {"detail": f"Registro revertido correctamente en tabla '{tabla}'."}
 

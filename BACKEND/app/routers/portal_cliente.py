@@ -60,7 +60,6 @@ def _requires_client(
     payload["empresa_id"] = row[0]
     payload["cliente_id"] = row[1]
 
-    print(f"[portal] uid={usuario_id} empresa_id={row[0]} cliente_id={row[1]}")
     return payload
 
 
@@ -519,7 +518,6 @@ def portal_kpis(
     db: Session   = Depends(get_db),
 ) -> dict[str, Any]:
     empresa_id, cliente_id = _ctx(payload)
-    print(f"[portal_kpis] empresa_id={empresa_id} cliente_id={cliente_id}")
 
     params = {"eid": empresa_id, "cid": cliente_id}
 
@@ -540,8 +538,6 @@ def portal_kpis(
           AND ei.proximo_mantenimiento BETWEEN CURRENT_DATE
                                           AND CURRENT_DATE + INTERVAL '30 days'
     """), params).scalar() or 0
-
-    print(f"[portal_kpis] total={total} completados={completados} en_proceso={en_proceso} proximos={proximos}")
 
     return {
         "total_equipos":              int(total),
@@ -775,8 +771,6 @@ def portal_equipos_historial(
         ORDER BY ei.created_at DESC
     """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
 
-    print(f"[portal_historial] empresa={empresa_id[:8]} cliente={cliente_id[:8]} rows={len(rows)}")
-
     return [
         {
             "id":                    str(r[0]),
@@ -859,8 +853,6 @@ def portal_mantenimiento_detalles(
         ei_id_str = ei_row[0]
         ps_id_str = ei_row[1]
         hm_estado = ei_row[2]
-
-    print(f"[portal_detalle] id={hm_id[:8]} ei={ei_id_str[:8]} ps={ps_id_str[:8] if ps_id_str else None}")
 
     # ── Paso 2: equipo + servicio histórico + proyecto ────────────────────────
     row = db.execute(text("""

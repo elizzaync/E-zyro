@@ -1,7 +1,0 @@
-{
-  "version": 3,
-  "sources": ["src/app/features/centro-ayuda/components/doc-banner/doc-banner.component.css"],
-  "sourcesContent": [".banner-card {\r\n    background: var(--card-bg); /* Fondo din\u00E1mico limpio */\r\n    border: 1px solid var(--border-color);\r\n    border-left: 4px solid var(--brand-green); /* Acento lateral elegante */\r\n    border-radius: 16px;\r\n    padding: 24px;\r\n    margin-top: 24px;\r\n    box-shadow: 0 4px 15px var(--shadow-color);\r\n    transition: background-color 0.4s ease, border-color 0.4s ease;\r\n}\r\n.banner-card h3 {\r\n    margin: 0 0 8px 0; color: var(--text-main); font-size: 16px;\r\n    font-weight: 800; transition: color 0.4s ease;\r\n}\r\n.banner-card p {\r\n    margin: 0 0 16px 0; color: var(--text-muted); font-size: 14px;\r\n    line-height: 1.5; transition: color 0.4s ease;\r\n}\r\n.banner-link {\r\n    color: var(--brand-green); text-decoration: none; font-weight: 700;\r\n    font-size: 14px; transition: opacity 0.2s;\r\n}\r\n.banner-link:hover { opacity: 0.8; }"],
-  "mappings": ";AAAA,CAAC;AACG,cAAY,IAAI;AAChB,UAAQ,IAAI,MAAM,IAAI;AACtB,eAAa,IAAI,MAAM,IAAI;AAC3B,iBAAe;AACf,WAAS;AACT,cAAY;AACZ,cAAY,EAAE,IAAI,KAAK,IAAI;AAC3B,cAAY,iBAAiB,KAAK,IAAI,EAAE,aAAa,KAAK;AAC9D;AACA,CAVC,YAUY;AACT,UAAQ,EAAE,EAAE,IAAI;AAAG,SAAO,IAAI;AAAc,aAAW;AACvD,eAAa;AAAK,cAAY,MAAM,KAAK;AAC7C;AACA,CAdC,YAcY;AACT,UAAQ,EAAE,EAAE,KAAK;AAAG,SAAO,IAAI;AAAe,aAAW;AACzD,eAAa;AAAK,cAAY,MAAM,KAAK;AAC7C;AACA,CAAC;AACG,SAAO,IAAI;AAAgB,mBAAiB;AAAM,eAAa;AAC/D,aAAW;AAAM,cAAY,QAAQ;AACzC;AACA,CAJC,WAIW;AAAS,WAAS;AAAK;",
-  "names": []
-}

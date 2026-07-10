@@ -11,6 +11,13 @@ def subir_imagen_cloudinary(base64_data: str, folder: str, public_id: str, is_pe
         if not base64_data:
             raise Exception("No se recibió ninguna imagen para subir.")
 
+        # Tope de tamaño (anti-DoS): el base64 pesa ~1.33x el binario, así que
+        # ~10.7 MB de string ≈ 8 MB de imagen. Rechaza payloads gigantes antes
+        # de decodificar/subir.
+        _MAX_B64_CHARS = 11_000_000
+        if len(base64_data) > _MAX_B64_CHARS:
+            raise Exception("La imagen excede el tamaño máximo permitido (8 MB).")
+
         # Cloudinary requiere el prefijo data URI; añadirlo si viene como base64 puro
         if not base64_data.startswith("data:"):
             base64_data = f"data:image/jpeg;base64,{base64_data}"
