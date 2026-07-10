@@ -57,6 +57,13 @@ const PERU_CENTER: [number, number] = [-9.19, -75.02];
 const PERU_ZOOM = 5;
 /** Recuadro de paneo: Perú + margen, evita arrastrar el mapa a océano vacío. */
 const PERU_BOUNDS: L.LatLngBoundsExpression = [[-21, -84], [1.5, -65]];
+/** A partir de este zoom la burbuja de un departamento se "abre" en pines
+ *  individuales por equipo (claridad al acercarse a una zona). */
+const EXPLODE_ZOOM = 8;
+/** A partir de este zoom se muestra el nombre del departamento como etiqueta fija. */
+const LABEL_ZOOM = 7;
+/** Ángulo áureo (rad): reparte puntos en espiral tipo girasol sin superponerse. */
+const GOLDEN_ANGLE = 2.399963229728653;
 
 /** Basemaps CARTO — más limpios y "corporativos" que el OSM por defecto;
  *  además traen su propia paleta oscura (ya no hace falta el filter CSS). */
@@ -106,6 +113,10 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
   private map: L.Map | null = null;
   private tileLayer: L.TileLayer | null = null;
   private markers: L.Marker[] = [];
+  private pinMarkers: L.Marker[] = [];
+  private labelMarkers: L.Marker[] = [];
+  private pinsVisible = false;
+  private labelsVisible = false;
   private themeSub: Subscription | null = null;
   zonas: ZonaMapa[] = [];
   sinUbicacion: any[] = [];
@@ -311,7 +322,7 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
     this.ngZone.runOutsideAngular(() => {
       this.map = L.map(el, {
         center: PERU_CENTER, zoom: PERU_ZOOM,
-        minZoom: 4, maxZoom: 12, zoomSnap: 0.5, zoomDelta: 0.5,
+        minZoom: 4, maxZoom: 14, zoomSnap: 0.5, zoomDelta: 0.5,
         zoomControl: true, attributionControl: true,
         maxBounds: PERU_BOUNDS, maxBoundsViscosity: 0.85,
       });
@@ -319,6 +330,9 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
         attribution: TILES_ATTRIBUTION, subdomains: 'abcd', maxZoom: 19,
       }).addTo(this.map);
       this.dibujarMarcadores();
+      // Al acercarse/alejarse se decide si se ven burbujas por zona o
+      // pines individuales por equipo (nivel de detalle progresivo).
+      this.map.on('zoomend', () => this.actualizarNivelDetalle());
     });
 
     // El basemap CARTO ya trae su propia paleta oscura: solo hay que
@@ -329,15 +343,35 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
     });
   }
 
+  /** Posición de un equipo dentro de su zona a un zoom de referencia: reparto
+   *  en espiral (ángulo áureo) en espacio de píxeles, luego convertido a
+   *  LatLng. Al ser una posición fija, mientras más zoom más se separan en
+   *  pantalla (efecto natural de "abrir" el grupo). */
+  private pinLatLng(centro: L.LatLng, i: number, atZoom: number): L.LatLng {
+    const angle = i * GOLDEN_ANGLE;
+    const radiusPx = 14 + 9 * Math.sqrt(i);
+    const offset = L.point(radiusPx * Math.cos(angle), radiusPx * Math.sin(angle));
+    const punto = this.map!.project(centro, atZoom).add(offset);
+    return this.map!.unproject(punto, atZoom);
+  }
+
   private dibujarMarcadores(): void {
     if (!this.map) return;
     this.markers.forEach(m => m.remove());
+    this.pinMarkers.forEach(m => m.remove());
+    this.labelMarkers.forEach(m => m.remove());
     this.markers = [];
+    this.pinMarkers = [];
+    this.labelMarkers = [];
+    this.pinsVisible = false;
+    this.labelsVisible = false;
 
     for (const z of this.zonas) {
       const n = z.equipos.length;
       const size = Math.max(34, Math.min(58, 30 + n * 4));
       const pulse = z.worst === 'err' ? ' eh-marker-outer--pulse' : '';
+      const centro = L.latLng(z.lat, z.lng);
+
       const icon = L.divIcon({
         className: 'eh-marker-wrap',
         html: `<div class="eh-marker-outer${pulse}">` +
@@ -347,17 +381,60 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
         iconSize: [size, size],
         iconAnchor: [size / 2, size / 2],
       });
-
-      const marker = L.marker([z.lat, z.lng], { icon })
+      const marker = L.marker(centro, { icon, zIndexOffset: 1000 })
         .addTo(this.map!)
         .bindTooltip(`${z.region} · ${n} equipo${n === 1 ? '' : 's'}`, { direction: 'top', offset: L.point(0, -size / 2) });
-
       marker.on('click', () => {
         // El click nace fuera de la zone (Leaflet) → reentrar para que
         // Angular pinte el panel de la zona seleccionada.
         this.ngZone.run(() => this.seleccionarZona(z));
       });
       this.markers.push(marker);
+
+      // Etiqueta fija con el nombre del departamento (aparece con el zoom).
+      const labelIcon = L.divIcon({
+        className: 'eh-zone-label-wrap',
+        html: `<div class="eh-zone-label">${z.region}</div>`,
+        iconSize: [1, 1],
+        iconAnchor: [-(size / 2 + 6), 5],
+      });
+      this.labelMarkers.push(L.marker(centro, { icon: labelIcon, interactive: false, zIndexOffset: 900 }));
+
+      // Pines individuales por equipo (aparecen con más zoom todavía).
+      const equipos = [...z.equipos].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+      equipos.forEach((eq, i) => {
+        const st = this.stOf(eq);
+        const pinIcon = L.divIcon({
+          className: 'eh-pin-wrap',
+          html: `<div class="eh-pin eh-pin--${st}"></div>`,
+          iconSize: [14, 14],
+          iconAnchor: [7, 7],
+        });
+        const pin = L.marker(this.pinLatLng(centro, i, EXPLODE_ZOOM), { icon: pinIcon, zIndexOffset: 800 })
+          .bindTooltip(`${eq.nombre} · ${this.stLabel(eq)}`, { direction: 'top', offset: L.point(0, -9) });
+        pin.on('click', () => this.ngZone.run(() => this.abrirEquipo(eq)));
+        this.pinMarkers.push(pin);
+      });
+    }
+
+    this.actualizarNivelDetalle();
+  }
+
+  /** Alterna burbujas ⇄ pines individuales ⇄ etiquetas según el zoom actual. */
+  private actualizarNivelDetalle(): void {
+    if (!this.map) return;
+    const zoom = this.map.getZoom();
+
+    const showPins = zoom >= EXPLODE_ZOOM;
+    if (showPins !== this.pinsVisible) {
+      this.pinsVisible = showPins;
+      this.pinMarkers.forEach(p => (showPins ? p.addTo(this.map!) : p.remove()));
+    }
+
+    const showLabels = zoom >= LABEL_ZOOM;
+    if (showLabels !== this.labelsVisible) {
+      this.labelsVisible = showLabels;
+      this.labelMarkers.forEach(l => (showLabels ? l.addTo(this.map!) : l.remove()));
     }
   }
 
@@ -385,6 +462,10 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
       this.map = null;
       this.tileLayer = null;
       this.markers = [];
+      this.pinMarkers = [];
+      this.labelMarkers = [];
+      this.pinsVisible = false;
+      this.labelsVisible = false;
     }
   }
 

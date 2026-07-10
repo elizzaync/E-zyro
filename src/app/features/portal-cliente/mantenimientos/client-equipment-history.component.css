@@ -161,6 +161,33 @@
   100% { transform: scale(2.1); opacity: 0; }
 }
 
+/* ── Pines individuales por equipo (nivel de detalle al hacer zoom) ── */
+:host ::ng-deep .eh-pin-wrap { background: transparent; border: none; }
+:host ::ng-deep .eh-pin {
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.32);
+  cursor: pointer; transition: transform .12s ease;
+}
+:host ::ng-deep .eh-pin:hover { transform: scale(1.35); }
+:host ::ng-deep .eh-pin--ok      { background: #22c55e; }
+:host ::ng-deep .eh-pin--warn    { background: #f59e0b; }
+:host ::ng-deep .eh-pin--err     { background: #ef4444; }
+:host ::ng-deep .eh-pin--prog    { background: #3b82f6; }
+:host ::ng-deep .eh-pin--neutral { background: #94a3b8; }
+
+/* ── Etiqueta fija con el nombre del departamento (aparece con el zoom) ── */
+:host ::ng-deep .eh-zone-label-wrap {
+  background: transparent !important; border: none !important;
+  width: auto !important; height: auto !important; overflow: visible !important;
+}
+:host ::ng-deep .eh-zone-label {
+  white-space: nowrap; font-size: 10px; font-weight: 800; letter-spacing: .3px;
+  text-transform: uppercase; color: var(--text-main);
+  background: var(--card-bg); border: 1px solid var(--card-glass-border);
+  border-radius: 6px; padding: 2px 7px; pointer-events: none;
+  box-shadow: 0 1px 4px rgba(0,0,0,.16);
+}
+
 /* ── Controles de Leaflet re-estilizados al lenguaje visual del portal ── */
 :host ::ng-deep .eh-map .leaflet-control-zoom {
   border: none !important; border-radius: 10px !important; overflow: hidden;
