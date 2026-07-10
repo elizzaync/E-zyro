@@ -68,6 +68,10 @@ export class DetalleEquipoComponent implements OnInit {
     this.router.navigate(['/operaciones/servicio', this.equipo.proyecto_servicio_id]);
   }
 
+  get tieneObservaciones(): boolean {
+    return !!(this.equipo?.observaciones && String(this.equipo.observaciones).trim().length > 0);
+  }
+
   // ── Identidad / semáforo ────────────────────────────────────────────────
   estadoClass(estado: string): string {
     const map: Record<string, string> = {
