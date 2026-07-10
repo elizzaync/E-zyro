@@ -124,7 +124,12 @@
   <div class="pc-glass eh-map-card">
     <div class="eh-map-head">
       <div>
-        <div class="eh-map-eyebrow">Mapa del parque · Perú</div>
+        <div class="eh-map-eyebrow">
+          Mapa del parque · Perú
+          @if (zonas.length > 0) {
+          <span class="eh-map-count">{{ zonas.length }} región{{ zonas.length === 1 ? '' : 'es' }} · {{ totalEquiposMapa }} equipo{{ totalEquiposMapa === 1 ? '' : 's' }}</span>
+          }
+        </div>
         <div class="eh-map-hint">
           {{ zonaSel ? 'Zona ampliada · toca un equipo para ver su detalle' : 'Toca una región para ampliar y ver sus equipos' }}
         </div>

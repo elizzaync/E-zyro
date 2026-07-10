@@ -5,8 +5,10 @@ import {
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
 import * as L from 'leaflet';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
+import { ThemeService } from '../../../core/services/theme.service';
 import { StatusBadgeComponent } from '../shared/status-badge.component';
 import { EmptyStateComponent } from '../shared/empty-state.component';
 import { PortalPaginationComponent } from '../shared/portal-pagination.component';
@@ -53,6 +55,14 @@ const REGIONES_PERU: Record<string, { nombre: string; lat: number; lng: number }
 
 const PERU_CENTER: [number, number] = [-9.19, -75.02];
 const PERU_ZOOM = 5;
+/** Recuadro de paneo: Perú + margen, evita arrastrar el mapa a océano vacío. */
+const PERU_BOUNDS: L.LatLngBoundsExpression = [[-21, -84], [1.5, -65]];
+
+/** Basemaps CARTO — más limpios y "corporativos" que el OSM por defecto;
+ *  además traen su propia paleta oscura (ya no hace falta el filter CSS). */
+const TILES_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+const TILES_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const TILES_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
 
 @Component({
   selector: 'app-client-equipment-history',
@@ -67,6 +77,7 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
   private cdr    = inject(ChangeDetectorRef);
   private ngZone = inject(NgZone);
   private router = inject(Router);
+  private theme  = inject(ThemeService);
 
   cargando  = true;
   error     = '';
@@ -93,10 +104,16 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
 
   // ── Mapa del Perú ──────────────────────────────────────────────────────
   private map: L.Map | null = null;
-  private markers: L.CircleMarker[] = [];
+  private tileLayer: L.TileLayer | null = null;
+  private markers: L.Marker[] = [];
+  private themeSub: Subscription | null = null;
   zonas: ZonaMapa[] = [];
   sinUbicacion: any[] = [];
   zonaSel: ZonaMapa | null = null;
+
+  get totalEquiposMapa(): number {
+    return this.zonas.reduce((acc, z) => acc + z.equipos.length, 0);
+  }
 
   // ── Estado temporal unificado (misma lógica del resto del portal) ──────
   maintenanceStatus(eq: any): { label: string; badge: string } {
@@ -284,10 +301,6 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
     });
   }
 
-  private worstColor(w: 'ok' | 'warn' | 'err'): string {
-    return w === 'err' ? '#ef4444' : (w === 'warn' ? '#f59e0b' : '#22c55e');
-  }
-
   private initMapa(): void {
     const el = document.getElementById('pc-peru-map');
     if (!el || this.map) return;
@@ -298,12 +311,21 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
     this.ngZone.runOutsideAngular(() => {
       this.map = L.map(el, {
         center: PERU_CENTER, zoom: PERU_ZOOM,
-        minZoom: 4, maxZoom: 15, zoomControl: true, attributionControl: true,
+        minZoom: 4, maxZoom: 12, zoomSnap: 0.5, zoomDelta: 0.5,
+        zoomControl: true, attributionControl: true,
+        maxBounds: PERU_BOUNDS, maxBoundsViscosity: 0.85,
       });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© OpenStreetMap',
+      this.tileLayer = L.tileLayer(this.theme.isDark ? TILES_DARK : TILES_LIGHT, {
+        attribution: TILES_ATTRIBUTION, subdomains: 'abcd', maxZoom: 19,
       }).addTo(this.map);
       this.dibujarMarcadores();
+    });
+
+    // El basemap CARTO ya trae su propia paleta oscura: solo hay que
+    // cambiar la URL de tiles cuando el usuario alterna el tema.
+    this.themeSub = this.theme.isDark$.subscribe(dark => {
+      if (!this.tileLayer) return;
+      this.ngZone.runOutsideAngular(() => this.tileLayer!.setUrl(dark ? TILES_DARK : TILES_LIGHT));
     });
   }
 
@@ -313,14 +335,22 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
     this.markers = [];
 
     for (const z of this.zonas) {
-      const color = this.worstColor(z.worst);
-      const radio = Math.min(26, 12 + z.equipos.length * 2);
-      const marker = L.circleMarker([z.lat, z.lng], {
-        radius: radio, color: '#ffffff', weight: 2.5,
-        fillColor: color, fillOpacity: 0.82,
-      })
+      const n = z.equipos.length;
+      const size = Math.max(34, Math.min(58, 30 + n * 4));
+      const pulse = z.worst === 'err' ? ' eh-marker-outer--pulse' : '';
+      const icon = L.divIcon({
+        className: 'eh-marker-wrap',
+        html: `<div class="eh-marker-outer${pulse}">` +
+              `<span class="eh-marker-pulse eh-marker-pulse--${z.worst}"></span>` +
+              `<div class="eh-marker eh-marker--${z.worst}">${n}</div>` +
+              `</div>`,
+        iconSize: [size, size],
+        iconAnchor: [size / 2, size / 2],
+      });
+
+      const marker = L.marker([z.lat, z.lng], { icon })
         .addTo(this.map!)
-        .bindTooltip(`${z.region} · ${z.equipos.length} equipo(s)`, { direction: 'top', offset: L.point(0, -radio) });
+        .bindTooltip(`${z.region} · ${n} equipo${n === 1 ? '' : 's'}`, { direction: 'top', offset: L.point(0, -size / 2) });
 
       marker.on('click', () => {
         // El click nace fuera de la zone (Leaflet) → reentrar para que
@@ -348,9 +378,12 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
   }
 
   private destroyMapa(): void {
+    this.themeSub?.unsubscribe();
+    this.themeSub = null;
     if (this.map) {
       this.map.remove();
       this.map = null;
+      this.tileLayer = null;
       this.markers = [];
     }
   }
