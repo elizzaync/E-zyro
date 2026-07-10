@@ -1,90 +1,92 @@
 import {
-  Component, OnInit, OnDestroy,
-  ChangeDetectionStrategy, ChangeDetectorRef, NgZone, inject,
+  Component, OnInit, HostListener,
+  ChangeDetectionStrategy, ChangeDetectorRef, inject,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
-import { Subscription } from 'rxjs';
-import * as L from 'leaflet';
 import { PortalClienteService } from '../../../core/services/portal-cliente.service';
-import { ThemeService } from '../../../core/services/theme.service';
 import { StatusBadgeComponent } from '../shared/status-badge.component';
 import { EmptyStateComponent } from '../shared/empty-state.component';
 import { PortalPaginationComponent } from '../shared/portal-pagination.component';
+import { AppModalComponent } from '../../../shared/components/modal/app-modal.component';
+import { PERU_DEPARTAMENTOS, PERU_GEO_ANCHO, PERU_GEO_ALTO, DepartamentoGeo } from '../../../shared/data/peru-departamentos';
 
 type St = 'ok' | 'prog' | 'warn' | 'err' | 'neutral';
+type EstadoDep = 'vencido' | 'proximo' | 'ok' | 'sin_equipos';
 
-interface ZonaMapa {
-  region: string;      // nombre canónico mostrado
-  lat: number;
-  lng: number;
-  equipos: any[];
-  worst: 'ok' | 'warn' | 'err';
-}
+const KGREEN = '#8FD11B';
+const KAMBER = '#F59E0B';
+const KRED = '#E53935';
+const KSIN_EQUIPOS = '#243044';
 
-/** Centroides de referencia de las regiones del Perú (capital regional). */
-const REGIONES_PERU: Record<string, { nombre: string; lat: number; lng: number }> = {
-  'amazonas':      { nombre: 'Amazonas',      lat: -6.23,  lng: -77.87 },
-  'ancash':        { nombre: 'Áncash',        lat: -9.53,  lng: -77.53 },
-  'apurimac':      { nombre: 'Apurímac',      lat: -13.63, lng: -72.88 },
-  'arequipa':      { nombre: 'Arequipa',      lat: -16.40, lng: -71.54 },
-  'ayacucho':      { nombre: 'Ayacucho',      lat: -13.16, lng: -74.22 },
-  'cajamarca':     { nombre: 'Cajamarca',     lat: -7.16,  lng: -78.51 },
-  'callao':        { nombre: 'Callao',        lat: -12.05, lng: -77.13 },
-  'cusco':         { nombre: 'Cusco',         lat: -13.53, lng: -71.97 },
-  'cuzco':         { nombre: 'Cusco',         lat: -13.53, lng: -71.97 },
-  'huancavelica':  { nombre: 'Huancavelica',  lat: -12.79, lng: -74.97 },
-  'huanuco':       { nombre: 'Huánuco',       lat: -9.93,  lng: -76.24 },
-  'ica':           { nombre: 'Ica',           lat: -14.07, lng: -75.73 },
-  'junin':         { nombre: 'Junín',         lat: -12.07, lng: -75.21 },
-  'la libertad':   { nombre: 'La Libertad',   lat: -8.11,  lng: -79.03 },
-  'lambayeque':    { nombre: 'Lambayeque',    lat: -6.77,  lng: -79.84 },
-  'lima':          { nombre: 'Lima',          lat: -12.05, lng: -77.04 },
-  'loreto':        { nombre: 'Loreto',        lat: -3.75,  lng: -73.25 },
-  'madre de dios': { nombre: 'Madre de Dios', lat: -12.59, lng: -69.19 },
-  'moquegua':      { nombre: 'Moquegua',      lat: -17.19, lng: -70.93 },
-  'pasco':         { nombre: 'Pasco',         lat: -10.68, lng: -76.26 },
-  'piura':         { nombre: 'Piura',         lat: -5.19,  lng: -80.63 },
-  'puno':          { nombre: 'Puno',          lat: -15.84, lng: -70.02 },
-  'san martin':    { nombre: 'San Martín',    lat: -6.48,  lng: -76.37 },
-  'tacna':         { nombre: 'Tacna',         lat: -18.01, lng: -70.25 },
-  'tumbes':        { nombre: 'Tumbes',        lat: -3.57,  lng: -80.45 },
-  'ucayali':       { nombre: 'Ucayali',       lat: -8.38,  lng: -74.55 },
+const COLOR_POR_ESTADO: Record<EstadoDep, string> = {
+  vencido: KRED, proximo: KAMBER, ok: KGREEN, sin_equipos: KSIN_EQUIPOS,
 };
 
-const PERU_CENTER: [number, number] = [-9.19, -75.02];
-const PERU_ZOOM = 5;
-/** Recuadro de paneo: Perú + margen, evita arrastrar el mapa a océano vacío. */
-const PERU_BOUNDS: L.LatLngBoundsExpression = [[-21, -84], [1.5, -65]];
-/** A partir de este zoom la burbuja de un departamento se "abre" en pines
- *  individuales por equipo (claridad al acercarse a una zona). */
-const EXPLODE_ZOOM = 8;
-/** A partir de este zoom se muestra el nombre del departamento como etiqueta fija. */
-const LABEL_ZOOM = 7;
-/** Ángulo áureo (rad): reparte puntos en espiral tipo girasol sin superponerse. */
-const GOLDEN_ANGLE = 2.399963229728653;
+// Ciudades/provincias conocidas → departamento — el mismo mapeo que usa el
+// mapa interno de Operaciones (mapa-parque), para que el cliente vea
+// exactamente la misma zonificación que los técnicos.
+const CIUDAD_A_DEP: Record<string, string> = {
+  CHACHAPOYAS: 'AMAZONAS', BAGUA: 'AMAZONAS',
+  HUARAZ: 'ANCASH', CHIMBOTE: 'ANCASH',
+  ABANCAY: 'APURIMAC',
+  HUAMANGA: 'AYACUCHO',
+  CUZCO: 'CUSCO',
+  CHINCHA: 'ICA', PISCO: 'ICA', NAZCA: 'ICA',
+  HUANCAYO: 'JUNIN', TARMA: 'JUNIN', SATIPO: 'JUNIN', 'LA OROYA': 'JUNIN',
+  TRUJILLO: 'LA LIBERTAD', CHEPEN: 'LA LIBERTAD',
+  CHICLAYO: 'LAMBAYEQUE',
+  HUACHO: 'LIMA', CANETE: 'LIMA', BARRANCA: 'LIMA',
+  IQUITOS: 'LORETO', YURIMAGUAS: 'LORETO',
+  'PUERTO MALDONADO': 'MADRE DE DIOS',
+  ILO: 'MOQUEGUA',
+  'CERRO DE PASCO': 'PASCO',
+  SULLANA: 'PIURA', TALARA: 'PIURA', PAITA: 'PIURA',
+  JULIACA: 'PUNO',
+  MOYOBAMBA: 'SAN MARTIN', TARAPOTO: 'SAN MARTIN',
+  PUCALLPA: 'UCAYALI',
+};
 
-/** Basemaps CARTO — más limpios y "corporativos" que el OSM por defecto;
- *  además traen su propia paleta oscura (ya no hace falta el filter CSS). */
-const TILES_LIGHT = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-const TILES_DARK  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-const TILES_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+interface DepEstado {
+  equipos: any[];
+  vencidos: number;
+  proximos: number;
+  sinPlan: number;
+}
+
+interface DepVista {
+  nombre: string;
+  anillosPoints: string[];
+  color: string;
+  estado: EstadoDep;
+  total: number;
+  vencidos: number;
+  proximos: number;
+  alDia: number;
+  sinPlan: number;
+  cx: number;
+  cy: number;
+  pulso: boolean; // vencidos > 0
+}
+
+interface TooltipPos { x: number; y: number; }
 
 @Component({
   selector: 'app-client-equipment-history',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, StatusBadgeComponent, EmptyStateComponent, PortalPaginationComponent],
+  imports: [
+    CommonModule, RouterLink, FormsModule,
+    StatusBadgeComponent, EmptyStateComponent, PortalPaginationComponent, AppModalComponent,
+  ],
   templateUrl: './client-equipment-history.component.html',
   styleUrls: ['./client-equipment-history.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
+export class ClientEquipmentHistoryComponent implements OnInit {
   private svc    = inject(PortalClienteService);
   private cdr    = inject(ChangeDetectorRef);
-  private ngZone = inject(NgZone);
   private router = inject(Router);
-  private theme  = inject(ThemeService);
 
   cargando  = true;
   error     = '';
@@ -109,22 +111,19 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
   private countAdvertencia = 0;
   private countPeligro = 0;
 
-  // ── Mapa del Perú ──────────────────────────────────────────────────────
-  private map: L.Map | null = null;
-  private tileLayer: L.TileLayer | null = null;
-  private markers: L.Marker[] = [];
-  private pinMarkers: L.Marker[] = [];
-  private labelMarkers: L.Marker[] = [];
-  private pinsVisible = false;
-  private labelsVisible = false;
-  private themeSub: Subscription | null = null;
-  zonas: ZonaMapa[] = [];
-  sinUbicacion: any[] = [];
-  zonaSel: ZonaMapa | null = null;
+  // ── Mapa del Perú (SVG — el mismo que usan los técnicos en Operaciones) ──
+  readonly ancho = PERU_GEO_ANCHO;
+  readonly alto  = PERU_GEO_ALTO;
 
-  get totalEquiposMapa(): number {
-    return this.zonas.reduce((acc, z) => acc + z.equipos.length, 0);
-  }
+  departamentosVista: DepVista[] = [];
+  sinUbicar: any[] = [];
+  seleccionado: string | null = null; // nombre de departamento, o 'SIN_UBICAR'
+
+  hoverDep: DepVista | null = null;
+  hoverPos: TooltipPos | null = null;
+
+  filtroLeyenda: EstadoDep | null = null;
+  filtroPanel = '';
 
   // ── Estado temporal unificado (misma lógica del resto del portal) ──────
   maintenanceStatus(eq: any): { label: string; badge: string } {
@@ -177,13 +176,7 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
   setVista(v: 'lista' | 'mapa'): void {
     if (this.vista === v) return;
     this.vista = v;
-    if (v === 'mapa') {
-      // El contenedor del mapa recién existe tras el render de este tick.
-      setTimeout(() => this.initMapa(), 0);
-    } else {
-      this.destroyMapa();
-      this.zonaSel = null;
-    }
+    if (v === 'mapa' && this.departamentosVista.length === 0) this.agrupar();
     this.cdr.markForCheck();
   }
 
@@ -272,201 +265,201 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
     this.historialPaginado = this.historialFiltrado.slice(start, start + this.PAGE_SIZE);
   }
 
-  // ── Mapa del Perú ──────────────────────────────────────────────────────
+  // ── Mapa del Perú (SVG) ──────────────────────────────────────────────────
 
-  private static norm(s: string | null | undefined): string {
-    return (s ?? '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  private static normalizar(s: string | null | undefined): string {
+    return (s ?? '')
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '') // quita marcas de acento combinantes (tildes) tras NFD
+      .toUpperCase()
+      .trim();
   }
 
-  /** Resuelve la región de un equipo: primero el campo region del backend,
-   *  luego busca nombres de región dentro de sede/ubicación (texto libre). */
-  private regionKeyDe(eq: any): string | null {
-    const region = ClientEquipmentHistoryComponent.norm(eq.region);
-    if (region && REGIONES_PERU[region]) return region;
+  /** Resuelve el departamento de un equipo: primero busca el nombre de un
+   *  departamento dentro de sus campos de ubicación (región/sede/ubicación/
+   *  proyecto), luego el mapeo de ciudad conocida → departamento. */
+  private depDe(eq: any): string | null {
     const texto = [eq.region, eq.sede, eq.ubicacion, eq.proyecto]
-      .map(v => ClientEquipmentHistoryComponent.norm(v)).join(' | ');
-    for (const key of Object.keys(REGIONES_PERU)) {
-      if (texto.includes(key)) return key;
+      .map(v => ClientEquipmentHistoryComponent.normalizar(v)).join(' | ');
+    if (!texto.trim()) return null;
+    for (const d of PERU_DEPARTAMENTOS) {
+      if (texto.includes(d.nombre)) return d.nombre;
+    }
+    for (const [ciudad, dep] of Object.entries(CIUDAD_A_DEP)) {
+      if (texto.includes(ciudad)) return dep;
     }
     return null;
   }
 
-  private agruparZonas(): void {
-    const porRegion = new Map<string, any[]>();
-    this.sinUbicacion = [];
-    for (const eq of this.historial) {
-      const key = this.regionKeyDe(eq);
-      if (!key) { this.sinUbicacion.push(eq); continue; }
-      const list = porRegion.get(key) ?? [];
-      list.push(eq);
-      porRegion.set(key, list);
+  private agrupar(): void {
+    const porDep = new Map<string, DepEstado>();
+    for (const d of PERU_DEPARTAMENTOS) porDep.set(d.nombre, { equipos: [], vencidos: 0, proximos: 0, sinPlan: 0 });
+    this.sinUbicar = [];
+
+    for (const e of this.historial) {
+      const dep = this.depDe(e);
+      if (!dep) { this.sinUbicar.push(e); continue; }
+      const est = porDep.get(dep)!;
+      est.equipos.push(e);
+      const st = this.stOf(e);
+      if (st === 'err') est.vencidos++;
+      else if (st === 'warn') est.proximos++;
+      else if (st !== 'ok') est.sinPlan++;
     }
-    this.zonas = Array.from(porRegion.entries()).map(([key, equipos]) => {
-      const hayErr  = equipos.some(e => this.stOf(e) === 'err');
-      const hayWarn = equipos.some(e => this.stOf(e) === 'warn');
-      const meta = REGIONES_PERU[key];
+
+    this.departamentosVista = PERU_DEPARTAMENTOS.map(d => {
+      const est = porDep.get(d.nombre)!;
+      const total = est.equipos.length;
+      const estado: EstadoDep = total === 0 ? 'sin_equipos'
+        : est.vencidos > 0 ? 'vencido'
+        : est.proximos > 0 ? 'proximo'
+        : 'ok';
+      const { cx, cy } = ClientEquipmentHistoryComponent.centroide(d);
       return {
-        region: meta.nombre, lat: meta.lat, lng: meta.lng, equipos,
-        worst: hayErr ? 'err' : (hayWarn ? 'warn' : 'ok'),
-      } as ZonaMapa;
+        nombre: d.nombre,
+        anillosPoints: d.anillos.map(anillo => ClientEquipmentHistoryComponent.aPoints(anillo)),
+        color: COLOR_POR_ESTADO[estado],
+        estado, total,
+        vencidos: est.vencidos, proximos: est.proximos, sinPlan: est.sinPlan,
+        alDia: total - est.vencidos - est.proximos - est.sinPlan,
+        cx, cy,
+        pulso: est.vencidos > 0,
+      };
     });
   }
 
-  private initMapa(): void {
-    const el = document.getElementById('pc-peru-map');
-    if (!el || this.map) return;
-
-    // Leaflet registra sus propios listeners nativos: crearlo fuera de la
-    // Angular zone evita change detection global en cada pan/zoom/mousemove
-    // (mismo patrón que background.js y Chart.js del dashboard).
-    this.ngZone.runOutsideAngular(() => {
-      this.map = L.map(el, {
-        center: PERU_CENTER, zoom: PERU_ZOOM,
-        minZoom: 4, maxZoom: 14, zoomSnap: 0.5, zoomDelta: 0.5,
-        zoomControl: true, attributionControl: true,
-        maxBounds: PERU_BOUNDS, maxBoundsViscosity: 0.85,
-      });
-      this.tileLayer = L.tileLayer(this.theme.isDark ? TILES_DARK : TILES_LIGHT, {
-        attribution: TILES_ATTRIBUTION, subdomains: 'abcd', maxZoom: 19,
-      }).addTo(this.map);
-      this.dibujarMarcadores();
-      // Al acercarse/alejarse se decide si se ven burbujas por zona o
-      // pines individuales por equipo (nivel de detalle progresivo).
-      this.map.on('zoomend', () => this.actualizarNivelDetalle());
-    });
-
-    // El basemap CARTO ya trae su propia paleta oscura: solo hay que
-    // cambiar la URL de tiles cuando el usuario alterna el tema.
-    this.themeSub = this.theme.isDark$.subscribe(dark => {
-      if (!this.tileLayer) return;
-      this.ngZone.runOutsideAngular(() => this.tileLayer!.setUrl(dark ? TILES_DARK : TILES_LIGHT));
-    });
+  private static aPoints(anillo: number[]): string {
+    const pts: string[] = [];
+    for (let i = 0; i < anillo.length; i += 2) pts.push(`${anillo[i]},${anillo[i + 1]}`);
+    return pts.join(' ');
   }
 
-  /** Posición de un equipo dentro de su zona a un zoom de referencia: reparto
-   *  en espiral (ángulo áureo) en espacio de píxeles, luego convertido a
-   *  LatLng. Al ser una posición fija, mientras más zoom más se separan en
-   *  pantalla (efecto natural de "abrir" el grupo). */
-  private pinLatLng(centro: L.LatLng, i: number, atZoom: number): L.LatLng {
-    const angle = i * GOLDEN_ANGLE;
-    const radiusPx = 14 + 9 * Math.sqrt(i);
-    const offset = L.point(radiusPx * Math.cos(angle), radiusPx * Math.sin(angle));
-    const punto = this.map!.project(centro, atZoom).add(offset);
-    return this.map!.unproject(punto, atZoom);
-  }
-
-  private dibujarMarcadores(): void {
-    if (!this.map) return;
-    this.markers.forEach(m => m.remove());
-    this.pinMarkers.forEach(m => m.remove());
-    this.labelMarkers.forEach(m => m.remove());
-    this.markers = [];
-    this.pinMarkers = [];
-    this.labelMarkers = [];
-    this.pinsVisible = false;
-    this.labelsVisible = false;
-
-    for (const z of this.zonas) {
-      const n = z.equipos.length;
-      const size = Math.max(34, Math.min(58, 30 + n * 4));
-      const pulse = z.worst === 'err' ? ' eh-marker-outer--pulse' : '';
-      const centro = L.latLng(z.lat, z.lng);
-
-      const icon = L.divIcon({
-        className: 'eh-marker-wrap',
-        html: `<div class="eh-marker-outer${pulse}">` +
-              `<span class="eh-marker-pulse eh-marker-pulse--${z.worst}"></span>` +
-              `<div class="eh-marker eh-marker--${z.worst}">${n}</div>` +
-              `</div>`,
-        iconSize: [size, size],
-        iconAnchor: [size / 2, size / 2],
-      });
-      const marker = L.marker(centro, { icon, zIndexOffset: 1000 })
-        .addTo(this.map!)
-        .bindTooltip(`${z.region} · ${n} equipo${n === 1 ? '' : 's'}`, { direction: 'top', offset: L.point(0, -size / 2) });
-      marker.on('click', () => {
-        // El click nace fuera de la zone (Leaflet) → reentrar para que
-        // Angular pinte el panel de la zona seleccionada.
-        this.ngZone.run(() => this.seleccionarZona(z));
-      });
-      this.markers.push(marker);
-
-      // Etiqueta fija con el nombre del departamento (aparece con el zoom).
-      const labelIcon = L.divIcon({
-        className: 'eh-zone-label-wrap',
-        html: `<div class="eh-zone-label">${z.region}</div>`,
-        iconSize: [1, 1],
-        iconAnchor: [-(size / 2 + 6), 5],
-      });
-      this.labelMarkers.push(L.marker(centro, { icon: labelIcon, interactive: false, zIndexOffset: 900 }));
-
-      // Pines individuales por equipo (aparecen con más zoom todavía).
-      const equipos = [...z.equipos].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
-      equipos.forEach((eq, i) => {
-        const st = this.stOf(eq);
-        const pinIcon = L.divIcon({
-          className: 'eh-pin-wrap',
-          html: `<div class="eh-pin eh-pin--${st}"></div>`,
-          iconSize: [14, 14],
-          iconAnchor: [7, 7],
-        });
-        const pin = L.marker(this.pinLatLng(centro, i, EXPLODE_ZOOM), { icon: pinIcon, zIndexOffset: 800 })
-          .bindTooltip(`${eq.nombre} · ${this.stLabel(eq)}`, { direction: 'top', offset: L.point(0, -9) });
-        pin.on('click', () => this.ngZone.run(() => this.abrirEquipo(eq)));
-        this.pinMarkers.push(pin);
-      });
+  /** Centro del bounding box del anillo más grande (aprox. al centroide real). */
+  private static centroide(d: DepartamentoGeo): { cx: number; cy: number } {
+    const anillo = d.anillos.reduce((a, b) => (a.length >= b.length ? a : b));
+    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    for (let i = 0; i < anillo.length; i += 2) {
+      const x = anillo[i], y = anillo[i + 1];
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
-
-    this.actualizarNivelDetalle();
+    return { cx: (minX + maxX) / 2, cy: (minY + maxY) / 2 };
   }
 
-  /** Alterna burbujas ⇄ pines individuales ⇄ etiquetas según el zoom actual. */
-  private actualizarNivelDetalle(): void {
-    if (!this.map) return;
-    const zoom = this.map.getZoom();
-
-    const showPins = zoom >= EXPLODE_ZOOM;
-    if (showPins !== this.pinsVisible) {
-      this.pinsVisible = showPins;
-      this.pinMarkers.forEach(p => (showPins ? p.addTo(this.map!) : p.remove()));
-    }
-
-    const showLabels = zoom >= LABEL_ZOOM;
-    if (showLabels !== this.labelsVisible) {
-      this.labelsVisible = showLabels;
-      this.labelMarkers.forEach(l => (showLabels ? l.addTo(this.map!) : l.remove()));
-    }
+  // ── Hover / foco (mouse + teclado) ───────────────────────────────────
+  onHoverDep(d: DepVista, ev: MouseEvent): void {
+    this.hoverDep = d;
+    this.hoverPos = { x: ev.clientX, y: ev.clientY };
   }
 
-  seleccionarZona(z: ZonaMapa): void {
-    this.zonaSel = z;
-    this.ngZone.runOutsideAngular(() => this.map?.flyTo([z.lat, z.lng], 9, { duration: .9 }));
-    this.cdr.markForCheck();
+  onHoverMove(ev: MouseEvent): void {
+    if (this.hoverDep) this.hoverPos = { x: ev.clientX, y: ev.clientY };
   }
 
-  verTodoElPeru(): void {
-    this.zonaSel = null;
-    this.ngZone.runOutsideAngular(() => this.map?.flyTo(PERU_CENTER, PERU_ZOOM, { duration: .9 }));
-    this.cdr.markForCheck();
+  onHoverLeave(): void {
+    this.hoverDep = null;
+    this.hoverPos = null;
+  }
+
+  onFocusDep(d: DepVista, ev: FocusEvent): void {
+    const rect = (ev.target as SVGGraphicsElement).getBoundingClientRect();
+    this.hoverDep = d;
+    this.hoverPos = { x: rect.left + rect.width / 2, y: rect.top };
+  }
+
+  get tooltipStyle(): { [k: string]: string } {
+    if (!this.hoverPos) return {};
+    const cercaBordeDerecho = this.hoverPos.x > window.innerWidth - 220;
+    const left = cercaBordeDerecho ? this.hoverPos.x - 220 : this.hoverPos.x + 16;
+    const top = Math.max(8, this.hoverPos.y - 12);
+    return { left: `${left}px`, top: `${top}px` };
+  }
+
+  // ── Leyenda interactiva ───────────────────────────────────────────────
+  toggleFiltroLeyenda(estado: EstadoDep): void {
+    this.filtroLeyenda = this.filtroLeyenda === estado ? null : estado;
+  }
+
+  depAtenuado(d: DepVista): boolean {
+    return this.filtroLeyenda !== null && d.estado !== this.filtroLeyenda;
+  }
+
+  // ── Selección / panel de detalle ─────────────────────────────────────
+  get equiposDelSeleccionado(): any[] {
+    if (!this.seleccionado) return [];
+    if (this.seleccionado === 'SIN_UBICAR') return this.sinUbicar;
+    return this.historial.filter(e => this.depDe(e) === this.seleccionado);
+  }
+
+  get equiposFiltradosPanel(): any[] {
+    const term = this.filtroPanel.trim().toLowerCase();
+    const lista = this.equiposDelSeleccionado;
+    if (!term) return lista;
+    return lista.filter(e =>
+      (e.nombre    || '').toLowerCase().includes(term) ||
+      (e.ubicacion || '').toLowerCase().includes(term) ||
+      (e.proyecto  || '').toLowerCase().includes(term));
+  }
+
+  get depSeleccionado(): DepVista | null {
+    if (!this.seleccionado || this.seleccionado === 'SIN_UBICAR') return null;
+    return this.departamentosVista.find(x => x.nombre === this.seleccionado) ?? null;
+  }
+
+  get tituloPanel(): string {
+    if (this.seleccionado === 'SIN_UBICAR') return 'Equipos sin ubicar';
+    return this.tituloCase(this.seleccionado || '');
+  }
+
+  get subtituloPanel(): string {
+    const n = this.equiposDelSeleccionado.length;
+    return `${n} equipo${n !== 1 ? 's' : ''} registrado${n !== 1 ? 's' : ''}`;
+  }
+
+  get iconBgPanel(): string {
+    const color = this.seleccionado === 'SIN_UBICAR' ? '#64748b' : (this.depSeleccionado?.color ?? '#64748b');
+    return this.hexARgba(color, 0.14);
+  }
+
+  get iconColorPanel(): string {
+    return this.seleccionado === 'SIN_UBICAR' ? '#64748b' : (this.depSeleccionado?.color ?? '#64748b');
+  }
+
+  private hexARgba(hex: string, alpha: number): string {
+    const h = hex.replace('#', '');
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+
+  private tituloCase(nombre: string): string {
+    return nombre.toLowerCase().replace(/\b\p{L}/gu, (c) => c.toUpperCase());
+  }
+
+  @HostListener('document:keydown.escape')
+  onEsc(): void {
+    if (this.seleccionado) this.cerrarPanel();
+  }
+
+  seleccionar(d: DepVista): void {
+    this.seleccionado = d.nombre;
+    this.filtroPanel = '';
+  }
+
+  verSinUbicar(): void {
+    this.seleccionado = 'SIN_UBICAR';
+    this.filtroPanel = '';
+  }
+
+  cerrarPanel(): void {
+    this.seleccionado = null;
+    this.filtroPanel = '';
   }
 
   abrirEquipo(eq: any): void {
+    this.cerrarPanel();
     this.router.navigate(['/portal-cliente/mantenimiento', eq.id]);
-  }
-
-  private destroyMapa(): void {
-    this.themeSub?.unsubscribe();
-    this.themeSub = null;
-    if (this.map) {
-      this.map.remove();
-      this.map = null;
-      this.tileLayer = null;
-      this.markers = [];
-      this.pinMarkers = [];
-      this.labelMarkers = [];
-      this.pinsVisible = false;
-      this.labelsVisible = false;
-    }
   }
 
   // ── Ciclo de vida ──────────────────────────────────────────────────────
@@ -478,7 +471,7 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
         this.cargando = false;
         this.recalcularDerivadosDeHistorial();
         this.aplicarFiltros();
-        this.agruparZonas();
+        this.agrupar();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -487,9 +480,5 @@ export class ClientEquipmentHistoryComponent implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
     });
-  }
-
-  ngOnDestroy(): void {
-    this.destroyMapa();
   }
 }
