@@ -15,12 +15,6 @@
         </svg>
         Mapa
       </button>
-      <button class="btn-secundario" (click)="abrirCrear()" title="Nuevo equipo">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Nuevo Equipo
-      </button>
       <button class="btn-refresh" (click)="cargar()" title="Actualizar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
@@ -188,7 +182,7 @@
   <div class="modal-overlay" (click)="cerrarModal()">
     <div class="modal-box" (click)="$event.stopPropagation()">
       <div class="modal-header">
-        <h3>{{ editando ? 'Editar Equipo' : 'Nuevo Equipo' }}</h3>
+        <h3>Editar Equipo</h3>
         <button class="modal-close" (click)="cerrarModal()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -259,7 +253,7 @@
       <div class="modal-footer">
         <button class="btn-cancelar" (click)="cerrarModal()">Cancelar</button>
         <button class="btn-guardar" [disabled]="guardando" (click)="guardar()">
-          {{ guardando ? 'Guardando...' : (editando ? 'Guardar cambios' : 'Crear equipo') }}
+          {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
         </button>
       </div>
     </div>

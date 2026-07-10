@@ -93,17 +93,20 @@
     }
   </div>
 
-  <!-- FICHA TÉCNICA -->
+  <!-- FICHA TÉCNICA (alineada a los campos de Equipos Intervenidos) -->
   <div class="card">
     <h3 class="card-titulo">Ficha técnica</h3>
     <div class="ficha-grid">
+      <div class="ficha-fila"><span class="ficha-clave">Código</span><span class="ficha-valor">{{ equipo.codigo || '—' }}</span></div>
       <div class="ficha-fila"><span class="ficha-clave">Tipo</span><span class="ficha-valor">{{ equipo.tipo_equipo_nombre || '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Ubicación</span><span class="ficha-valor">{{ equipo.ubicacion_nombre || '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Zona</span><span class="ficha-valor">{{ equipo.zona_nombre || '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Referencia</span><span class="ficha-valor">{{ equipo.ubicacion_referencia || '—' }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Próximo mantenimiento</span><span class="ficha-valor">{{ formatFecha(equipo.proximo_mantenimiento) }}</span></div>
+      <div class="ficha-fila"><span class="ficha-clave">Estado</span><span class="ficha-valor">{{ estadoLabel(equipo.estado) }}</span></div>
       <div class="ficha-fila"><span class="ficha-clave">Marca</span><span class="ficha-valor">{{ equipo.marca || '—' }}</span></div>
       <div class="ficha-fila"><span class="ficha-clave">Modelo</span><span class="ficha-valor">{{ equipo.modelo || '—' }}</span></div>
       <div class="ficha-fila"><span class="ficha-clave">N° de serie</span><span class="ficha-valor">{{ equipo.numero_serie || '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Fecha instalación</span><span class="ficha-valor">{{ formatFecha(equipo.fecha_instalacion) }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">Frecuencia</span><span class="ficha-valor">{{ equipo.frecuencia_meses ? equipo.frecuencia_meses + ' meses' : '—' }}</span></div>
-      <div class="ficha-fila"><span class="ficha-clave">N° mantenimientos</span><span class="ficha-valor">{{ mantenimientos.length }}</span></div>
       @for (f of fichaTecnicaDinamica; track f.clave) {
       <div class="ficha-fila"><span class="ficha-clave">{{ f.clave }}</span><span class="ficha-valor">{{ f.valor }}</span></div>
       }

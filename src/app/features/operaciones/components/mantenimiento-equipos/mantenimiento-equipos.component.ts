@@ -191,14 +191,7 @@ export class MantenimientoEquiposComponent implements OnInit {
 
   toggleGrupo(g: GrupoUbicacion): void { g.expandido = !g.expandido; }
 
-  // ── Modal alta/edición ────────────────────────────────────────────────
-  abrirCrear(): void {
-    this.editando = null;
-    this.form = this.formVacio();
-    this.cargarCatalogos();
-    this.mostrarModal = true;
-  }
-
+  // ── Modal de edición (el alta se hace desde Equipos Intervenidos) ───────
   abrirEditar(e: any): void {
     this.editando = e;
     this.form = {
@@ -229,20 +222,18 @@ export class MantenimientoEquiposComponent implements OnInit {
   }
 
   guardar(): void {
+    if (!this.editando) return;
     if (!this.form.nombre?.trim()) {
       this.toast.mostrar('El nombre es obligatorio.', 'error');
       return;
     }
     this.guardando = true;
     const body = { ...this.form };
-    const obs = this.editando
-      ? this.svc.actualizar(this.editando.id, body)
-      : this.svc.crear(body);
-    obs.subscribe({
+    this.svc.actualizar(this.editando.id, body).subscribe({
       next: () => {
         this.guardando = false;
         this.mostrarModal = false;
-        this.toast.mostrar(this.editando ? 'Equipo actualizado.' : 'Equipo creado.', 'success');
+        this.toast.mostrar('Equipo actualizado.', 'success');
         this.cargar();
       },
       error: (err) => {
