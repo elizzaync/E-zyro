@@ -6,6 +6,7 @@ import '../models/asistencia_models.dart';
 import '../models/requerimiento_models.dart';
 import '../models/calibracion_models.dart';
 import '../models/personal_models.dart';
+import '../models/finanzas_models.dart';
 import 'builders/permiso_builder.dart';
 import 'builders/informe_servicio_builder.dart';
 import 'builders/asistencia_builder.dart';
@@ -14,6 +15,7 @@ import 'builders/gantt_builder.dart';
 import 'builders/calibracion_builder.dart';
 import 'builders/historial_personal_builder.dart';
 import 'builders/etiqueta_equipo_builder.dart';
+import 'builders/boleta_pago_builder.dart';
 
 /// ╔══════════════════════════════════════════════════════════════════════════╗
 /// ║  PdfService — FACHADA ÚNICA de creación de PDFs de la app.                 ║
@@ -36,6 +38,7 @@ import 'builders/etiqueta_equipo_builder.dart';
 /// ║   - salidasLogistica()     [P3] Reporte de salidas de equipos              ║
 /// ║   - asistenciaUsuario()    [P3] Reporte de asistencia por usuario          ║
 /// ║   - historialPersonal()    Ficha/historial laboral de un empleado          ║
+/// ║   - boletaPago()           Boleta de pago (motor legal de planilla)       ║
 /// ║   - historialCalibracion() Historial de calibraciones de un equipo         ║
 /// ║   - etiquetaEquipo()       Etiqueta QR imprimible de un equipo             ║
 /// ║   - gantt()                [P3] Cronograma Gantt del proyecto              ║
@@ -88,6 +91,19 @@ class PdfService {
   /// solicitudes, EPP y evaluaciones).
   static Future<Uint8List> historialPersonal(HistorialPersonal historial) =>
       HistorialPersonalBuilder.build(h: historial);
+
+  /// Boleta de pago (motor legal de planilla): ingresos, descuentos, neto y
+  /// beneficios del empleador, con las mismas citas legales que la web.
+  static Future<Uint8List> boletaPago({
+    required PlanillaPreviewEmpleado empleado,
+    required EmpresaInfo empresa,
+    required String labelPeriodo,
+    required String regimenEmpresa,
+  }) =>
+      BoletaPagoBuilder.build(
+        e: empleado, empresa: empresa, labelPeriodo: labelPeriodo,
+        regimenEmpresa: regimenEmpresa,
+      );
 
   // ── Equipos / Calibraciones ──────────────────────────────────────────────
 

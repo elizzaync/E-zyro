@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart' show MediaType;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -140,6 +141,33 @@ class ApiClient {
         fileField,
         filePath,
         contentType: _mediaTypeDe(filePath),
+      ));
+    final streamed = await _http.send(request).timeout(AppConstants.uploadTimeout);
+    return http.Response.fromStream(streamed);
+  }
+
+  /// POST multipart/form-data desde bytes en memoria (ej. un PDF generado en
+  /// el cliente, sin pasar por disco).
+  Future<http.Response> postMultipartBytes(
+    String path,
+    Map<String, String> fields,
+    String fileField,
+    Uint8List bytes,
+    String filename, {
+    String contentType = 'application/pdf',
+  }) async {
+    final token = _token;
+    if (token.isEmpty) {
+      throw Exception('No auth token found. Please login again.');
+    }
+    final parts = contentType.split('/');
+    final uri = Uri.parse('${AppConstants.baseUrl}$path');
+    final request = http.MultipartRequest('POST', uri)
+      ..headers['Authorization'] = 'Bearer $token'
+      ..fields.addAll(fields)
+      ..files.add(http.MultipartFile.fromBytes(
+        fileField, bytes, filename: filename,
+        contentType: MediaType(parts[0], parts[1]),
       ));
     final streamed = await _http.send(request).timeout(AppConstants.uploadTimeout);
     return http.Response.fromStream(streamed);

@@ -1,7 +1,11 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../../models/finanzas_models.dart';
 import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
+import '../../widgets/verdant_theme.dart';
+import '../../pdf/pdf_service.dart';
+import '../../pdf/pdf_preview_screen.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -27,10 +31,24 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
   List<AsignacionConcepto> _asignaciones = [];
   bool _loadingSueldos = true;
 
+  // ── Vista previa (motor legal, paridad con la web) ─────────────────────────
+  int _vpYear = DateTime.now().year;
+  int _vpMonth = DateTime.now().month;
+  String _vpPeriodoPago = 'mes'; // mes | q1 | q2
+  PlanillaConfig? _vpConfig;
+  PlanillaPreviewPagina? _vpPreview;
+  EmpresaInfo? _vpEmpresaInfo;
+  bool _vpLoading = true;
+  int _vpPage = 1;
+  bool _vpAccionando = false;
+  final Map<String, bool> _vpSeleccionLegajo = {};
+  bool _vpEnviandoMasivo = false;
+  String _vpMasivoProgreso = '';
+
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(length: 4, vsync: this);
     _tabs.addListener(() {
       if (!_tabs.indexIsChanging) setState(() {});
     });
@@ -38,14 +56,27 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
     _cargarConceptos();
     _cargarSueldos();
     _cargarConfig();
+    _cargarPreview();
+    _cargarEmpresaInfo();
+  }
+
+  Future<void> _cargarEmpresaInfo() async {
+    final svc = await getFinanzasService();
+    final r = await svc.getEmpresaInfo();
+    if (!mounted) return;
+    if (r.ok) setState(() => _vpEmpresaInfo = r.data);
   }
 
   Future<void> _cargarConfig() async {
     final svc = await getFinanzasService();
-    final r = await svc.getDescuentoTardanzaAuto();
+    final r = await svc.getConfigPlanillaCompleto();
     if (!mounted) return;
     setState(() {
-      if (r.ok) _descTardanzaAuto = r.data!;
+      if (r.ok) {
+        _descTardanzaAuto = r.data!.descuentoTardanzaAuto;
+        _vpConfig = r.data;
+        if (_vpConfig!.esquemaPagoPlanilla == 'mensual') _vpPeriodoPago = 'mes';
+      }
     });
   }
 
@@ -117,6 +148,390 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
       _cargarConceptos();
     } else {
       mostrarError(context, r.errorMessage);
+    }
+  }
+
+  // ── Vista previa: período ───────────────────────────────────────────────────
+  String get _vpMM => _vpMonth.toString().padLeft(2, '0');
+  String get _vpPeriodoStr => '$_vpYear-$_vpMM';
+
+  String get _vpFechaInicio {
+    final dia = _vpPeriodoPago == 'q2' ? 16 : 1;
+    return '$_vpYear-$_vpMM-${dia.toString().padLeft(2, '0')}';
+  }
+
+  String get _vpFechaFin {
+    if (_vpPeriodoPago == 'q1') return '$_vpYear-$_vpMM-15';
+    final ultimo = DateTime(_vpYear, _vpMonth + 1, 0).day;
+    return '$_vpYear-$_vpMM-${ultimo.toString().padLeft(2, '0')}';
+  }
+
+  bool get _vpEsMesActual {
+    final hoy = DateTime.now();
+    return _vpYear == hoy.year && _vpMonth == hoy.month;
+  }
+
+  String get _vpLabelPeriodo {
+    const meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    return '${meses[_vpMonth]} $_vpYear';
+  }
+
+  /// Planilla ya calculada de este período (si existe), buscada en la lista
+  /// que ya carga la tab "Planillas" — evita una llamada extra al backend.
+  Planilla? get _vpPlanillaActual {
+    for (final p in _planillas) {
+      if (p.fechaProceso.startsWith(_vpPeriodoStr) && p.estado != 'anulada') return p;
+    }
+    return null;
+  }
+
+  void _vpMesAnterior() {
+    setState(() {
+      if (_vpMonth == 1) { _vpMonth = 12; _vpYear--; } else { _vpMonth--; }
+      _vpPage = 1;
+    });
+    _cargarPreview();
+  }
+
+  void _vpMesSiguiente() {
+    if (_vpEsMesActual) return;
+    setState(() {
+      if (_vpMonth == 12) { _vpMonth = 1; _vpYear++; } else { _vpMonth++; }
+      _vpPage = 1;
+    });
+    _cargarPreview();
+  }
+
+  void _vpSetPeriodoPago(String v) {
+    if (_vpPeriodoPago == v) return;
+    setState(() { _vpPeriodoPago = v; _vpPage = 1; });
+    _cargarPreview();
+  }
+
+  Future<void> _cargarPreview() async {
+    setState(() => _vpLoading = true);
+    final svc = await getFinanzasService();
+    final r = await svc.previewPlanilla(
+      fechaInicio: _vpFechaInicio, fechaFin: _vpFechaFin,
+      periodoPago: _vpPeriodoPago, page: _vpPage, limit: 10,
+    );
+    if (!mounted) return;
+    setState(() {
+      _vpLoading = false;
+      if (r.ok) _vpPreview = r.data;
+    });
+    if (!r.ok) mostrarError(context, r.errorMessage);
+  }
+
+  void _vpIrPagina(int p) {
+    final tp = _vpPreview?.totalPaginas ?? 1;
+    if (p < 1 || p > tp) return;
+    setState(() => _vpPage = p);
+    _cargarPreview();
+  }
+
+  // ── Vista previa: configuración de empresa ──────────────────────────────────
+  Future<void> _vpSetRegimen(String val) async {
+    final anterior = _vpConfig;
+    if (anterior == null || anterior.regimenLaboral == val) return;
+    setState(() => _vpConfig = PlanillaConfig(
+          descuentoTardanzaAuto: anterior.descuentoTardanzaAuto, regimenLaboral: val,
+          esquemaPagoPlanilla: anterior.esquemaPagoPlanilla,
+          pagarHorasExtraSinTramite: anterior.pagarHorasExtraSinTramite,
+        ));
+    final svc = await getFinanzasService();
+    final r = await svc.actualizarConfigPlanilla(regimenLaboral: val);
+    if (!mounted) return;
+    if (r.ok) {
+      mostrarOk(context, 'Régimen actualizado');
+      _cargarPreview();
+    } else {
+      setState(() => _vpConfig = anterior);
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  Future<void> _vpSetHorasExtraGate(bool val) async {
+    final anterior = _vpConfig;
+    if (anterior == null) return;
+    setState(() => _vpConfig = PlanillaConfig(
+          descuentoTardanzaAuto: anterior.descuentoTardanzaAuto,
+          regimenLaboral: anterior.regimenLaboral,
+          esquemaPagoPlanilla: anterior.esquemaPagoPlanilla,
+          pagarHorasExtraSinTramite: val,
+        ));
+    final svc = await getFinanzasService();
+    final r = await svc.actualizarConfigPlanilla(pagarHorasExtraSinTramite: val);
+    if (!mounted) return;
+    if (r.ok) {
+      mostrarOk(context, val
+          ? 'Ahora se paga todo el sobretiempo registrado'
+          : 'Ahora solo se paga el sobretiempo con trámite aprobado');
+      _cargarPreview();
+    } else {
+      setState(() => _vpConfig = anterior);
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  // ── Vista previa: edición por empleado ──────────────────────────────────────
+  Future<void> _vpGuardarSueldoBase(PlanillaPreviewEmpleado e, double monto) async {
+    final svc = await getFinanzasService();
+    final r = await svc.actualizarSueldoBase(e.id, monto);
+    if (!mounted) return;
+    if (r.ok) {
+      mostrarOk(context, 'Sueldo base actualizado');
+      _cargarPreview();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  Future<void> _vpGuardarModalidad(PlanillaPreviewEmpleado e, String tipo) async {
+    if (e.tipoContrato == tipo) return;
+    final svc = await getFinanzasService();
+    final r = await svc.actualizarModalidad(e.id, tipo);
+    if (!mounted) return;
+    if (r.ok) {
+      mostrarOk(context, 'Modalidad actualizada');
+      _cargarPreview();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  Future<void> _vpGuardarAsignacionFamiliar(PlanillaPreviewEmpleado e, bool val) async {
+    final svc = await getFinanzasService();
+    final r = await svc.actualizarPension(e.id, tieneAsignacionFamiliar: val);
+    if (!mounted) return;
+    if (r.ok) {
+      _cargarPreview();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  void _vpAbrirPension(PlanillaPreviewEmpleado e) {
+    String sistema = e.sistemaPension;
+    String entidad = e.entidadAfp ?? 'integra';
+    String tipoComision = e.tipoComisionAfp;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setSt) => Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Sistema de pensión', style: Theme.of(ctx).textTheme.titleLarge),
+              const SizedBox(height: 4),
+              Text(e.nombreCompleto ?? 'Empleado', style: TextStyle(color: Colors.grey.shade600)),
+              const SizedBox(height: 16),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'onp', label: Text('ONP')),
+                  ButtonSegment(value: 'afp', label: Text('AFP')),
+                ],
+                selected: {sistema},
+                onSelectionChanged: (s) => setSt(() => sistema = s.first),
+              ),
+              if (sistema == 'afp') ...[
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: entidad,
+                  decoration: const InputDecoration(labelText: 'Entidad AFP', border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'integra', child: Text('AFP Integra')),
+                    DropdownMenuItem(value: 'prima', child: Text('AFP Prima')),
+                    DropdownMenuItem(value: 'profuturo', child: Text('Profuturo AFP')),
+                    DropdownMenuItem(value: 'habitat', child: Text('AFP Habitat')),
+                  ],
+                  onChanged: (v) => setSt(() => entidad = v!),
+                ),
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  initialValue: tipoComision,
+                  decoration: const InputDecoration(labelText: 'Esquema de comisión', border: OutlineInputBorder()),
+                  items: const [
+                    DropdownMenuItem(value: 'saldo', child: Text('Saldo (no se descuenta)')),
+                    DropdownMenuItem(value: 'flujo', child: Text('Flujo (se descuenta cada mes)')),
+                  ],
+                  onChanged: (v) => setSt(() => tipoComision = v!),
+                ),
+              ],
+              const SizedBox(height: 20),
+              FilledButton(
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  final svc = await getFinanzasService();
+                  final r = await svc.actualizarPension(
+                    e.id, sistemaPension: sistema,
+                    entidadAfp: sistema == 'afp' ? entidad : null,
+                    tipoComisionAfp: sistema == 'afp' ? tipoComision : null,
+                  );
+                  if (!mounted) return;
+                  if (r.ok) {
+                    mostrarOk(context, 'Pensión actualizada');
+                    _cargarPreview();
+                  } else {
+                    mostrarError(context, r.errorMessage);
+                  }
+                },
+                child: const Text('Guardar'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _vpAbrirBoleta(PlanillaPreviewEmpleado e) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _HojaBoletaPreview(
+        empleado: e, labelPeriodo: _vpLabelPeriodo,
+        regimenEmpresa: _vpConfig?.regimenLaboral ?? 'micro',
+        periodoPago: _vpPeriodoPago, empresaInfo: _vpEmpresaInfo,
+        mes: _vpMonth, anio: _vpYear,
+      ),
+    );
+  }
+
+  void _vpAbrirAsistencia(PlanillaPreviewEmpleado e) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => _HojaAsistenciaDetalle(
+        empleadoId: e.id, nombre: e.nombreCompleto ?? 'Empleado',
+        inicio: _vpFechaInicio, fin: _vpFechaFin,
+      ),
+    );
+  }
+
+  // ── Vista previa: ciclo calcular/aprobar/pagar/anular del período actual ───
+  Future<void> _vpCalcular() async {
+    setState(() => _vpAccionando = true);
+    final svc = await getFinanzasService();
+    final r = await svc.calcularPlanilla(_vpPeriodoStr);
+    if (!mounted) return;
+    setState(() => _vpAccionando = false);
+    if (r.ok) {
+      mostrarOk(context, 'Planilla de $_vpLabelPeriodo calculada');
+      _cargarPlanillas();
+      _cargarPreview();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  Future<void> _vpAccionPlanillaActual(String accion, String tituloOk) async {
+    final p = _vpPlanillaActual;
+    if (p == null) return;
+    setState(() => _vpAccionando = true);
+    final svc = await getFinanzasService();
+    final r = switch (accion) {
+      'aprobar' => await svc.aprobarPlanilla(p.id),
+      'marcar-pagada' => await svc.pagarPlanilla(p.id),
+      _ => await svc.anularPlanilla(p.id),
+    };
+    if (!mounted) return;
+    setState(() => _vpAccionando = false);
+    if (r.ok) {
+      mostrarOk(context, tituloOk);
+      _cargarPlanillas();
+      _cargarPreview();
+    } else {
+      mostrarError(context, r.errorMessage);
+    }
+  }
+
+  // ── Vista previa: envío masivo de boletas a Legajo Digital (solo mes, admin) ─
+  void _vpToggleSeleccion(String empId) {
+    setState(() => _vpSeleccionLegajo[empId] = !(_vpSeleccionLegajo[empId] ?? false));
+  }
+
+  bool get _vpTodaPaginaSeleccionada {
+    final emps = _vpPreview?.empleados ?? const [];
+    return emps.isNotEmpty && emps.every((e) => _vpSeleccionLegajo[e.id] == true);
+  }
+
+  void _vpToggleSeleccionarTodaPagina() {
+    final marcar = !_vpTodaPaginaSeleccionada;
+    setState(() {
+      for (final e in _vpPreview?.empleados ?? const []) {
+        _vpSeleccionLegajo[e.id] = marcar;
+      }
+    });
+  }
+
+  int get _vpSeleccionCount => _vpSeleccionLegajo.values.where((v) => v).length;
+
+  Future<void> _vpEnviarLegajoMasivo() async {
+    if (_vpEmpresaInfo == null) {
+      mostrarError(context, 'Datos de la empresa aún no cargan. Intenta de nuevo.');
+      return;
+    }
+    setState(() { _vpEnviandoMasivo = true; _vpMasivoProgreso = 'Preparando…'; });
+    List<PlanillaPreviewEmpleado> objetivo;
+    if (_vpSeleccionCount == 0) {
+      final svc = await getFinanzasService();
+      final r = await svc.previewPlanilla(
+        fechaInicio: _vpFechaInicio, fechaFin: _vpFechaFin,
+        periodoPago: _vpPeriodoPago, page: 1, limit: 1000,
+      );
+      if (!mounted) return;
+      if (!r.ok) {
+        setState(() { _vpEnviandoMasivo = false; _vpMasivoProgreso = ''; });
+        mostrarError(context, r.errorMessage);
+        return;
+      }
+      objetivo = r.data!.empleados.where((e) => e.sueldoBase > 0).toList();
+    } else {
+      final ids = _vpSeleccionLegajo.entries.where((e) => e.value).map((e) => e.key).toSet();
+      objetivo = (_vpPreview?.empleados ?? const [])
+          .where((e) => ids.contains(e.id) && e.sueldoBase > 0).toList();
+    }
+    if (objetivo.isEmpty) {
+      setState(() { _vpEnviandoMasivo = false; _vpMasivoProgreso = ''; });
+      mostrarError(context, 'Ningún empleado seleccionado tiene sueldo registrado.');
+      return;
+    }
+    await _vpProcesarEnvioMasivo(objetivo);
+  }
+
+  Future<void> _vpProcesarEnvioMasivo(List<PlanillaPreviewEmpleado> emps) async {
+    final svc = await getFinanzasService();
+    int enviados = 0, errores = 0;
+    for (var i = 0; i < emps.length; i++) {
+      if (!mounted) return;
+      setState(() => _vpMasivoProgreso = 'Procesando ${i + 1} / ${emps.length}…');
+      try {
+        final bytes = await PdfService.boletaPago(
+          empleado: emps[i], empresa: _vpEmpresaInfo!, labelPeriodo: _vpLabelPeriodo,
+          regimenEmpresa: _vpConfig?.regimenLaboral ?? 'micro',
+        );
+        final nombreDoc = 'Boleta_de_Pago_$_vpMM$_vpYear.pdf';
+        final r = await svc.enviarBoletaALegajo(emps[i].id, bytes, nombreDoc,
+            mes: _vpMonth, anio: _vpYear);
+        if (r.ok) { enviados++; } else { errores++; }
+      } catch (_) {
+        errores++;
+      }
+    }
+    if (!mounted) return;
+    setState(() { _vpEnviandoMasivo = false; _vpMasivoProgreso = ''; _vpSeleccionLegajo.clear(); });
+    if (errores == 0) {
+      mostrarOk(context, '$enviados boleta(s) enviadas al Legajo Digital');
+    } else {
+      mostrarError(context, '$enviados enviadas · $errores con error — reintenta esos');
     }
   }
 
@@ -281,13 +696,13 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
     final puedeCalcular = AppSession.i.canCalcularPlanilla;
 
     FloatingActionButton? fab;
-    if (_tabs.index == 0 && puedeCalcular) {
+    if (_tabs.index == 1 && puedeCalcular) {
       fab = FloatingActionButton.extended(
         onPressed: _calcular,
         icon: const Icon(Icons.calculate),
         label: const Text('Calcular'),
       );
-    } else if (_tabs.index == 1 && puedeCalcular) {
+    } else if (_tabs.index == 2 && puedeCalcular) {
       fab = FloatingActionButton.extended(
         onPressed: _abrirFormConcepto,
         icon: const Icon(Icons.add),
@@ -308,18 +723,335 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
         ],
         bottom: TabBar(
           controller: _tabs,
-          tabs: const [Tab(text: 'Planillas'), Tab(text: 'Conceptos'), Tab(text: 'Sueldos')],
+          isScrollable: true,
+          tabs: const [
+            Tab(text: 'Vista previa'), Tab(text: 'Planillas'),
+            Tab(text: 'Conceptos'), Tab(text: 'Sueldos'),
+          ],
         ),
       ),
       floatingActionButton: fab,
       body: TabBarView(
         controller: _tabs,
         children: [
+          _tabVistaPrevia(),
           _tabPlanillas(),
           _tabConceptos(),
           _tabSueldos(),
         ],
       ),
+    );
+  }
+
+  Widget _tabVistaPrevia() {
+    final v = VerdantColors.of(context);
+    final cfg = _vpConfig;
+    final prev = _vpPreview;
+    final puedeEditar = AppSession.i.canCalcularPlanilla;
+
+    return RefreshIndicator(
+      onRefresh: _cargarPreview,
+      child: ListView(
+        padding: const EdgeInsets.all(12),
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(icon: const Icon(Icons.chevron_left), onPressed: _vpMesAnterior),
+              Column(children: [
+                Text(_vpLabelPeriodo, style: Theme.of(context).textTheme.titleMedium),
+                if (prev != null)
+                  Text('Meta: ${prev.periodo.metaHoras.toStringAsFixed(0)}h',
+                      style: TextStyle(color: v.sub, fontSize: 11)),
+              ]),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: _vpEsMesActual ? null : _vpMesSiguiente,
+              ),
+            ],
+          ),
+          if (cfg?.esquemaPagoPlanilla == 'quincenal') ...[
+            const SizedBox(height: 4),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(value: 'q1', label: Text('1ra Quincena')),
+                ButtonSegment(value: 'q2', label: Text('2da Quincena')),
+                ButtonSegment(value: 'mes', label: Text('Mes Completo')),
+              ],
+              selected: {_vpPeriodoPago},
+              onSelectionChanged: (s) => _vpSetPeriodoPago(s.first),
+            ),
+          ],
+          const SizedBox(height: 12),
+          if (puedeEditar && cfg != null) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Régimen de la empresa',
+                        style: TextStyle(fontSize: 12, color: v.sub, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(value: 'micro', label: Text('Microempresa')),
+                        ButtonSegment(value: 'pequena', label: Text('Peq. Empresa')),
+                        ButtonSegment(value: 'general', label: Text('Reg. General')),
+                      ],
+                      selected: {cfg.regimenLaboral},
+                      onSelectionChanged: (s) => _vpSetRegimen(s.first),
+                    ),
+                    const SizedBox(height: 12),
+                    Text('Pago de sobretiempo',
+                        style: TextStyle(fontSize: 12, color: v.sub, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(value: false, label: Text('Solo con trámite')),
+                        ButtonSegment(value: true, label: Text('Todo lo registrado')),
+                      ],
+                      selected: {cfg.pagarHorasExtraSinTramite},
+                      onSelectionChanged: (s) => _vpSetHorasExtraGate(s.first),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          if (puedeEditar) ...[_vpEstadoBar(_vpPlanillaActual, v), const SizedBox(height: 12)],
+          if (_vpLoading)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (prev == null || prev.empleados.isEmpty)
+            const EstadoVacio(
+              icono: Icons.groups_outlined,
+              titulo: 'Sin empleados en este período',
+              subtitulo: 'No hay asistencia registrada para calcular la planilla.',
+            )
+          else ...[
+            _vpKpis(prev, v),
+            const SizedBox(height: 12),
+            if (AppSession.i.isAdmin && _vpPeriodoPago == 'mes') ...[
+              _vpBarraLegajoMasivo(prev, v),
+              const SizedBox(height: 8),
+            ],
+            for (final e in prev.empleados)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _FilaEmpleadoPreview(
+                  empleado: e, v: v, puedeEditar: puedeEditar,
+                  mostrarSeleccion: AppSession.i.isAdmin && _vpPeriodoPago == 'mes',
+                  seleccionado: _vpSeleccionLegajo[e.id] == true,
+                  onToggleSeleccion: () => _vpToggleSeleccion(e.id),
+                  onGuardarSueldo: (m) => _vpGuardarSueldoBase(e, m),
+                  onGuardarModalidad: (t) => _vpGuardarModalidad(e, t),
+                  onToggleAsignacionFamiliar: (val) => _vpGuardarAsignacionFamiliar(e, val),
+                  onAbrirPension: () => _vpAbrirPension(e),
+                  onAbrirBoleta: () => _vpAbrirBoleta(e),
+                  onAbrirAsistencia: () => _vpAbrirAsistencia(e),
+                ),
+              ),
+            const SizedBox(height: 8),
+            _vpPaginacion(prev),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _vpChipEstado(String estado, VerdantColors v) {
+    final (Color color, Color bg, String label) = switch (estado) {
+      'calculada' => (v.blu, v.bluBg, 'Calculada'),
+      'aprobada' => (v.amb, v.ambBg, 'Aprobada'),
+      'pagada' => (v.grn, v.grnBg, 'Pagada'),
+      'anulada' => (v.red, v.redBg, 'Anulada'),
+      _ => (v.mut, v.track, 'Sin calcular'),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
+      child: Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700)),
+    );
+  }
+
+  Widget _vpEstadoBar(Planilla? p, VerdantColors v) {
+    if (p == null) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              _vpChipEstado('borrador', v),
+              const SizedBox(width: 10),
+              const Expanded(child: Text('Sin calcular todavía', style: TextStyle(fontSize: 12))),
+              FilledButton.icon(
+                onPressed: _vpAccionando ? null : _vpCalcular,
+                icon: _vpAccionando
+                    ? const SizedBox(width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.calculate, size: 18),
+                label: const Text('Calcular'),
+                style: FilledButton.styleFrom(backgroundColor: v.heroSolid),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final puedeAprobar = AppSession.i.canAprobarPlanilla;
+    final esAdmin = AppSession.i.isAdmin;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              _vpChipEstado(p.estado, v),
+              const SizedBox(width: 10),
+              Expanded(child: Text('Neto: ${money(p.totalNeto)}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+            ]),
+            if (p.estado == 'calculada' && (puedeAprobar || esAdmin)) ...[
+              const SizedBox(height: 10),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                if (esAdmin)
+                  TextButton.icon(
+                    onPressed: _vpAccionando
+                        ? null : () => _vpAccionPlanillaActual('anular', 'Planilla anulada'),
+                    icon: const Icon(Icons.cancel_outlined, size: 18, color: Colors.red),
+                    label: const Text('Anular', style: TextStyle(color: Colors.red)),
+                  ),
+                if (puedeAprobar)
+                  FilledButton.icon(
+                    onPressed: _vpAccionando ? null : () => _vpAccionPlanillaActual(
+                        'aprobar', 'Planilla aprobada — provisión contabilizada'),
+                    icon: const Icon(Icons.verified, size: 18),
+                    label: const Text('Aprobar'),
+                    style: FilledButton.styleFrom(backgroundColor: v.amb),
+                  ),
+              ]),
+            ] else if (p.estado == 'aprobada' && puedeAprobar) ...[
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: _vpAccionando ? null : () => _vpAccionPlanillaActual(
+                      'marcar-pagada', 'Planilla pagada — pago contabilizado'),
+                  icon: const Icon(Icons.payments, size: 18),
+                  label: const Text('Marcar pagada'),
+                  style: FilledButton.styleFrom(backgroundColor: v.heroSolid),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _vpKpis(PlanillaPreviewPagina prev, VerdantColors v) {
+    final totalNeto = prev.empleados.fold<double>(0, (s, e) => s + e.netoAPagar);
+    final totalDesc = prev.empleados.fold<double>(0, (s, e) => s + e.totalDescuentosLegales);
+    final totalExtra = prev.empleados.fold<double>(0, (s, e) => s + e.pagoHorasExtra);
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      childAspectRatio: 2.6,
+      crossAxisSpacing: 10,
+      mainAxisSpacing: 10,
+      children: [
+        TarjetaResumen(titulo: 'Total empleados', valor: '${prev.total}',
+            color: v.heroSolid, icono: Icons.groups_outlined),
+        TarjetaResumen(titulo: 'Total a pagar (página)', valor: money(totalNeto),
+            color: v.heroSolid, icono: Icons.payments_outlined),
+        TarjetaResumen(titulo: 'Descuentos legales', valor: money(totalDesc),
+            color: v.red, icono: Icons.remove_circle_outline),
+        TarjetaResumen(titulo: 'Pago horas extra', valor: money(totalExtra),
+            color: v.amb, icono: Icons.schedule_outlined),
+      ],
+    );
+  }
+
+  Widget _vpBarraLegajoMasivo(PlanillaPreviewPagina prev, VerdantColors v) {
+    final n = _vpSeleccionCount;
+    return Card(
+      color: v.cardAlt,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Row(
+          children: [
+            Checkbox(
+              value: _vpTodaPaginaSeleccionada,
+              onChanged: _vpEnviandoMasivo ? null : (_) => _vpToggleSeleccionarTodaPagina(),
+            ),
+            const Text('Seleccionar página', style: TextStyle(fontSize: 12)),
+            const Spacer(),
+            FilledButton.icon(
+              onPressed: _vpEnviandoMasivo ? null : _vpEnviarLegajoMasivo,
+              icon: _vpEnviandoMasivo
+                  ? const SizedBox(width: 14, height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.folder_shared_outlined, size: 16),
+              label: Text(
+                _vpEnviandoMasivo
+                    ? _vpMasivoProgreso
+                    : (n > 0 ? 'Enviar $n seleccionados' : 'Enviar a Legajo Digital'),
+                style: const TextStyle(fontSize: 12),
+              ),
+              style: FilledButton.styleFrom(backgroundColor: v.heroSolid),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _vpPaginacion(PlanillaPreviewPagina prev) {
+    if (prev.totalPaginas <= 1) return const SizedBox.shrink();
+    final desde = (prev.page - 1) * prev.limit + 1;
+    final hasta = (desde + prev.empleados.length - 1).clamp(0, prev.total);
+    return Column(
+      children: [
+        Text('Mostrando $desde–$hasta de ${prev.total} empleados',
+            style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+        const SizedBox(height: 6),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 4,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left),
+              onPressed: prev.page > 1 ? () => _vpIrPagina(prev.page - 1) : null,
+            ),
+            for (var p = (prev.page - 2).clamp(1, prev.totalPaginas);
+                p <= (prev.page + 2).clamp(1, prev.totalPaginas); p++)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: OutlinedButton(
+                  onPressed: p == prev.page ? null : () => _vpIrPagina(p),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: p == prev.page
+                        ? VerdantColors.of(context).heroSolid : null,
+                    foregroundColor: p == prev.page ? Colors.white : null,
+                    minimumSize: const Size(36, 36),
+                    padding: EdgeInsets.zero,
+                  ),
+                  child: Text('$p'),
+                ),
+              ),
+            IconButton(
+              icon: const Icon(Icons.chevron_right),
+              onPressed: prev.page < prev.totalPaginas ? () => _vpIrPagina(prev.page + 1) : null,
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -357,7 +1089,7 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
                   Text(asigs.isEmpty ? 'Sin asignar' : money(neto),
                       style: TextStyle(
                           fontWeight: FontWeight.w600,
-                          color: asigs.isEmpty ? Colors.grey : Colors.purple)),
+                          color: asigs.isEmpty ? Colors.grey : VerdantColors.of(context).heroSolid)),
                   Text(asigs.isEmpty ? 'usa referencial' : 'neto estimado',
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                 ],
@@ -440,7 +1172,7 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.event_note, color: Colors.purple),
+                      Icon(Icons.event_note, color: VerdantColors.of(context).heroSolid),
                       const SizedBox(width: 8),
                       Expanded(child: Text('Proceso ${p.fechaProceso}',
                           style: const TextStyle(fontWeight: FontWeight.bold))),
@@ -453,7 +1185,7 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
                   _filaMonto('Descuentos', p.totalDescuentos, Colors.deepOrange),
                   _filaMonto('Aportes empleador', p.totalAportes, Colors.blueGrey),
                   const Divider(height: 14),
-                  _filaMonto('Neto a pagar', p.totalNeto, Colors.purple, negrita: true),
+                  _filaMonto('Neto a pagar', p.totalNeto, VerdantColors.of(context).heroSolid, negrita: true),
                   if ((puedeAprobar || puedeAnular) &&
                       (p.estado == 'calculada' || p.estado == 'aprobada')) ...[
                     const SizedBox(height: 8),
@@ -570,12 +1302,13 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.purple.withValues(alpha: 0.14),
+                        color: VerdantColors.of(context).heroSolid.withValues(alpha: 0.14),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.purple.withValues(alpha: 0.5)),
+                        border: Border.all(color: VerdantColors.of(context).heroSolid.withValues(alpha: 0.5)),
                       ),
-                      child: const Text('Base (sueldo)',
-                          style: TextStyle(color: Colors.purple, fontSize: 10.5, fontWeight: FontWeight.w600)),
+                      child: Text('Base (sueldo)',
+                          style: TextStyle(color: VerdantColors.of(context).heroSolid,
+                              fontSize: 10.5, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ],
@@ -596,9 +1329,9 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
                       onPressed: () => _marcarBase(c),
                     ),
                   ] else if (c.esBase)
-                    const Padding(
-                      padding: EdgeInsets.only(left: 4),
-                      child: Icon(Icons.star, size: 20, color: Colors.purple),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4),
+                      child: Icon(Icons.star, size: 20, color: VerdantColors.of(context).heroSolid),
                     ),
                 ],
               ),
@@ -1050,7 +1783,10 @@ class _FormSueldosState extends State<_FormSueldos> {
 
   @override
   Widget build(BuildContext context) {
-    final activos = widget.conceptos.where((c) => c.activo).toList();
+    // El sueldo base (concepto es_base) ahora se edita desde la tab "Vista
+    // previa" (PUT /planilla/empleados/{id}/sueldo-base) — se excluye aquí
+    // para no tener dos lugares editando el mismo dato.
+    final activos = widget.conceptos.where((c) => c.activo && !c.esBase).toList();
     return Padding(
       padding: EdgeInsets.only(
         left: 16, right: 16, top: 16,
@@ -1111,6 +1847,607 @@ class _FormSueldosState extends State<_FormSueldos> {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ── Vista previa: fila de empleado (motor legal) ───────────────────────────────
+
+class _FilaEmpleadoPreview extends StatefulWidget {
+  final PlanillaPreviewEmpleado empleado;
+  final VerdantColors v;
+  final bool puedeEditar;
+  final bool mostrarSeleccion;
+  final bool seleccionado;
+  final VoidCallback? onToggleSeleccion;
+  final ValueChanged<double> onGuardarSueldo;
+  final ValueChanged<String> onGuardarModalidad;
+  final ValueChanged<bool> onToggleAsignacionFamiliar;
+  final VoidCallback onAbrirPension;
+  final VoidCallback onAbrirBoleta;
+  final VoidCallback onAbrirAsistencia;
+  const _FilaEmpleadoPreview({
+    required this.empleado, required this.v, required this.puedeEditar,
+    this.mostrarSeleccion = false, this.seleccionado = false, this.onToggleSeleccion,
+    required this.onGuardarSueldo, required this.onGuardarModalidad,
+    required this.onToggleAsignacionFamiliar, required this.onAbrirPension,
+    required this.onAbrirBoleta, required this.onAbrirAsistencia,
+  });
+  @override
+  State<_FilaEmpleadoPreview> createState() => _FilaEmpleadoPreviewState();
+}
+
+class _FilaEmpleadoPreviewState extends State<_FilaEmpleadoPreview> {
+  late final TextEditingController _sueldoCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _sueldoCtrl = TextEditingController(text: widget.empleado.sueldoBase.toStringAsFixed(2));
+  }
+
+  @override
+  void didUpdateWidget(covariant _FilaEmpleadoPreview old) {
+    super.didUpdateWidget(old);
+    if (old.empleado.sueldoBase != widget.empleado.sueldoBase) {
+      _sueldoCtrl.text = widget.empleado.sueldoBase.toStringAsFixed(2);
+    }
+  }
+
+  @override
+  void dispose() {
+    _sueldoCtrl.dispose();
+    super.dispose();
+  }
+
+  void _guardarSueldoSiCambio() {
+    final val = double.tryParse(_sueldoCtrl.text.trim().replaceAll(',', '.'));
+    if (val == null || val < 0) {
+      _sueldoCtrl.text = widget.empleado.sueldoBase.toStringAsFixed(2);
+      return;
+    }
+    if ((val - widget.empleado.sueldoBase).abs() < 0.005) return;
+    widget.onGuardarSueldo(val);
+  }
+
+  String _modalidadLabel(String t) => switch (t) {
+        'contrato' => 'Contrato',
+        'practicante' => 'Practicante',
+        _ => 'Planilla',
+      };
+
+  Color _modalidadColor(String t) => switch (t) {
+        'contrato' => widget.v.blu,
+        'practicante' => widget.v.amb,
+        _ => widget.v.grn,
+      };
+
+  String _entidadLabel(String? e) => switch (e) {
+        'integra' => 'AFP Integra',
+        'prima' => 'AFP Prima',
+        'profuturo' => 'Profuturo AFP',
+        'habitat' => 'AFP Habitat',
+        _ => 'AFP',
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final e = widget.empleado;
+    final v = widget.v;
+    final modColor = _modalidadColor(e.tipoContrato);
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: ExpansionTile(
+        leading: widget.mostrarSeleccion
+            ? Row(mainAxisSize: MainAxisSize.min, children: [
+                Checkbox(
+                  value: widget.seleccionado,
+                  onChanged: (_) => widget.onToggleSeleccion?.call(),
+                ),
+                CircleAvatar(
+                  backgroundColor: modColor.withValues(alpha: 0.15),
+                  child: Text(e.iniciales,
+                      style: TextStyle(color: modColor, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ])
+            : CircleAvatar(
+                backgroundColor: modColor.withValues(alpha: 0.15),
+                child: Text(e.iniciales,
+                    style: TextStyle(color: modColor, fontWeight: FontWeight.bold, fontSize: 12)),
+              ),
+        title: Text(e.nombreCompleto ?? 'Empleado',
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5)),
+        subtitle: Row(children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+                color: modColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
+            child: Text(_modalidadLabel(e.tipoContrato),
+                style: TextStyle(color: modColor, fontSize: 10, fontWeight: FontWeight.w600)),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(e.cargo ?? '—',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ]),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(money(e.netoAPagar),
+                style: TextStyle(fontWeight: FontWeight.bold, color: v.heroSolid, fontSize: 13)),
+            Text(e.horasFaltantes <= 0 ? 'Completo' : '-${e.horasFaltantes.toStringAsFixed(1)}h',
+                style: TextStyle(fontSize: 10, color: e.horasFaltantes <= 0 ? v.grn : v.amb)),
+          ],
+        ),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (widget.puedeEditar) ...[
+                  DropdownButtonFormField<String>(
+                    initialValue: e.tipoContrato,
+                    decoration: const InputDecoration(
+                        labelText: 'Modalidad', isDense: true, border: OutlineInputBorder()),
+                    items: const [
+                      DropdownMenuItem(value: 'planilla', child: Text('Planilla')),
+                      DropdownMenuItem(value: 'contrato', child: Text('Contrato')),
+                      DropdownMenuItem(value: 'practicante', child: Text('Practicante')),
+                    ],
+                    onChanged: (t) { if (t != null) widget.onGuardarModalidad(t); },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _sueldoCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      labelText: 'Sueldo base', prefixText: 'S/ ',
+                      isDense: true, border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _guardarSueldoSiCambio(),
+                    onTapOutside: (_) => _guardarSueldoSiCambio(),
+                  ),
+                  const SizedBox(height: 10),
+                ] else ...[
+                  Text('Sueldo base: ${money(e.sueldoBase)}', style: const TextStyle(fontSize: 12.5)),
+                  const SizedBox(height: 6),
+                ],
+                InkWell(
+                  onTap: widget.puedeEditar ? widget.onAbrirPension : null,
+                  child: Row(children: [
+                    Icon(Icons.savings_outlined, size: 16, color: v.sub),
+                    const SizedBox(width: 6),
+                    Text(e.sistemaPension == 'onp' ? 'ONP' : _entidadLabel(e.entidadAfp),
+                        style: const TextStyle(fontSize: 12.5)),
+                    Text('  (${(e.comisionAfpPct * 100).toStringAsFixed(2)}%)',
+                        style: TextStyle(fontSize: 11, color: v.sub)),
+                    if (widget.puedeEditar) ...[
+                      const Spacer(),
+                      Icon(Icons.edit, size: 14, color: v.sub),
+                    ],
+                  ]),
+                ),
+                if (e.cuspp != null && e.cuspp!.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text('CUSPP: ${e.cuspp}', style: TextStyle(fontSize: 11.5, color: v.sub)),
+                ],
+                const SizedBox(height: 4),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('Asignación familiar', style: TextStyle(fontSize: 12.5)),
+                  value: e.tieneAsignacionFamiliar,
+                  onChanged: widget.puedeEditar ? widget.onToggleAsignacionFamiliar : null,
+                ),
+                if (e.bajoRmv)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(children: [
+                      Icon(Icons.warning_amber_rounded, size: 16, color: v.red),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text('Sueldo por debajo de la RMV',
+                            style: TextStyle(fontSize: 11.5, color: v.red)),
+                      ),
+                    ]),
+                  ),
+                if (e.horasExtraSinTramite > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(children: [
+                      Icon(Icons.warning_amber_rounded, size: 16, color: v.amb),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                            '${e.horasExtraSinTramite.toStringAsFixed(1)}h de sobretiempo sin trámite aprobado',
+                            style: TextStyle(fontSize: 11.5, color: v.amb)),
+                      ),
+                    ]),
+                  ),
+                const SizedBox(height: 6),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.onAbrirAsistencia,
+                      icon: const Icon(Icons.event_note_outlined, size: 16),
+                      label: const Text('Asistencia', style: TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: widget.onAbrirBoleta,
+                      icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                      label: const Text('Ver boleta', style: TextStyle(fontSize: 12)),
+                      style: FilledButton.styleFrom(backgroundColor: v.heroSolid),
+                    ),
+                  ),
+                ]),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Vista previa: boleta (desglose legal completo + exportar PDF/Legajo) ──────
+
+class _HojaBoletaPreview extends StatefulWidget {
+  final PlanillaPreviewEmpleado empleado;
+  final String labelPeriodo;
+  final String regimenEmpresa; // micro | pequena | general
+  final String periodoPago; // mes | q1 | q2 — PDF/Legajo solo tienen sentido en 'mes'
+  final EmpresaInfo? empresaInfo;
+  final int mes;
+  final int anio;
+  const _HojaBoletaPreview({
+    required this.empleado, required this.labelPeriodo, required this.regimenEmpresa,
+    required this.periodoPago, required this.empresaInfo, required this.mes, required this.anio,
+  });
+
+  @override
+  State<_HojaBoletaPreview> createState() => _HojaBoletaPreviewState();
+}
+
+class _HojaBoletaPreviewState extends State<_HojaBoletaPreview> {
+  bool _descargando = false;
+  bool _enviando = false;
+
+  Future<Uint8List> _generarPdf() => PdfService.boletaPago(
+        empleado: widget.empleado, empresa: widget.empresaInfo!,
+        labelPeriodo: widget.labelPeriodo, regimenEmpresa: widget.regimenEmpresa,
+      );
+
+  Future<void> _descargarPdf() async {
+    setState(() => _descargando = true);
+    try {
+      final bytes = await _generarPdf();
+      if (!mounted) return;
+      await PdfPreviewScreen.abrir(context, bytes: bytes,
+          nombreArchivo: 'boleta_${widget.empleado.id}.pdf', titulo: 'Boleta de Pago');
+    } catch (_) {
+      if (mounted) mostrarError(context, 'No se pudo generar el PDF.');
+    } finally {
+      if (mounted) setState(() => _descargando = false);
+    }
+  }
+
+  Future<void> _enviarALegajo() async {
+    setState(() => _enviando = true);
+    try {
+      final bytes = await _generarPdf();
+      final svc = await getFinanzasService();
+      final r = await svc.enviarBoletaALegajo(
+        widget.empleado.id, bytes,
+        'Boleta_de_Pago_${widget.mes.toString().padLeft(2, '0')}${widget.anio}.pdf',
+        mes: widget.mes, anio: widget.anio,
+      );
+      if (!mounted) return;
+      if (r.ok) {
+        mostrarOk(context, 'Boleta enviada al Legajo Digital');
+      } else {
+        mostrarError(context, r.errorMessage);
+      }
+    } catch (_) {
+      if (mounted) mostrarError(context, 'No se pudo generar el PDF.');
+    } finally {
+      if (mounted) setState(() => _enviando = false);
+    }
+  }
+
+  Widget _fila(String label, String detalle, String monto, {bool destacado = false}) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Text(label,
+                  style: TextStyle(
+                      fontSize: 12.5, fontWeight: destacado ? FontWeight.w700 : FontWeight.w500)),
+            ),
+            Expanded(
+              flex: 3,
+              child: Text(detalle, style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+            ),
+            SizedBox(
+              width: 80,
+              child: Text(monto,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                      fontSize: 12.5, fontWeight: FontWeight.w700,
+                      color: monto.startsWith('−') ? Colors.deepOrange : null)),
+            ),
+          ],
+        ),
+      );
+
+  Widget _seccion(String t) => Padding(
+        padding: const EdgeInsets.fromLTRB(0, 10, 0, 4),
+        child: Text(t.toUpperCase(),
+            style: TextStyle(
+                fontSize: 10.5, fontWeight: FontWeight.bold,
+                color: Colors.grey.shade600, letterSpacing: 0.5)),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final e = widget.empleado;
+    final v = VerdantColors.of(context);
+    final puedeExportar = widget.periodoPago == 'mes' && widget.empresaInfo != null;
+    final esAdmin = AppSession.i.isAdmin;
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Boleta de Pago', style: Theme.of(context).textTheme.titleLarge),
+            Text('${e.nombreCompleto ?? "Empleado"} · ${widget.labelPeriodo}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+            const Divider(height: 20),
+            Expanded(
+              child: ListView(
+                controller: scrollCtrl,
+                children: [
+                  _seccion('Ingresos'),
+                  _fila('Remuneración Básica', 'Jornada ordinaria pactada', money(e.sueldoPeriodo)),
+                  if (e.pagoHorasExtra > 0)
+                    _fila('Trabajo en Sobretiempo (${e.horasExtraPagables.toStringAsFixed(1)}h)',
+                        e.esDependiente ? 'Recargo legal 25%/35%' : 'Tarifa simple (Ley 28518)',
+                        '+${money(e.pagoHorasExtra)}'),
+                  if (e.pagoDomingo > 0)
+                    _fila('Trabajo en Descanso (Domingo, ${e.horasDomingo.toStringAsFixed(1)}h)',
+                        'Sobretasa 100% — D.Leg. 713', '+${money(e.pagoDomingo)}'),
+                  if (e.pagoFeriado > 0)
+                    _fila('Trabajo en Feriado (${e.horasFeriado.toStringAsFixed(1)}h)',
+                        'Sobretasa 100% — D.Leg. 713', '+${money(e.pagoFeriado)}'),
+                  if (e.asignacionFamiliar > 0)
+                    _fila('Asignación Familiar', '10% RMV — D.S. 035-90-TR',
+                        '+${money(e.asignacionFamiliar)}'),
+                  _seccion('Descuentos'),
+                  if (e.descuentoFaltas > 0)
+                    _fila('Inasistencias', '${e.diasFaltantes}d + ${e.minutosTardanza}min tardanza',
+                        '−${money(e.descuentoFaltas)}')
+                  else
+                    _fila('Inasistencias', 'Sin faltas ni tardanzas', '—'),
+                  if (e.descuentoPension > 0)
+                    _fila('Pensión', e.motivoPension, '−${money(e.descuentoPension)}')
+                  else
+                    _fila('Pensión', e.motivoPension, '—'),
+                  if (e.renta5ta > 0)
+                    _fila('Renta de 5ta Categoría', 'Retención mensualizada (SUNAT)',
+                        '−${money(e.renta5ta)}'),
+                  Divider(height: 20, color: v.track),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                        color: v.grnBg, borderRadius: BorderRadius.circular(12)),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('NETO A PAGAR',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                        Text(money(e.netoAPagar),
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 20, color: v.grn)),
+                      ],
+                    ),
+                  ),
+                  _seccion('Beneficios y aportes del empleador'),
+                  _fila('Aporte a EsSalud', 'Ley 26790 — no se descuenta al trabajador',
+                      money(e.aporteEssalud)),
+                  _fila('CTS', e.motivoCts(widget.regimenEmpresa),
+                      e.provisionCts > 0 ? money(e.provisionCts) : '—'),
+                  _fila('Gratificación', e.motivoGratificacion(widget.regimenEmpresa),
+                      e.provisionGratificacion > 0 ? money(e.provisionGratificacion) : '—'),
+                  _fila('Vacaciones', e.motivoVacaciones,
+                      e.provisionVacaciones > 0 ? money(e.provisionVacaciones) : '—'),
+                ],
+              ),
+            ),
+            if (puedeExportar) ...[
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _descargando ? null : _descargarPdf,
+                    icon: _descargando
+                        ? const SizedBox(width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.picture_as_pdf_outlined, size: 16),
+                    label: const Text('Descargar PDF', style: TextStyle(fontSize: 12)),
+                  ),
+                ),
+                if (esAdmin) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _enviando ? null : _enviarALegajo,
+                      icon: _enviando
+                          ? const SizedBox(width: 14, height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.folder_shared_outlined, size: 16),
+                      label: const Text('Enviar a Legajo', style: TextStyle(fontSize: 12)),
+                      style: FilledButton.styleFrom(backgroundColor: v.heroSolid),
+                    ),
+                  ),
+                ],
+              ]),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Vista previa: asistencia día-por-día (solo lectura) ─────────────────────
+
+class _HojaAsistenciaDetalle extends StatefulWidget {
+  final String empleadoId;
+  final String nombre;
+  final String inicio;
+  final String fin;
+  const _HojaAsistenciaDetalle({
+    required this.empleadoId, required this.nombre, required this.inicio, required this.fin,
+  });
+  @override
+  State<_HojaAsistenciaDetalle> createState() => _HojaAsistenciaDetalleState();
+}
+
+class _HojaAsistenciaDetalleState extends State<_HojaAsistenciaDetalle> {
+  AsistenciaDetalle? _data;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    final svc = await getFinanzasService();
+    final r = await svc.getAsistenciaDetalle(widget.empleadoId, widget.inicio, widget.fin);
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (r.ok) {
+        _data = r.data;
+      } else {
+        _error = r.errorMessage;
+      }
+    });
+  }
+
+  String _h(double v) => v == 0 ? '—' : '${v.toStringAsFixed(1)}h';
+
+  (String, Color, Color) _tipoDia(String tipo, VerdantColors v) => switch (tipo) {
+        'domingo' => ('Domingo', v.blu, v.bluBg),
+        'feriado' => ('Feriado', v.amb, v.ambBg),
+        'no_laborable_turno' => ('Fuera de turno', v.mut, v.track),
+        _ => ('Laborable', v.sub, v.track),
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final v = VerdantColors.of(context);
+    return DraggableScrollableSheet(
+      initialChildSize: 0.85,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
+      expand: false,
+      builder: (ctx, scrollCtrl) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Asistencia', style: Theme.of(context).textTheme.titleLarge),
+            Text(widget.nombre, style: TextStyle(color: Colors.grey.shade600, fontSize: 12.5)),
+            const Divider(height: 20),
+            Expanded(
+              child: _loading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _error != null
+                      ? Center(child: Text(_error!, style: TextStyle(color: v.red)))
+                      : _data == null
+                          ? const Center(child: Text('Sin datos de asistencia'))
+                          : ListView(
+                              controller: scrollCtrl,
+                              children: [
+                                GridView.count(
+                                  crossAxisCount: 3,
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  childAspectRatio: 1.6,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  children: [
+                                    _tarjetaMini('Meta', _h(_data!.totales.metaHoras), v),
+                                    _tarjetaMini('Reales', _h(_data!.totales.horasReales), v),
+                                    _tarjetaMini('Extra',
+                                        _h(_data!.totales.extra25 + _data!.totales.extra35), v,
+                                        color: v.grn),
+                                    _tarjetaMini('Faltantes', _h(_data!.totales.horasFaltantes), v,
+                                        color: v.red),
+                                    _tarjetaMini('Domingo', _h(_data!.totales.horasDomingo), v),
+                                    _tarjetaMini('Feriado', _h(_data!.totales.horasFeriado), v),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                for (final d in _data!.detalleDias) _filaDia(d, v),
+                              ],
+                            ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tarjetaMini(String label, String valor, VerdantColors v, {Color? color}) => Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: v.cardAlt, borderRadius: BorderRadius.circular(10)),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(label, style: TextStyle(fontSize: 10, color: v.sub)),
+            Text(valor,
+                style: TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.bold, color: color ?? v.ink)),
+          ],
+        ),
+      );
+
+  Widget _filaDia(DetalleDia d, VerdantColors v) {
+    final (label, color, bg) = _tipoDia(d.tipoDia, v);
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: d.alerta != null
+          ? Icon(Icons.warning_amber_rounded, size: 18, color: v.amb)
+          : const Icon(Icons.circle, size: 8, color: Colors.transparent),
+      title: Row(children: [
+        SizedBox(width: 70, child: Text(d.fecha, style: const TextStyle(fontSize: 12))),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(6)),
+          child: Text(label, style: TextStyle(fontSize: 9.5, color: color, fontWeight: FontWeight.w600)),
+        ),
+      ]),
+      trailing: Text('${_h(d.horasReales)} / ${_h(d.reqHoras)}',
+          style: const TextStyle(fontSize: 11.5)),
     );
   }
 }

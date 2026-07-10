@@ -37,6 +37,12 @@ import '../services/soporte_service.dart';
 import '../services/finanzas_service.dart';
 import '../services/ingreso_directo_service.dart';
 import '../services/chatbot_service.dart';
+import '../services/legajo_service.dart';
+
+Future<LegajoService> getLegajoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return LegajoService(ApiClient(prefs));
+}
 
 Future<IngresoDirectoService> getIngresoDirectoService() async {
   final prefs = await SharedPreferences.getInstance();

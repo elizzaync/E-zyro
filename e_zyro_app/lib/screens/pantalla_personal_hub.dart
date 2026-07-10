@@ -18,6 +18,7 @@ import 'pantalla_indicadores.dart';
 import 'pantalla_bandeja_solicitudes.dart';
 import 'pantalla_control_asistencias.dart';
 import 'pantalla_personal.dart';
+import 'pantalla_legajo_lista.dart';
 
 // ─── Design tokens (Ficha Colaborador) ────────────────────────────────────────
 const _kBg = Color(0xFFF4F4EC);
@@ -238,6 +239,13 @@ class _PantallaPersonalHubState extends State<PantallaPersonalHub> {
           Icons.phonelink_lock_outlined,
           Colors.blueGrey,
           () => _push(const PantallaPersonal()),
+        ),
+      if (s.canVerPersonal)
+        _chip(
+          'Documentos',
+          Icons.folder_shared_outlined,
+          const Color(0xFF8D6E63),
+          () => _push(const PantallaLegajoLista()),
         ),
     ];
     if (chips.isEmpty) return const SizedBox.shrink();

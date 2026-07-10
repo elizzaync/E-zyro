@@ -1,6 +1,8 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/legajo_models.dart';
+import '../utils/abrir_enlace.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
@@ -701,8 +703,46 @@ class _StatMini extends StatelessWidget {
 }
 
 // ─── Tab: Documentos ──────────────────────────────────────────────────────────
-class _DocumentsTab extends StatelessWidget {
+class _DocumentsTab extends StatefulWidget {
   const _DocumentsTab();
+
+  @override
+  State<_DocumentsTab> createState() => _DocumentsTabState();
+}
+
+class _DocumentsTabState extends State<_DocumentsTab> {
+  bool _cargando = true;
+  List<DocumentoLegajo> _docs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _cargar();
+  }
+
+  Future<void> _cargar() async {
+    setState(() => _cargando = true);
+    try {
+      final svc = await getDashboardService();
+      final docs = await svc.getMisDocumentos();
+      if (!mounted) return;
+      setState(() {
+        _docs = docs;
+        _cargando = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _cargando = false);
+    }
+  }
+
+  IconData _iconoTipo(String tipo) {
+    final t = tipo.trim().toLowerCase();
+    if (t.contains('boleta')) return Icons.receipt_long_outlined;
+    if (t.contains('contrato')) return Icons.badge_outlined;
+    if (t.contains('certificado') || t.contains('constancia')) return Icons.school_outlined;
+    return Icons.description_outlined;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -725,149 +765,67 @@ class _DocumentsTab extends StatelessWidget {
             ],
     );
 
-    final docTypes = [
-      (Icons.badge_outlined, 'Contrato de Trabajo'),
-      (Icons.health_and_safety_outlined, 'Certificado Médico'),
-      (Icons.school_outlined, 'Certificaciones'),
-      (Icons.receipt_long_outlined, 'Boletas de Pago'),
-    ];
+    if (_cargando) {
+      return const Center(child: CircularProgressIndicator(color: green));
+    }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Banner próximamente
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  isDark ? const Color(0xFF1A2A0A) : const Color(0xFFF0FAE0),
-                  isDark ? const Color(0xFF0D1A06) : const Color(0xFFE8F7D0),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: green.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    color: green.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.folder_outlined,
-                    size: 38,
-                    color: Color(0xFF8FD11B),
-                  ),
+    return RefreshIndicator(
+      onRefresh: _cargar,
+      color: green,
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: _docs.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.only(top: 80),
+                child: Column(
+                  children: [
+                    Icon(Icons.folder_open_outlined, size: 56, color: Colors.grey.shade400),
+                    const SizedBox(height: 12),
+                    Text('Sin documentos',
+                        style: TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                  ],
                 ),
-                const SizedBox(height: 14),
-                const Text(
-                  'Documentos',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Aquí podrás acceder a tus documentos laborales, contratos y certificaciones.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                    fontSize: 13,
-                    height: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: green,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Text(
-                    'Próximamente',
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'MIS DOCUMENTOS',
                     style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
+                      fontSize: 11, fontWeight: FontWeight.w600,
+                      color: Colors.grey.shade500, letterSpacing: 0.8,
                     ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'CATEGORÍAS',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: Colors.grey.shade500,
-              letterSpacing: 0.8,
-            ),
-          ),
-          const SizedBox(height: 10),
-          ...docTypes.map(
-            (doc) => Container(
-              margin: const EdgeInsets.only(bottom: 10),
-              decoration: cardDeco(),
-              child: Material(
-                color: Colors.transparent,
-                borderRadius: BorderRadius.circular(14),
-                child: ListTile(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? green.withValues(alpha: 0.12)
-                        : const Color(0xFFEFFAE0),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(doc.$1, color: green, size: 20),
-                ),
-                title: Text(
-                  doc.$2,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                subtitle: const Text(
-                  'No disponible aún',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-                trailing: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Text(
-                    'Pronto',
-                    style: TextStyle(fontSize: 10, color: Colors.grey),
-                  ),
-                ),
+                  const SizedBox(height: 10),
+                  for (final d in _docs)
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      decoration: cardDeco(),
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
+                        child: ListTile(
+                          onTap: () => abrirEnlace(d.urlArchivo),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isDark ? green.withValues(alpha: 0.12) : const Color(0xFFEFFAE0),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(_iconoTipo(d.tipo), color: green, size: 20),
+                          ),
+                          title: Text(d.nombre, maxLines: 2, overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+                          subtitle: Text('${d.tipo} · ${d.fechaTexto}',
+                              style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        ),
+                      ),
+                    ),
+                ],
               ),
-              ),  // Material
-            ),
-          ),
-          const SizedBox(height: 20),
-        ],
       ),
     );
   }

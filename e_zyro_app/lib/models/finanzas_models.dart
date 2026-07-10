@@ -500,6 +500,359 @@ class Planilla {
       );
 }
 
+/// Configuración de empresa que gobierna el cálculo legal de planilla.
+class PlanillaConfig {
+  final bool descuentoTardanzaAuto;
+  final String regimenLaboral; // micro | pequena | general
+  final String esquemaPagoPlanilla; // mensual | quincenal
+  final bool pagarHorasExtraSinTramite;
+  PlanillaConfig({
+    required this.descuentoTardanzaAuto, required this.regimenLaboral,
+    required this.esquemaPagoPlanilla, required this.pagarHorasExtraSinTramite,
+  });
+  factory PlanillaConfig.fromJson(Map<String, dynamic> j) => PlanillaConfig(
+        descuentoTardanzaAuto: j['descuento_tardanza_auto'] == true,
+        regimenLaboral: j['regimen_laboral']?.toString() ?? 'micro',
+        esquemaPagoPlanilla: j['esquema_pago_planilla']?.toString() ?? 'quincenal',
+        pagarHorasExtraSinTramite: j['pagar_horas_extra_sin_tramite'] == true,
+      );
+}
+
+class EmpresaInfo {
+  final String razonSocial, ruc, regimenTributario, direccion, telefono;
+  EmpresaInfo({
+    required this.razonSocial, required this.ruc, required this.regimenTributario,
+    required this.direccion, required this.telefono,
+  });
+  factory EmpresaInfo.fromJson(Map<String, dynamic> j) => EmpresaInfo(
+        razonSocial: j['razon_social']?.toString() ?? '',
+        ruc: j['ruc']?.toString() ?? '',
+        regimenTributario: j['regimen_tributario']?.toString() ?? '',
+        direccion: j['direccion']?.toString() ?? '',
+        telefono: j['telefono']?.toString() ?? '',
+      );
+}
+
+/// Desglose legal completo de UN empleado para un período — motor de cálculo
+/// peruano (asistencia + régimen + modalidad → sueldo/horas extra/pensión/
+/// CTS/gratificación/vacaciones/renta). Espejo de PlanillaPreviewEmpleadoOut.
+class PlanillaPreviewEmpleado {
+  final String id;
+  final String? nombreCompleto, cargo, area, codigo, tipoDocumento, numeroDocumento, cuspp;
+  final String iniciales, fotoUrl, tipoContrato;
+  final String? fechaIngreso;
+  final double horasReales, horasJustificadas, horasTotal, horasFaltantes;
+  final double horasExtra, horasExtraAprobadas, horasExtraNoAutor;
+  final int diasLaborados;
+  final double metaHoras, porcentaje;
+  final int advertencias;
+
+  final String sistemaPension; // onp | afp
+  final String? entidadAfp;
+  final double? comisionAfpPersonalizada;
+  final double comisionAfpPct;
+  final String tipoComisionAfp; // saldo | flujo
+  final bool tieneAsignacionFamiliar;
+
+  final double sueldoBase, sueldoPeriodo, sueldoDevengado;
+  final double valorDia, valorHora, valorMinuto;
+  final int diasFaltantes, minutosTardanza;
+  final double descuentoDominical, descuentoFaltas;
+
+  final double horasExtra25, horasExtra35, horasExtraPagables, horasExtraSinTramite, pagoHorasExtra;
+  final double horasDomingo, pagoDomingo, horasFeriado, pagoFeriado, asignacionFamiliar;
+
+  final bool esAfp;
+  final double basePension, descuentoPension, afpAporteObligatorio, afpPrimaSeguro, afpComision;
+
+  final double renta5ta;
+  final double totalIngresos, totalDescuentosLegales, netoAPagar;
+
+  final double aporteEssalud, provisionCts, provisionGratificacion, provisionVacaciones;
+  final int diasVacaciones;
+  final bool bajoRmv;
+
+  PlanillaPreviewEmpleado({
+    required this.id, this.nombreCompleto, this.cargo, this.area, this.codigo,
+    this.tipoDocumento, this.numeroDocumento, this.cuspp,
+    required this.iniciales, required this.fotoUrl, required this.tipoContrato,
+    this.fechaIngreso,
+    required this.horasReales, required this.horasJustificadas, required this.horasTotal,
+    required this.horasFaltantes, required this.horasExtra, required this.horasExtraAprobadas,
+    required this.horasExtraNoAutor, required this.diasLaborados, required this.metaHoras,
+    required this.porcentaje, required this.advertencias,
+    required this.sistemaPension, this.entidadAfp, this.comisionAfpPersonalizada,
+    required this.comisionAfpPct, required this.tipoComisionAfp, required this.tieneAsignacionFamiliar,
+    required this.sueldoBase, required this.sueldoPeriodo, required this.sueldoDevengado,
+    required this.valorDia, required this.valorHora, required this.valorMinuto,
+    required this.diasFaltantes, required this.minutosTardanza,
+    required this.descuentoDominical, required this.descuentoFaltas,
+    required this.horasExtra25, required this.horasExtra35, required this.horasExtraPagables,
+    required this.horasExtraSinTramite, required this.pagoHorasExtra,
+    required this.horasDomingo, required this.pagoDomingo, required this.horasFeriado,
+    required this.pagoFeriado, required this.asignacionFamiliar,
+    required this.esAfp, required this.basePension, required this.descuentoPension,
+    required this.afpAporteObligatorio, required this.afpPrimaSeguro, required this.afpComision,
+    required this.renta5ta, required this.totalIngresos, required this.totalDescuentosLegales,
+    required this.netoAPagar,
+    required this.aporteEssalud, required this.provisionCts, required this.provisionGratificacion,
+    required this.provisionVacaciones, required this.diasVacaciones, required this.bajoRmv,
+  });
+
+  factory PlanillaPreviewEmpleado.fromJson(Map<String, dynamic> j) => PlanillaPreviewEmpleado(
+        id: j['id'].toString(),
+        nombreCompleto: j['nombre_completo']?.toString(),
+        cargo: j['cargo']?.toString(),
+        area: j['area']?.toString(),
+        codigo: j['codigo']?.toString(),
+        tipoDocumento: j['tipo_documento']?.toString(),
+        numeroDocumento: j['numero_documento']?.toString(),
+        cuspp: j['cuspp']?.toString(),
+        iniciales: j['iniciales']?.toString() ?? '?',
+        fotoUrl: j['foto_url']?.toString() ?? '',
+        tipoContrato: j['tipo_contrato']?.toString() ?? 'planilla',
+        fechaIngreso: j['fecha_ingreso']?.toString(),
+        horasReales: _toD(j['horas_reales']),
+        horasJustificadas: _toD(j['horas_justificadas']),
+        horasTotal: _toD(j['horas_total']),
+        horasFaltantes: _toD(j['horas_faltantes']),
+        horasExtra: _toD(j['horas_extra']),
+        horasExtraAprobadas: _toD(j['horas_extra_aprobadas']),
+        horasExtraNoAutor: _toD(j['horas_extra_no_autor']),
+        diasLaborados: _toI(j['dias_laborados']),
+        metaHoras: _toD(j['meta_horas']),
+        porcentaje: _toD(j['porcentaje']),
+        advertencias: _toI(j['advertencias']),
+        sistemaPension: j['sistema_pension']?.toString() ?? 'onp',
+        entidadAfp: j['entidad_afp']?.toString(),
+        comisionAfpPersonalizada: j['comision_afp_personalizada'] != null
+            ? _toD(j['comision_afp_personalizada']) : null,
+        comisionAfpPct: _toD(j['comision_afp_pct']),
+        tipoComisionAfp: j['tipo_comision_afp']?.toString() ?? 'saldo',
+        tieneAsignacionFamiliar: j['tiene_asignacion_familiar'] == true,
+        sueldoBase: _toD(j['sueldo_base']),
+        sueldoPeriodo: _toD(j['sueldo_periodo']),
+        sueldoDevengado: _toD(j['sueldo_devengado']),
+        valorDia: _toD(j['valor_dia']),
+        valorHora: _toD(j['valor_hora']),
+        valorMinuto: _toD(j['valor_minuto']),
+        diasFaltantes: _toI(j['dias_faltantes']),
+        minutosTardanza: _toI(j['minutos_tardanza']),
+        descuentoDominical: _toD(j['descuento_dominical']),
+        descuentoFaltas: _toD(j['descuento_faltas']),
+        horasExtra25: _toD(j['horas_extra_25']),
+        horasExtra35: _toD(j['horas_extra_35']),
+        horasExtraPagables: _toD(j['horas_extra_pagables']),
+        horasExtraSinTramite: _toD(j['horas_extra_sin_tramite']),
+        pagoHorasExtra: _toD(j['pago_horas_extra']),
+        horasDomingo: _toD(j['horas_domingo']),
+        pagoDomingo: _toD(j['pago_domingo']),
+        horasFeriado: _toD(j['horas_feriado']),
+        pagoFeriado: _toD(j['pago_feriado']),
+        asignacionFamiliar: _toD(j['asignacion_familiar']),
+        esAfp: j['es_afp'] == true,
+        basePension: _toD(j['base_pension']),
+        descuentoPension: _toD(j['descuento_pension']),
+        afpAporteObligatorio: _toD(j['afp_aporte_obligatorio']),
+        afpPrimaSeguro: _toD(j['afp_prima_seguro']),
+        afpComision: _toD(j['afp_comision']),
+        renta5ta: _toD(j['renta_5ta']),
+        totalIngresos: _toD(j['total_ingresos']),
+        totalDescuentosLegales: _toD(j['total_descuentos_legales']),
+        netoAPagar: _toD(j['neto_a_pagar']),
+        aporteEssalud: _toD(j['aporte_essalud']),
+        provisionCts: _toD(j['provision_cts']),
+        provisionGratificacion: _toD(j['provision_gratificacion']),
+        provisionVacaciones: _toD(j['provision_vacaciones']),
+        diasVacaciones: _toI(j['dias_vacaciones']),
+        bajoRmv: j['bajo_rmv'] == true,
+      );
+}
+
+class PlanillaPreviewPeriodo {
+  final String fechaInicio, fechaFin;
+  final double metaHoras;
+  PlanillaPreviewPeriodo({required this.fechaInicio, required this.fechaFin, required this.metaHoras});
+  factory PlanillaPreviewPeriodo.fromJson(Map<String, dynamic> j) => PlanillaPreviewPeriodo(
+        fechaInicio: j['fecha_inicio']?.toString() ?? '',
+        fechaFin: j['fecha_fin']?.toString() ?? '',
+        metaHoras: _toD(j['meta_horas']),
+      );
+}
+
+/// Página de vista previa de planilla (GET /planilla/preview) — no persiste
+/// nada, es el cálculo en vivo que también consume la web.
+class PlanillaPreviewPagina {
+  final PlanillaPreviewPeriodo periodo;
+  final String regimenEmpresa, esquemaPago, periodoPago;
+  final double rmvVigente;
+  final List<PlanillaPreviewEmpleado> empleados;
+  final int total, page, limit, totalPaginas;
+  PlanillaPreviewPagina({
+    required this.periodo, required this.regimenEmpresa, required this.esquemaPago,
+    required this.periodoPago, required this.rmvVigente, required this.empleados,
+    required this.total, required this.page, required this.limit, required this.totalPaginas,
+  });
+  factory PlanillaPreviewPagina.fromJson(Map<String, dynamic> j) => PlanillaPreviewPagina(
+        periodo: PlanillaPreviewPeriodo.fromJson(j['periodo'] as Map<String, dynamic>),
+        regimenEmpresa: j['regimen_empresa']?.toString() ?? 'micro',
+        esquemaPago: j['esquema_pago']?.toString() ?? 'quincenal',
+        periodoPago: j['periodo_pago']?.toString() ?? 'mes',
+        rmvVigente: _toD(j['rmv_vigente']),
+        empleados: ((j['empleados'] ?? []) as List)
+            .map((e) => PlanillaPreviewEmpleado.fromJson(e as Map<String, dynamic>)).toList(),
+        total: _toI(j['total']),
+        page: _toI(j['page']),
+        limit: _toI(j['limit']),
+        totalPaginas: _toI(j['total_paginas']),
+      );
+}
+
+class MarcacionPunto {
+  final String? hora;
+  final double? lat, lng;
+  MarcacionPunto({this.hora, this.lat, this.lng});
+  factory MarcacionPunto.fromJson(Map<String, dynamic>? j) => MarcacionPunto(
+        hora: j?['hora']?.toString(),
+        lat: j?['lat'] != null ? _toD(j!['lat']) : null,
+        lng: j?['lng'] != null ? _toD(j!['lng']) : null,
+      );
+}
+
+class MarcacionesDia {
+  final MarcacionPunto? entrada, salida, almuerzoInicio, almuerzoFin;
+  MarcacionesDia({this.entrada, this.salida, this.almuerzoInicio, this.almuerzoFin});
+  factory MarcacionesDia.fromJson(Map<String, dynamic>? j) => MarcacionesDia(
+        entrada: j?['entrada'] != null ? MarcacionPunto.fromJson(j!['entrada'] as Map<String, dynamic>) : null,
+        salida: j?['salida'] != null ? MarcacionPunto.fromJson(j!['salida'] as Map<String, dynamic>) : null,
+        almuerzoInicio: j?['almuerzo_inicio'] != null
+            ? MarcacionPunto.fromJson(j!['almuerzo_inicio'] as Map<String, dynamic>) : null,
+        almuerzoFin: j?['almuerzo_fin'] != null
+            ? MarcacionPunto.fromJson(j!['almuerzo_fin'] as Map<String, dynamic>) : null,
+      );
+}
+
+class DetalleDia {
+  final String fecha, diaSemana, tipoDia; // laborable | domingo | feriado | no_laborable_turno
+  final bool esJustificado;
+  final String? motivoJustificacion, turnoNombre, turnoHoraEntrada, turnoHoraSalida;
+  final double reqHoras, horasReales, horasExtraBruto, horasExtraPagable, extra25, extra35, falta;
+  final MarcacionesDia marcaciones;
+  final String? alerta; // marcacion_incompleta | sin_tramite | null
+  DetalleDia({
+    required this.fecha, required this.diaSemana, required this.tipoDia,
+    required this.esJustificado, this.motivoJustificacion, this.turnoNombre,
+    this.turnoHoraEntrada, this.turnoHoraSalida,
+    required this.reqHoras, required this.marcaciones, required this.horasReales,
+    required this.horasExtraBruto, required this.horasExtraPagable,
+    required this.extra25, required this.extra35, required this.falta, this.alerta,
+  });
+  factory DetalleDia.fromJson(Map<String, dynamic> j) => DetalleDia(
+        fecha: j['fecha']?.toString() ?? '',
+        diaSemana: j['dia_semana']?.toString() ?? '',
+        tipoDia: j['tipo_dia']?.toString() ?? 'laborable',
+        esJustificado: j['es_justificado'] == true,
+        motivoJustificacion: j['motivo_justificacion']?.toString(),
+        turnoNombre: j['turno_nombre']?.toString(),
+        turnoHoraEntrada: j['turno_hora_entrada']?.toString(),
+        turnoHoraSalida: j['turno_hora_salida']?.toString(),
+        reqHoras: _toD(j['req_horas']),
+        marcaciones: MarcacionesDia.fromJson(j['marcaciones'] as Map<String, dynamic>?),
+        horasReales: _toD(j['horas_reales']),
+        horasExtraBruto: _toD(j['horas_extra_bruto']),
+        horasExtraPagable: _toD(j['horas_extra_pagable']),
+        extra25: _toD(j['extra_25']),
+        extra35: _toD(j['extra_35']),
+        falta: _toD(j['falta']),
+        alerta: j['alerta']?.toString(),
+      );
+}
+
+class TotalesAsistenciaDetalle {
+  final double metaHoras, horasReales, horasJustificadas, horasFaltantes;
+  final double horasExtraBruto, extra25, extra35, horasDomingo, horasFeriado;
+  final int diasLaborados;
+  TotalesAsistenciaDetalle({
+    required this.metaHoras, required this.horasReales, required this.horasJustificadas,
+    required this.horasFaltantes, required this.horasExtraBruto, required this.extra25,
+    required this.extra35, required this.horasDomingo, required this.horasFeriado,
+    required this.diasLaborados,
+  });
+  factory TotalesAsistenciaDetalle.fromJson(Map<String, dynamic> j) => TotalesAsistenciaDetalle(
+        metaHoras: _toD(j['meta_horas']),
+        horasReales: _toD(j['horas_reales']),
+        horasJustificadas: _toD(j['horas_justificadas']),
+        horasFaltantes: _toD(j['horas_faltantes']),
+        horasExtraBruto: _toD(j['horas_extra_bruto']),
+        extra25: _toD(j['extra_25']),
+        extra35: _toD(j['extra_35']),
+        horasDomingo: _toD(j['horas_domingo']),
+        horasFeriado: _toD(j['horas_feriado']),
+        diasLaborados: _toI(j['dias_laborados']),
+      );
+}
+
+/// Detalle de asistencia día-por-día de un empleado para el período de
+/// planilla vigente — solo lectura, nunca recalcula nada en el cliente.
+class AsistenciaDetalle {
+  final String empleadoId, empleadoNombre, tipoContrato;
+  final String periodoInicio, periodoFin;
+  final TotalesAsistenciaDetalle totales;
+  final List<DetalleDia> detalleDias;
+  AsistenciaDetalle({
+    required this.empleadoId, required this.empleadoNombre, required this.tipoContrato,
+    required this.periodoInicio, required this.periodoFin,
+    required this.totales, required this.detalleDias,
+  });
+  factory AsistenciaDetalle.fromJson(Map<String, dynamic> j) {
+    final emp = j['empleado'] as Map<String, dynamic>? ?? {};
+    final per = j['periodo'] as Map<String, dynamic>? ?? {};
+    return AsistenciaDetalle(
+      empleadoId: emp['id']?.toString() ?? '',
+      empleadoNombre: emp['nombre_completo']?.toString() ?? '',
+      tipoContrato: emp['tipo_contrato']?.toString() ?? 'planilla',
+      periodoInicio: per['inicio']?.toString() ?? '',
+      periodoFin: per['fin']?.toString() ?? '',
+      totales: TotalesAsistenciaDetalle.fromJson(j['totales'] as Map<String, dynamic>),
+      detalleDias: ((j['detalle_dias'] ?? []) as List)
+          .map((e) => DetalleDia.fromJson(e as Map<String, dynamic>)).toList(),
+    );
+  }
+}
+
+/// Textos legales derivados (motivo de por qué un beneficio sí/no aplica),
+/// compartidos entre la tab "Vista previa" y el PDF de boleta — misma lógica
+/// que `motivoCTS`/`motivoGratificacion`/`motivoVacaciones`/`motivoPension`
+/// de la web, portada a Dart.
+extension PlanillaMotivosLegales on PlanillaPreviewEmpleado {
+  bool get esPracticante => tipoContrato == 'practicante';
+  bool get esDependiente => tipoContrato == 'planilla' || tipoContrato == 'contrato';
+
+  String motivoCts(String regimenEmpresa) {
+    if (esPracticante) return 'No aplica — Practicante (Ley 28518)';
+    if (regimenEmpresa == 'micro') return 'No corresponde — Microempresa (exoneración MYPE)';
+    if (regimenEmpresa == 'general') return 'Completo — 1 remuneración/año (mayo y noviembre)';
+    return 'Medio — 15 remun. diarias/año (mayo y noviembre)';
+  }
+
+  String motivoGratificacion(String regimenEmpresa) {
+    if (esPracticante) return 'No aplica — Practicante (Ley 28518)';
+    if (regimenEmpresa == 'micro') return 'No corresponde — Microempresa (exoneración MYPE)';
+    if (regimenEmpresa == 'general') return 'Completa — 1 sueldo × semestre (julio y diciembre)';
+    return 'Media — medio sueldo × semestre (julio y diciembre)';
+  }
+
+  String get motivoVacaciones {
+    if (esPracticante) return 'Descanso de 30 días/año (sin provisión monetaria)';
+    return '$diasVacaciones días/año, mensualizado';
+  }
+
+  String get motivoPension {
+    if (esPracticante) return 'No aplica — sin afiliación obligatoria (Ley 28518)';
+    return sistemaPension == 'onp' ? 'ONP' : 'AFP ${entidadAfp ?? ""}';
+  }
+}
+
 // ── Pagos y Cobros ───────────────────────────────────────────────────────────
 class AplicacionPago {
   final String facturaId;

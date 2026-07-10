@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import '../core/api_client.dart';
 import '../core/api_result.dart';
 import '../models/finanzas_models.dart';
@@ -621,6 +622,151 @@ class FinanzasService {
   Future<ApiResult<Planilla>> aprobarPlanilla(String id) => _accionPlanilla(id, 'aprobar');
   Future<ApiResult<Planilla>> pagarPlanilla(String id) => _accionPlanilla(id, 'marcar-pagada');
 
+  // ── Motor legal de planilla (paridad con la web) ────────────────────────────
+  Future<ApiResult<EmpresaInfo>> getEmpresaInfo() =>
+      _getObj('/planilla/empresa-info', EmpresaInfo.fromJson);
+
+  Future<ApiResult<PlanillaConfig>> getConfigPlanillaCompleto() =>
+      _getObj('/planilla/config', PlanillaConfig.fromJson);
+
+  Future<ApiResult<PlanillaConfig>> actualizarConfigPlanilla({
+    String? regimenLaboral, String? esquemaPagoPlanilla, bool? pagarHorasExtraSinTramite,
+  }) async {
+    try {
+      final r = await _client.patch('/planilla/config', {
+        'regimen_laboral': ?regimenLaboral,
+        'esquema_pago_planilla': ?esquemaPagoPlanilla,
+        'pagar_horas_extra_sin_tramite': ?pagarHorasExtraSinTramite,
+      });
+      if (r.statusCode == 200) {
+        return ApiResult.ok(PlanillaConfig.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Vista previa en vivo (no persiste nada): mismo motor legal que usa la
+  /// web. [periodoPago] ∈ mes|q1|q2. Fechas en formato YYYY-MM-DD.
+  Future<ApiResult<PlanillaPreviewPagina>> previewPlanilla({
+    String? fechaInicio, String? fechaFin, String periodoPago = 'mes',
+    int page = 1, int limit = 10,
+  }) {
+    final params = <String, String>{
+      'fecha_inicio': ?fechaInicio,
+      'fecha_fin': ?fechaFin,
+      'periodo_pago': periodoPago,
+      'page': '$page',
+      'limit': '$limit',
+    };
+    final qs = Uri(queryParameters: params).query;
+    return _getObj('/planilla/preview?$qs', PlanillaPreviewPagina.fromJson);
+  }
+
+  Future<ApiResult<PlanillaPreviewEmpleado>> previewBoletaEmpleado(
+    String empleadoId, {
+    String? fechaInicio, String? fechaFin, String periodoPago = 'mes',
+  }) {
+    final params = <String, String>{
+      'fecha_inicio': ?fechaInicio,
+      'fecha_fin': ?fechaFin,
+      'periodo_pago': periodoPago,
+    };
+    final qs = Uri(queryParameters: params).query;
+    return _getObj('/planilla/empleados/$empleadoId/preview-boleta?$qs',
+        PlanillaPreviewEmpleado.fromJson);
+  }
+
+  /// null en un campo = "no enviarlo" (no cambia); para restablecer la
+  /// comisión AFP a la oficial, pasar comisionAfpPersonalizadaNull: true.
+  Future<ApiResult<Map<String, dynamic>>> actualizarPension(
+    String empleadoId, {
+    String? sistemaPension, String? entidadAfp, double? comisionAfpPersonalizada,
+    bool comisionAfpPersonalizadaNull = false,
+    bool? tieneAsignacionFamiliar, String? tipoComisionAfp,
+  }) async {
+    try {
+      final r = await _client.patch('/planilla/empleados/$empleadoId/pension', {
+        'sistema_pension': ?sistemaPension,
+        'entidad_afp': ?entidadAfp,
+        if (comisionAfpPersonalizadaNull) 'comision_afp_personalizada': null
+        else 'comision_afp_personalizada': ?comisionAfpPersonalizada,
+        'tiene_asignacion_familiar': ?tieneAsignacionFamiliar,
+        'tipo_comision_afp': ?tipoComisionAfp,
+      });
+      if (r.statusCode == 200) {
+        return ApiResult.ok(jsonDecode(r.body) as Map<String, dynamic>);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<double>> actualizarSueldoBase(String empleadoId, double monto) async {
+    try {
+      final r = await _client.put('/planilla/empleados/$empleadoId/sueldo-base', {'monto': monto});
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return ApiResult.ok(_toDoubleSvc(body['sueldo_base']));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// [tipo] ∈ planilla|contrato|practicante.
+  Future<ApiResult<String>> actualizarModalidad(String empleadoId, String tipo) async {
+    try {
+      final r = await _client.put('/planilla/empleados/$empleadoId/modalidad', {'tipo': tipo});
+      if (r.statusCode == 200) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        return ApiResult.ok(body['tipo']?.toString() ?? tipo);
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Detalle día-por-día de asistencia del empleado en [inicio, fin]
+  /// (YYYY-MM-DD) — solo lectura, mismos totales que ya trae el preview.
+  Future<ApiResult<AsistenciaDetalle>> getAsistenciaDetalle(
+      String empleadoId, String inicio, String fin) {
+    final qs = Uri(queryParameters: {'inicio': inicio, 'fin': fin}).query;
+    return _getObj('/planilla/empleados/$empleadoId/asistencia-detalle?$qs',
+        AsistenciaDetalle.fromJson);
+  }
+
+  /// Sube la boleta de pago (PDF ya generado en el cliente) al legajo digital
+  /// del empleado — mismo endpoint que usa la web (POST /rrhh/legajo/{id}/documento).
+  Future<ApiResult<bool>> enviarBoletaALegajo(
+    String empleadoId, Uint8List pdfBytes, String nombreArchivo, {
+    required int mes, required int anio,
+  }) async {
+    try {
+      final fechaEmision = '$anio-${mes.toString().padLeft(2, '0')}-01';
+      final r = await _client.postMultipartBytes(
+        '/rrhh/legajo/$empleadoId/documento',
+        {
+          'tipo': 'Boleta Mensual',
+          'nombre': nombreArchivo,
+          'fecha_emision': fechaEmision,
+          'requiere_firma': 'true',
+          'mes': '$mes',
+          'anio': '$anio',
+        },
+        'archivo', pdfBytes, nombreArchivo,
+      );
+      if (r.statusCode == 200 || r.statusCode == 201) return const ApiResult.ok(true);
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
   // ── Tributario ─────────────────────────────────────────────────────────────
   Future<ApiResult<List<RegimenTributario>>> regimenesTributarios() =>
       _getList('/tributario/regimenes', RegimenTributario.fromJson);
@@ -1170,4 +1316,10 @@ int _toIntSvc(dynamic v) {
   if (v == null) return 0;
   if (v is num) return v.toInt();
   return int.tryParse(v.toString()) ?? 0;
+}
+
+double _toDoubleSvc(dynamic v) {
+  if (v == null) return 0;
+  if (v is num) return v.toDouble();
+  return double.tryParse(v.toString()) ?? 0;
 }

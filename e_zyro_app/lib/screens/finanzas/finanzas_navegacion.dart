@@ -139,7 +139,7 @@ List<FinSeccion> finanzasSecciones(AppSession s) {
       if (s.canVerPlanilla)
         FinModulo(FinId.planilla, 'Planilla',
             'Nómina: cálculo, aprobación y pago',
-            Icons.payments_outlined, Colors.purple,
+            Icons.payments_outlined, _verde,
             (_) => const PantallaPlanilla()),
       if (s.canVerControlling)
         FinModulo(FinId.centrosCosto, 'Centros de costo',

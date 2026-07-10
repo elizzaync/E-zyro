@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../models/dashboard_models.dart';
+import '../models/legajo_models.dart';
 
 class DashboardService {
   final ApiClient _client;
@@ -178,5 +179,26 @@ class DashboardService {
   Future<void> ignorarNotificacion(String id) async {
     final r = await _client.put('/dashboard/notificaciones/$id/ignorar');
     _client.checkResponse(r, fallback: 'Error al ignorar notificación');
+  }
+
+  /// Documentos propios del empleado logueado (boletas, contratos,
+  /// certificados — todo lo que tenga en su legajo, pese al nombre del
+  /// endpoint que solo menciona boletas).
+  Future<List<DocumentoLegajo>> getMisDocumentos() async {
+    try {
+      final r = await _client.get('/dashboard/perfil/boletas');
+      if (r.statusCode == 200) {
+        final data = jsonDecode(r.body)['data'] as List;
+        return data.map((e) => DocumentoLegajo.fromJson(e as Map<String, dynamic>)).toList();
+      } else if (r.statusCode == 401) {
+        throw Exception('Sesión expirada. Inicia sesión nuevamente.');
+      } else {
+        throw Exception('Error al cargar documentos: ${r.statusCode}');
+      }
+    } on Exception {
+      rethrow;
+    } catch (e) {
+      throw Exception(e.toString());
+    }
   }
 }
