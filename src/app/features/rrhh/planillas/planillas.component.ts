@@ -916,6 +916,17 @@ export class PlanillasComponent implements OnInit {
 
   // ── Generar PDF de la boleta y enviarla a Legajo Digital ────────────────────
 
+  /** Escapa texto para interpolarlo de forma segura dentro de innerHTML.
+   * Los datos del empleado (nombre, cargo, área…) son texto libre editable por
+   * el propio usuario; sin escapar, un valor como `<img onerror=...>` ejecutaría
+   * script en la sesión de quien genera la boleta (XSS almacenado). */
+  private escapeHtml(valor: unknown): string {
+    const s = valor == null ? '' : String(valor);
+    return s.replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string
+    ));
+  }
+
   private construirVoucherHtml(emp: PlanillaPreviewEmpleadoDto): string {
     const dependiente = this.esDependiente(emp);
     const sueldo       = emp.sueldo_periodo;
@@ -1094,15 +1105,15 @@ export class PlanillasComponent implements OnInit {
 
       <table class="bol-datos">
         <tr>
-          <td style="width:25%;"><strong>Apellidos y Nombres:</strong> ${emp.nombre_completo}</td>
-          <td style="width:25%;"><strong>${docTipo}:</strong> ${docNum}</td>
+          <td style="width:25%;"><strong>Apellidos y Nombres:</strong> ${this.escapeHtml(emp.nombre_completo)}</td>
+          <td style="width:25%;"><strong>${this.escapeHtml(docTipo)}:</strong> ${this.escapeHtml(docNum)}</td>
           <td style="width:25%;"><strong>Fecha de Ingreso:</strong> ${fechaIngreso}</td>
           <td style="width:25%;"><strong>Régimen Laboral:</strong> ${this.modalidadLabel(emp)}</td>
         </tr>
         <tr>
-          <td style="width:25%;"><strong>Cargo u Ocupación:</strong> ${emp.cargo}</td>
-          <td style="width:25%;"><strong>Área / Centro de Costo:</strong> ${emp.area || '—'}</td>
-          <td style="width:25%;"><strong>CUSPP:</strong> ${cusppVal}</td>
+          <td style="width:25%;"><strong>Cargo u Ocupación:</strong> ${this.escapeHtml(emp.cargo)}</td>
+          <td style="width:25%;"><strong>Área / Centro de Costo:</strong> ${this.escapeHtml(emp.area || '—')}</td>
+          <td style="width:25%;"><strong>CUSPP:</strong> ${this.escapeHtml(cusppVal)}</td>
           <td style="width:25%;"><strong>Días / Horas Laboradas:</strong> ${diasLaborados}d · ${horasLaboradas}</td>
         </tr>
       </table>
