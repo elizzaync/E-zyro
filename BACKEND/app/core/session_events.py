@@ -96,6 +96,23 @@ class SessionEventManager:
             except Exception:
                 pass
 
+    async def _emitir_y_cerrar_usuario(self, usuario_id: str, payload: dict) -> None:
+        """Emite `payload` a TODAS las sesiones del usuario y cierra cada socket.
+        Base del cierre forzado por administrador (afecta a todos los equipos)."""
+        with self._lock:
+            sockets = [
+                ws
+                for socks in self._conns.get(usuario_id, {}).values()
+                for ws in socks
+            ]
+        for ws in sockets:
+            await self._enviar(ws, payload)
+        for ws in sockets:
+            try:
+                await ws.close(code=4002)
+            except Exception:
+                pass
+
     # ── API thread-safe para endpoints síncronos ─────────────────────────────
 
     def notificar_nuevo_dispositivo(
@@ -107,6 +124,12 @@ class SessionEventManager:
     def notificar_sesion_cerrada(self, usuario_id: str, token_hash: str) -> None:
         payload = {"tipo": "sesion_cerrada"}
         self._lanzar(self._emitir_a_sesion(usuario_id, token_hash, payload))
+
+    def notificar_cierre_forzado(self, usuario_id: str, motivo: Optional[str] = None) -> None:
+        """Cierre forzado por un administrador: avisa a TODAS las sesiones del
+        usuario (con motivo opcional) para que muestren el modal y se deslogueen."""
+        payload = {"tipo": "cierre_forzado", "motivo": (motivo or "").strip() or None}
+        self._lanzar(self._emitir_y_cerrar_usuario(usuario_id, payload))
 
     def _lanzar(self, coro) -> None:
         loop = self._loop
