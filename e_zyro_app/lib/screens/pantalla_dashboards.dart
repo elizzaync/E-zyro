@@ -19,8 +19,8 @@ class _PantallaDashboardsState extends State<PantallaDashboards>
 
   // Paleta para gráficos (consistente, legible en claro/oscuro)
   static const _palette = [
-    Color(0xFF8FD11B), Color(0xFF1E88E5), Color(0xFFF59E0B),
-    Color(0xFFEF4444), Color(0xFF8B5CF6), Color(0xFF14B8A6),
+    Color(0xFF8FD11B), Color(0xFF1E88E5), Color(0xFFD98A16),
+    Color(0xFFD6584F), Color(0xFF8B5CF6), Color(0xFF14B8A6),
     Color(0xFFEC4899), Color(0xFF64748B),
   ];
 
@@ -103,9 +103,9 @@ class _PantallaDashboardsState extends State<PantallaDashboards>
         ),
       ),
       body: TopoBackground(
-        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+        c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
         count: 16, amp: 9, stroke: 0.36, speed: 0.4,
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: _green))

@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../services/auth_service.dart';
 
-const _kGreen  = Color(0xFF5A9A00);
+const _kGreen  = Color(0xFF1E9462);
 const _kGreenL = Color(0xFF8FD11B);
 
 // ─── Modelos ──────────────────────────────────────────────────────────────────

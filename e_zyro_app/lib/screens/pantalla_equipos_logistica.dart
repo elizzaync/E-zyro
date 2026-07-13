@@ -734,54 +734,34 @@ class _State extends State<PantallaEquiposLogistica>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = Theme.of(context).colorScheme.surface;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      // AppBar plano del tema (sistema Ez) — reemplaza al header-Container
+      // copy-paste que este módulo repetía a mano.
+      appBar: AppBar(
+        title: const Text('Equipos'),
+        actions: [
+          if (AppSession.i.canGestionarInventario)
+            IconButton.filled(
+              tooltip: 'Nuevo equipo',
+              onPressed: () => _abrirFormulario(),
+              icon: const Icon(Icons.add, size: 20),
+            ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: TopoBackground(
-        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+        c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
         count: 18, amp: 10, stroke: 0.40, speed: 0.5,
         child: SafeArea(
         child: Column(children: [
-          // Header
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            decoration: BoxDecoration(
-              color: surface,
-              borderRadius: const BorderRadius.only(
-                bottomLeft: Radius.circular(24),
-                bottomRight: Radius.circular(24),
-              ),
-              boxShadow: [BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.07),
-                blurRadius: 16, offset: const Offset(0, 4),
-              )],
-            ),
+          // Buscador + tabs (antes vivían dentro del header custom)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Row(children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                  onPressed: () => Navigator.pop(context),
-                  padding: EdgeInsets.zero, constraints: const BoxConstraints(),
-                ),
-                const SizedBox(width: 8),
-                const Expanded(child: Text('Equipos',
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold))),
-                if (AppSession.i.canGestionarInventario)
-                  IconButton(
-                    onPressed: () => _abrirFormulario(),
-                    icon: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                          color: _green, borderRadius: BorderRadius.circular(10)),
-                      child: const Icon(Icons.add, color: Colors.white, size: 20),
-                    ),
-                  ),
-              ]),
-              const SizedBox(height: 12),
               // Buscador
               TextField(
                 controller: _searchCtrl,

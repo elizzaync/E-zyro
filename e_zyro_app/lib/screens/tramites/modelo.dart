@@ -5,9 +5,12 @@ part of '../pantalla_tramites.dart';
 //  Paleta dinámica (light / dark)
 // ─────────────────────────────────────────────
 
+// MERGE "por valor" con lib/theme/ez_theme.dart (2026-07-13): cada constante
+// quedó igualada al hex del token Ez equivalente, sin tocar los ~35 call-sites
+// (varios en contexto const, que exige valores estáticos).
 class _C {
-  static const green = Color(0xFF8FD11B);
-  static const danger = Color(0xFFEF4444);
+  static const green = Color(0xFF8FD11B); // = ezLight.accent (ya coincidía)
+  static const danger = Color(0xFFD6584F); // = ezLight.danger
 
   final bool isDark;
   final ColorScheme cs;
@@ -18,12 +21,13 @@ class _C {
 
   Color get surface => cs.surface;
   Color get scaffoldBg =>
-      isDark ? const Color(0xFF0F1117) : const Color(0xFFF5F5F5);
+      isDark ? const Color(0xFF0E1611) : const Color(0xFFF3F1E6); // = ez canvas
   Color get surfaceHigh =>
-      isDark ? const Color(0xFF222636) : Colors.grey.shade100;
+      isDark ? const Color(0xFF1E2A23) : const Color(0xFFF5F4EA); // = ez surfaceAlt
   Color get border =>
-      isDark ? green.withValues(alpha: 0.28) : Colors.grey.shade200;
-  Color get inputBg => isDark ? const Color(0xFF141620) : Colors.white;
+      isDark ? const Color(0xFF26332B) : const Color(0xFFE4E1D1); // = ez hairline
+  Color get inputBg =>
+      isDark ? const Color(0xFF1E2A23) : const Color(0xFFF5F4EA); // = ez surfaceAlt
   Color get textPrimary => cs.onSurface;
   Color get textSecondary => cs.onSurface.withValues(alpha: 0.65);
   Color get textMuted => cs.onSurface.withValues(alpha: 0.40);

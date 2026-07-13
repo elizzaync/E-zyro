@@ -526,79 +526,53 @@ class _State extends State<PantallaEquiposIntervenidos> {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
+      // AppBar plano del tema (sistema Ez) — reemplaza al header-Container
+      // copy-paste que este módulo repetía a mano.
+      appBar: AppBar(
+        title: const Text('Mantenimientos'),
+        actions: [
+          IconButton(
+            tooltip: 'Mapa del Perú',
+            onPressed: _todos.isEmpty
+                ? null
+                : () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PantallaMapaParque(equipos: _todos),
+                      ),
+                    ),
+            icon: const Icon(Icons.public_rounded, color: _green),
+          ),
+          IconButton(
+            tooltip: _vistaParque
+                ? 'Ver como lista'
+                : 'Ver parque por ubicación',
+            onPressed: () => setState(() => _vistaParque = !_vistaParque),
+            icon: Icon(
+              _vistaParque
+                  ? Icons.view_list_rounded
+                  : Icons.travel_explore_rounded,
+              color: _green,
+            ),
+          ),
+          // Sin alta manual: los equipos se registran desde el servicio (en
+          // ejecución). Este módulo es solo consulta del parque.
+        ],
+      ),
       body: TopoBackground(
-        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+        c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
         count: 18, amp: 10, stroke: 0.40, speed: 0.5,
         child: SafeArea(
         child: Column(
           children: [
-            // ── Header ─────────────────────────────────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
-              decoration: BoxDecoration(
-                color: surface,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.07),
-                    blurRadius: 16, offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
+            // ── Buscador + filtros ──────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
-                        onPressed: () => Navigator.pop(context),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text('Mantenimientos',
-                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-                      ),
-                      IconButton(
-                        tooltip: 'Mapa del Perú',
-                        onPressed: _todos.isEmpty
-                            ? null
-                            : () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) =>
-                                        PantallaMapaParque(equipos: _todos),
-                                  ),
-                                ),
-                        icon: const Icon(Icons.public_rounded, color: _green),
-                      ),
-                      IconButton(
-                        tooltip: _vistaParque
-                            ? 'Ver como lista'
-                            : 'Ver parque por ubicación',
-                        onPressed: () =>
-                            setState(() => _vistaParque = !_vistaParque),
-                        icon: Icon(
-                          _vistaParque
-                              ? Icons.view_list_rounded
-                              : Icons.travel_explore_rounded,
-                          color: _green,
-                        ),
-                      ),
-                      // Sin alta manual: los equipos se registran desde el
-                      // servicio (en ejecución). Este módulo es solo consulta
-                      // del parque, para no crear datos falsos/duplicados.
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                   // Buscador
                   TextField(
                     controller: _searchCtrl,

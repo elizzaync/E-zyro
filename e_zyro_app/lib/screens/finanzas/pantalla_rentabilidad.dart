@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/finanzas_models.dart';
 import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
+import '../../theme/ez_theme.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -241,7 +242,7 @@ class _PantallaDetalleRentabilidadState
                               style: const TextStyle(
                                   fontSize: 13, color: Colors.grey)),
                         ),
-                        chipEstado(f.estado),
+                        chipEstado(f.estado, context.ez),
                       ],
                     ),
                     const SizedBox(height: 12),

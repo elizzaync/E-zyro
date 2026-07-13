@@ -7,8 +7,8 @@ import '../utils/api_provider.dart';
 import '../utils/ui_insets.dart';
 
 const _green = Color(0xFF8FD11B);
-const _danger = Color(0xFFE53935);
-const _amber = Color(0xFFF59E0B);
+const _danger = Color(0xFFD6584F);
+const _amber = Color(0xFFD98A16);
 
 /// Procedimientos estándar de mantenimiento: checklist por **tipo de equipo
 /// intervenido** (tab principal). El tab "Tipos de servicio" es solo el

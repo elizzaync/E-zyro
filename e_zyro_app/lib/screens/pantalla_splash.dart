@@ -6,6 +6,7 @@ import '../services/auth_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../utils/app_session.dart';
 import '../widgets/topo_background.dart';
+import '../theme/ez_theme.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -128,6 +129,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final ez = context.ez;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: TopoBackground(
@@ -156,7 +158,7 @@ class _SplashScreenState extends State<SplashScreen>
                                 borderRadius: BorderRadius.circular(24),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: const Color(0xFF8FD11B).withValues(alpha: 0.30),
+                                    color: ez.brand.withValues(alpha: 0.30),
                                     blurRadius: 32,
                                     spreadRadius: 4,
                                     offset: const Offset(0, 8),
@@ -182,14 +184,14 @@ class _SplashScreenState extends State<SplashScreen>
                           child: SlideTransition(
                             position: _textSlide,
                             child: RichText(
-                              text: const TextSpan(
+                              text: TextSpan(
                                 children: [
                                   TextSpan(
                                     text: 'e-System ',
                                     style: TextStyle(
                                       fontSize: 30,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.black87,
+                                      color: ez.ink,
                                     ),
                                   ),
                                   TextSpan(
@@ -197,7 +199,7 @@ class _SplashScreenState extends State<SplashScreen>
                                     style: TextStyle(
                                       fontSize: 30,
                                       fontWeight: FontWeight.bold,
-                                      color: Color(0xFF8FD11B),
+                                      color: ez.brand,
                                     ),
                                   ),
                                 ],
@@ -210,11 +212,11 @@ class _SplashScreenState extends State<SplashScreen>
                         // Subtítulo
                         FadeTransition(
                           opacity: _subtitleOpacity,
-                          child: const Text(
+                          child: Text(
                             'Soluciones innovadoras para tu empresa',
                             style: TextStyle(
                               fontSize: 13,
-                              color: Colors.grey,
+                              color: ez.inkMuted,
                               letterSpacing: 0.2,
                             ),
                           ),
@@ -265,6 +267,7 @@ class _AnimatedDotsState extends State<_AnimatedDots>
 
   @override
   Widget build(BuildContext context) {
+    final ez = context.ez;
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (context2, child2) {
@@ -284,8 +287,8 @@ class _AnimatedDotsState extends State<_AnimatedDots>
                   child: Container(
                     width: 7,
                     height: 7,
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF8FD11B),
+                    decoration: BoxDecoration(
+                      color: ez.brand,
                       shape: BoxShape.circle,
                     ),
                   ),

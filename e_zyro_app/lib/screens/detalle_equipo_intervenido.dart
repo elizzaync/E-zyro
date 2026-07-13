@@ -130,7 +130,7 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
         if (!didPop) Navigator.pop(context, _huboCambios);
       },
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        backgroundColor: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
         body: SafeArea(
           child: Column(
             children: [

@@ -327,7 +327,7 @@ class _ProyectoHeader extends StatelessWidget {
                 style: TextStyle(
                   color: proyecto.progreso >= 1
                       ? green
-                      : const Color(0xFFF59E0B),
+                      : const Color(0xFFD98A16),
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -342,7 +342,7 @@ class _ProyectoHeader extends StatelessWidget {
               backgroundColor:
                   isDark ? Colors.grey.shade800 : Colors.grey.shade200,
               valueColor: AlwaysStoppedAnimation<Color>(
-                proyecto.progreso >= 1 ? green : const Color(0xFFF59E0B),
+                proyecto.progreso >= 1 ? green : const Color(0xFFD98A16),
               ),
               minHeight: 5,
             ),
@@ -364,14 +364,14 @@ class _ServicioCard extends StatelessWidget {
   Color get _dotColor => switch (servicio.estadoColor) {
         'verde' => const Color(0xFF8FD11B),
         'rojo' => Colors.red,
-        _ => const Color(0xFFF59E0B),
+        _ => const Color(0xFFD98A16),
       };
 
   Color get _statusColor => switch (servicio.estado) {
         'Completado' => const Color(0xFF8FD11B),
-        'En_Proceso' => const Color(0xFF3B82F6),
+        'En_Proceso' => const Color(0xFF3E80C0),
         'Cancelado' => Colors.red,
-        _ => const Color(0xFFF59E0B),
+        _ => const Color(0xFFD98A16),
       };
 
   String get _estadoLabel => switch (servicio.estado) {

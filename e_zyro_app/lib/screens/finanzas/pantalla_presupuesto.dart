@@ -146,7 +146,7 @@ class _PantallaPresupuestoState extends State<PantallaPresupuesto> {
               child: LinearProgressIndicator(
                 value: (pct / 100).clamp(0.0, 1.0),
                 minHeight: 8,
-                color: pct > 100 ? Colors.red : const Color(0xFF5A9A00),
+                color: pct > 100 ? Colors.red : const Color(0xFF1E9462),
                 backgroundColor: Colors.grey.withValues(alpha: 0.2),
               ),
             ),

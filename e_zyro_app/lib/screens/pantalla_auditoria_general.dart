@@ -17,7 +17,7 @@ class PantallaAuditoriaGeneral extends StatefulWidget {
 class _PantallaAuditoriaGeneralState extends State<PantallaAuditoriaGeneral>
     with SingleTickerProviderStateMixin {
   static const _green = Color(0xFF8FD11B);
-  static const _greenDark = Color(0xFF5A9A00);
+  static const _greenDark = Color(0xFF1E9462);
   static const _pageSize = 50;
 
   late final TabController _tabCtrl;
@@ -161,7 +161,7 @@ class _PantallaAuditoriaGeneralState extends State<PantallaAuditoriaGeneral>
       appBar: AppBar(
         title: const Text('Auditoría General',
             style: TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: isDark ? const Color(0xFF3D6E00) : _greenDark,
+        backgroundColor: isDark ? const Color(0xFF1E9462) : _greenDark,
         foregroundColor: Colors.white,
         bottom: TabBar(
           controller: _tabCtrl,

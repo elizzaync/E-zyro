@@ -93,7 +93,7 @@ class _CatalogoItemCard extends StatelessWidget {
 
   Color get _stockColor {
     if (item.stock == 0) return Colors.red;
-    if (item.stock <= 10) return const Color(0xFFF59E0B);
+    if (item.stock <= 10) return const Color(0xFFD98A16);
     return const Color(0xFF8FD11B);
   }
 

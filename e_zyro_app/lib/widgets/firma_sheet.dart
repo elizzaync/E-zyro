@@ -9,7 +9,7 @@ import 'package:signature/signature.dart';
 import '../core/app_constants.dart';
 
 const _green = Color(0xFF8FD11B);
-const _danger = Color(0xFFEF4444);
+const _danger = Color(0xFFD6584F);
 
 /// Hoja de captura de firma reutilizable. Devuelve (vía Navigator.pop) un
 /// string con la firma: un data-url base64 (firma dibujada / de galería) o la

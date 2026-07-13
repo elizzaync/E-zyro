@@ -18,7 +18,7 @@ class TarjetaAlmuerzo extends StatefulWidget {
 
 class _TarjetaAlmuerzoState extends State<TarjetaAlmuerzo> {
   static const _green = Color(0xFF8FD11B);
-  static const _amber = Color(0xFFF59E0B);
+  static const _amber = Color(0xFFD98A16);
 
   // Config v1 PYME (futuro: por empresa en backend).
   static const _duracionMin = 60;        // duración del descanso
@@ -303,7 +303,7 @@ class _CronometroAlmuerzo extends StatefulWidget {
 }
 
 class _CronometroAlmuerzoState extends State<_CronometroAlmuerzo> {
-  static const _amber = Color(0xFFF59E0B);
+  static const _amber = Color(0xFFD98A16);
   Timer? _timer;
 
   @override

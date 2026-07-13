@@ -9,8 +9,8 @@ import 'pantalla_camara_campo.dart';
 import 'pantalla_certificado_equipo.dart';
 
 const _green = Color(0xFF8FD11B);
-const _amber = Color(0xFFF59E0B);
-const _danger = Color(0xFFEF4444);
+const _amber = Color(0xFFD98A16);
+const _danger = Color(0xFFD6584F);
 
 /// Inspección de un equipo intervenido dentro de un servicio. Réplica del
 /// componente Angular `intervencion-equipo`: checklist de procedimientos con
@@ -403,7 +403,7 @@ class _PantallaIntervencionEquipoState
 
     final bool vinculado = padre != null;
     final Color baseColor =
-        vinculado ? const Color(0xFF3B82F6) : Colors.grey;
+        vinculado ? const Color(0xFF3E80C0) : Colors.grey;
 
     final card = Container(
       padding: const EdgeInsets.all(12),
@@ -420,7 +420,7 @@ class _PantallaIntervencionEquipoState
               Icon(vinculado ? Icons.link : Icons.history_toggle_off,
                   size: 18,
                   color: vinculado
-                      ? const Color(0xFF3B82F6)
+                      ? const Color(0xFF3E80C0)
                       : Colors.grey.shade600),
               const SizedBox(width: 10),
               Expanded(

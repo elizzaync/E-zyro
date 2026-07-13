@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
-import '../../widgets/verdant_theme.dart';
+import '../../theme/ez_theme.dart';
 
 /// Utilidades compartidas por las pantallas del módulo de Finanzas.
 
@@ -36,32 +36,32 @@ String periodoActual() {
 String hoyISO() => DateTime.now().toIso8601String().substring(0, 10);
 
 /// Color asociado al estado de una factura/comprobante/planilla.
-Color colorEstado(String estado) {
+Color colorEstado(String estado, EzColors ez) {
   switch (estado) {
     case 'pagada':
     case 'cobrada':
     case 'aprobada':
-      return Colors.green;
+      return ez.success;
     case 'pagada_parcial':
     case 'cobrada_parcial':
     case 'calculada':
-      return Colors.orange;
+      return ez.warning;
     case 'anulada':
-      return Colors.red;
+      return ez.danger;
     case 'pendiente':
     default:
-      return Colors.blueGrey;
+      return ez.inkMuted;
   }
 }
 
 /// Chip de estado coloreado.
-Widget chipEstado(String estado) {
-  final c = colorEstado(estado);
+Widget chipEstado(String estado, EzColors ez) {
+  final c = colorEstado(estado, ez);
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
     decoration: BoxDecoration(
       color: c.withValues(alpha: 0.14),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(EzRadius.xs),
       border: Border.all(color: c.withValues(alpha: 0.5)),
     ),
     child: Text(estado.replaceAll('_', ' '),
@@ -72,13 +72,13 @@ Widget chipEstado(String estado) {
 /// Muestra un SnackBar de error rojo.
 void mostrarError(BuildContext context, String msg) {
   ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.red.shade700));
+      SnackBar(content: Text(msg), backgroundColor: context.ez.danger));
 }
 
 /// Muestra un SnackBar de éxito verde.
 void mostrarOk(BuildContext context, String msg) {
   ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.green.shade700));
+      SnackBar(content: Text(msg), backgroundColor: context.ez.success));
 }
 
 /// Estado vacío estándar de Finanzas: ícono en círculo pastel + título + subtítulo.
@@ -95,7 +95,7 @@ class EstadoVacio extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+    final ez = context.ez;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 30),
@@ -105,23 +105,23 @@ class EstadoVacio extends StatelessWidget {
             Container(
               width: 108,
               height: 108,
-              decoration: BoxDecoration(
-                  color: scheme.surfaceContainerHighest, shape: BoxShape.circle),
-              child: Icon(icono, size: 54, color: scheme.onSurfaceVariant),
+              decoration:
+                  BoxDecoration(color: ez.canvasSunken, shape: BoxShape.circle),
+              child: Icon(icono, size: 54, color: ez.inkMuted),
             ),
             const SizedBox(height: 18),
             Text(titulo,
                 style: TextStyle(
                     fontSize: 19,
                     fontWeight: FontWeight.w500,
-                    color: scheme.onSurface)),
+                    color: ez.ink)),
             const SizedBox(height: 6),
             SizedBox(
               width: 260,
               child: Text(subtitulo,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontSize: 14.5, color: scheme.onSurfaceVariant, height: 1.4)),
+                      fontSize: 14.5, color: ez.inkSecondary, height: 1.4)),
             ),
           ],
         ),
@@ -146,15 +146,13 @@ class TarjetaResumen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final surface = Theme.of(context).colorScheme.surface;
+    final ez = context.ez;
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: surface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 8, offset: const Offset(0, 2)),
-        ],
+        color: ez.surface,
+        borderRadius: EzRadius.card,
+        boxShadow: EzElevation.sm(ez),
       ),
       child: Row(
         children: [
@@ -168,7 +166,7 @@ class TarjetaResumen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(titulo, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(titulo, style: TextStyle(fontSize: 12, color: ez.inkSecondary)),
                 const SizedBox(height: 2),
                 Text(valor, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
               ],
@@ -209,36 +207,36 @@ class FinFormSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final v = VerdantColors.of(context);
+    final ez = context.ez;
     final theme = Theme.of(context);
     final inputTheme = theme.copyWith(
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: v.cardAlt,
+        fillColor: ez.surfaceAlt,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: EzRadius.r(EzRadius.md),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: EzRadius.r(EzRadius.md),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: BorderSide(color: v.heroSolid, width: 1.6),
+          borderRadius: EzRadius.r(EzRadius.md),
+          borderSide: BorderSide(color: ez.brand, width: 1.6),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: BorderSide(color: v.red, width: 1.2),
+          borderRadius: EzRadius.r(EzRadius.md),
+          borderSide: BorderSide(color: ez.danger, width: 1.2),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(13),
-          borderSide: BorderSide(color: v.red, width: 1.6),
+          borderRadius: EzRadius.r(EzRadius.md),
+          borderSide: BorderSide(color: ez.danger, width: 1.6),
         ),
-        labelStyle: TextStyle(color: v.sub, fontSize: 13.5),
-        helperStyle: TextStyle(color: v.mut, fontSize: 11),
+        labelStyle: TextStyle(color: ez.inkSecondary, fontSize: 13.5),
+        helperStyle: TextStyle(color: ez.inkMuted, fontSize: 11),
       ),
     );
     return Padding(
@@ -258,7 +256,7 @@ class FinFormSheet extends StatelessWidget {
                 width: 42,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: v.track,
+                  color: ez.hairline,
                   borderRadius: BorderRadius.circular(4),
                 ),
               ),
@@ -269,10 +267,10 @@ class FinFormSheet extends StatelessWidget {
                 width: 42,
                 height: 42,
                 decoration: BoxDecoration(
-                  color: v.heroSolid.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(13),
+                  color: ez.brand.withValues(alpha: 0.13),
+                  borderRadius: EzRadius.r(EzRadius.md),
                 ),
-                child: Icon(icono, color: v.heroSolid, size: 22),
+                child: Icon(icono, color: ez.brand, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -283,11 +281,11 @@ class FinFormSheet extends StatelessWidget {
                         style: GoogleFonts.spaceGrotesk(
                             fontSize: 16.5,
                             fontWeight: FontWeight.w700,
-                            color: v.ink)),
+                            color: ez.ink)),
                     if (subtitulo != null) ...[
                       const SizedBox(height: 2),
                       Text(subtitulo!,
-                          style: TextStyle(fontSize: 11.5, color: v.sub)),
+                          style: TextStyle(fontSize: 11.5, color: ez.inkSecondary)),
                     ],
                   ],
                 ),
@@ -301,17 +299,17 @@ class FinFormSheet extends StatelessWidget {
               child: FilledButton(
                 onPressed: guardando ? null : onGuardar,
                 style: FilledButton.styleFrom(
-                  backgroundColor: v.heroSolid,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                  backgroundColor: ez.accent,
+                  foregroundColor: ez.onAccent,
+                  shape: const RoundedRectangleBorder(
+                      borderRadius: EzRadius.button),
                 ),
                 child: guardando
-                    ? const SizedBox(
+                    ? SizedBox(
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white))
+                            strokeWidth: 2, color: ez.onAccent))
                     : Text(textoBoton,
                         style: const TextStyle(
                             fontSize: 15, fontWeight: FontWeight.w700)),
@@ -339,7 +337,7 @@ class FinTotalesCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final v = VerdantColors.of(context);
+    final ez = context.ez;
     final igv = subtotal * igvPct / 100;
     final total = subtotal + igv;
     Widget fila(String label, String valor,
@@ -353,12 +351,12 @@ class FinTotalesCard extends StatelessWidget {
                 style: TextStyle(
                     fontSize: destacar ? 13.5 : 12,
                     fontWeight: destacar ? FontWeight.w700 : FontWeight.w500,
-                    color: destacar ? v.ink : v.sub)),
+                    color: destacar ? ez.ink : ez.inkSecondary)),
             Text(valor,
                 style: GoogleFonts.spaceGrotesk(
                     fontSize: destacar ? 17 : 12.5,
                     fontWeight: FontWeight.w700,
-                    color: destacar ? v.heroSolid : v.ink)),
+                    color: destacar ? ez.brand : ez.ink)),
           ],
         ),
       );
@@ -367,15 +365,15 @@ class FinTotalesCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: v.cardAlt,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: v.bd),
+        color: ez.surfaceAlt,
+        borderRadius: EzRadius.r(EzRadius.md),
+        border: Border.all(color: ez.hairline),
       ),
       child: Column(children: [
         fila('Subtotal', money(subtotal, moneda)),
         fila('IGV (${igvPct.toStringAsFixed(igvPct % 1 == 0 ? 0 : 2)}%)',
             money(igv, moneda)),
-        Divider(height: 14, color: v.track),
+        Divider(height: 14, color: ez.hairline),
         fila('Total a registrar', money(total, moneda), destacar: true),
       ]),
     );

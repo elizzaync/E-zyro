@@ -6,8 +6,8 @@ import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 
 const _kGreen = Color(0xFF8FD11B);
-const _kAmber = Color(0xFFF59E0B);
-const _kBlue  = Color(0xFF3B82F6);
+const _kAmber = Color(0xFFD98A16);
+const _kBlue  = Color(0xFF3E80C0);
 const _kGray  = Color(0xFF6B7280);
 
 class PantallaMisSesiones extends StatefulWidget {
@@ -65,9 +65,9 @@ class _PantallaMisSesionesState extends State<PantallaMisSesiones> {
         ),
       ),
       body: TopoBackground(
-        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+        c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
         count: 16, amp: 9, stroke: 0.38, speed: 0.45,
         child: _loading
             ? const Center(child: CircularProgressIndicator(color: _kGreen))

@@ -64,10 +64,10 @@ class _PantallaDocumentosSstState extends State<PantallaDocumentosSst> {
   ({Color color, String label}) _estadoUi(DocumentoSst d) {
     switch (d.estado) {
       case 'vencida':
-        return (color: const Color(0xFFE53935), label: 'Vencida');
+        return (color: const Color(0xFFD6584F), label: 'Vencida');
       case 'por_vencer':
         return (
-          color: const Color(0xFFF59E0B),
+          color: const Color(0xFFD98A16),
           label: d.diasParaVencer != null ? 'Vence en ${d.diasParaVencer}d' : 'Por vencer'
         );
       case 'vigente':

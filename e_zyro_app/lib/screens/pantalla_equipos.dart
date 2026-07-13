@@ -141,11 +141,11 @@ class _EquipoCard extends StatelessWidget {
   });
 
   static const _green = Color(0xFF8FD11B);
-  static const _amber = Color(0xFFF59E0B);
+  static const _amber = Color(0xFFD98A16);
 
   Color get _estadoColor => switch (equipo.estado.toLowerCase()) {
         'completado' => _green,
-        'en_proceso' => const Color(0xFF3B82F6),
+        'en_proceso' => const Color(0xFF3E80C0),
         _ => _amber,
       };
 
@@ -382,8 +382,8 @@ class _BarraMantenimiento extends StatelessWidget {
   const _BarraMantenimiento({required this.equipo, required this.isDark});
 
   static const _verde = Color(0xFF8FD11B);
-  static const _ambar = Color(0xFFF59E0B);
-  static const _rojo = Color(0xFFEF4444);
+  static const _ambar = Color(0xFFD98A16);
+  static const _rojo = Color(0xFFD6584F);
   static const _dots = 6;
 
   Color get _color => switch (equipo.estadoMantenimiento) {
@@ -534,7 +534,7 @@ class _EditarMantenimientoSheetState extends State<_EditarMantenimientoSheet> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('No se pudo guardar (¿permiso de Admin/Jefe?)'),
-        backgroundColor: Color(0xFFEF4444),
+        backgroundColor: Color(0xFFD6584F),
       ));
     }
   }

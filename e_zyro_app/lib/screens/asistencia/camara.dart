@@ -271,16 +271,14 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
                   ),
                   child: Row(
                     children: [
-                      GestureDetector(
-                        onTap: _retake,
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: const BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.refresh, color: Colors.white),
+                      IconButton(
+                        tooltip: 'Volver a tomar',
+                        onPressed: _retake,
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black54,
+                          foregroundColor: Colors.white,
                         ),
+                        icon: const Icon(Icons.refresh),
                       ),
                       const Spacer(),
                       Container(
@@ -405,16 +403,14 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.all(12),
-                child: GestureDetector(
-                  onTap: () => Navigator.pop(context),
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: const BoxDecoration(
-                      color: Colors.black54,
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.arrow_back, color: Colors.white),
+                child: IconButton(
+                  tooltip: 'Volver',
+                  onPressed: () => Navigator.pop(context),
+                  style: IconButton.styleFrom(
+                    backgroundColor: Colors.black54,
+                    foregroundColor: Colors.white,
                   ),
+                  icon: const Icon(Icons.arrow_back),
                 ),
               ),
             ),
@@ -469,25 +465,17 @@ class _FullScreenCameraPageState extends State<_FullScreenCameraPage> {
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 32),
                 child: Center(
-                  child: GestureDetector(
-                    onTap: _capture,
-                    child: Container(
-                      width: 78,
-                      height: 78,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white,
-                        border: Border.all(color: Colors.white70, width: 4),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black38, blurRadius: 16),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.camera_alt,
-                        color: Colors.black87,
-                        size: 36,
-                      ),
+                  child: IconButton(
+                    tooltip: 'Capturar foto',
+                    onPressed: _capture,
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
+                      fixedSize: const Size(78, 78),
+                      shape: const CircleBorder(
+                          side: BorderSide(color: Colors.white70, width: 4)),
                     ),
+                    icon: const Icon(Icons.camera_alt, size: 36),
                   ),
                 ),
               ),

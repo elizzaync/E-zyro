@@ -73,10 +73,10 @@ class _PantallaGarantiasState extends State<PantallaGarantias> {
   ({Color color, String label}) _estadoUi(Garantia g) {
     switch (g.estado) {
       case 'vencida':
-        return (color: const Color(0xFFE53935), label: 'Vencida');
+        return (color: const Color(0xFFD6584F), label: 'Vencida');
       case 'por_vencer':
         return (
-          color: const Color(0xFFF59E0B),
+          color: const Color(0xFFD98A16),
           label: g.diasParaVencer != null ? 'Vence en ${g.diasParaVencer}d' : 'Por vencer'
         );
       case 'vigente':

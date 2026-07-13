@@ -13,7 +13,7 @@ class _Header extends StatelessWidget {
 
   Color get _statusColor => switch (detalle.estado) {
         'Completado' => _green,
-        'En_Proceso' => const Color(0xFF3B82F6),
+        'En_Proceso' => const Color(0xFF3E80C0),
         'Cancelado' => _danger,
         _ => _amber,
       };
@@ -440,7 +440,7 @@ class _FaseEjecucionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final surface = Theme.of(context).colorScheme.surface;
     final listoCerrar = todasCompletas && totalTareas > 0;
-    final color = listoCerrar ? _green : const Color(0xFF3B82F6);
+    final color = listoCerrar ? _green : const Color(0xFF3E80C0);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(12),
@@ -473,7 +473,7 @@ class _FaseEjecucionCard extends StatelessWidget {
           else if (!todasCompletas)
             const Text('Marca todas las tareas para poder cerrar el servicio.',
                 style: TextStyle(
-                    color: Color(0xFF3B82F6),
+                    color: Color(0xFF3E80C0),
                     fontSize: 11.5,
                     fontWeight: FontWeight.w500))
           else if (!esJefe)

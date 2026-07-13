@@ -24,7 +24,7 @@ class BoltLogo extends StatelessWidget {
     super.key,
     this.size = 42,
     this.radius = 12,
-    this.background = const Color(0xFF84CC16),
+    this.background = const Color(0xFF8FD11B),
     this.glyph = Colors.white,
   });
 
@@ -183,7 +183,7 @@ class ParticlePainter extends CustomPainter {
     required this.ambient,
     required this.originX,
     required this.originY,
-    this.color = const Color(0xFFA3E635),
+    this.color = const Color(0xFF8FD11B),
   });
 
   // Master cycle of the controller in seconds. Must match what you

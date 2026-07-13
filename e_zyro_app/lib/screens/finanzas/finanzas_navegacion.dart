@@ -61,7 +61,7 @@ class FinSeccion {
   const FinSeccion(this.titulo, this.icono, this.modulos);
 }
 
-const _verde = Color(0xFF5A9A00);
+const _verde = Color(0xFF1E9462);
 
 /// Secciones con los submódulos que el usuario tiene permiso de ver.
 /// Las secciones sin módulos visibles se omiten.
@@ -271,7 +271,7 @@ Widget _itemConmutador(BuildContext ctx, FinModulo m, bool esActual) {
       subtitle: Text(m.subtitulo,
           style: const TextStyle(fontSize: 11, color: Colors.grey)),
       trailing: esActual
-          ? const Icon(Icons.check_circle, color: Color(0xFF5A9A00), size: 20)
+          ? const Icon(Icons.check_circle, color: Color(0xFF1E9462), size: 20)
           : const Icon(Icons.chevron_right, color: Colors.grey),
       onTap: esActual
           ? null

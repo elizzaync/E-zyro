@@ -284,24 +284,23 @@ class _ModalFirmaState extends State<_ModalFirma> {
 
   Widget _tabBtn(_C c, String label, VoidCallback? onTap) {
     final active = onTap == null;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: active ? _C.green : c.inputBg,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: active ? _C.green : c.border),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? Colors.black : c.textSecondary,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
+    // ChoiceChip nativo (semántica + ripple) en vez de GestureDetector+Container.
+    return ChoiceChip(
+      label: Text(label),
+      selected: active,
+      // Siempre habilitado (si fuera null, el chip activo se pintaría como
+      // deshabilitado); tocar el tab ya activo simplemente no hace nada.
+      onSelected: (_) => onTap?.call(),
+      labelStyle: TextStyle(
+        color: active ? Colors.black : c.textSecondary,
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
       ),
+      selectedColor: _C.green,
+      backgroundColor: c.inputBg,
+      side: BorderSide(color: active ? _C.green : c.border),
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
     );
   }
 }

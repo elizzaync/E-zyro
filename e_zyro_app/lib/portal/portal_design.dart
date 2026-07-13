@@ -7,29 +7,35 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
-/// Paleta del tema "Ejecutivo Oscuro".
+import '../theme/ez_theme.dart';
+
+/// Paleta del Portal (oscuro).
+/// MERGE "por valor" con lib/theme/ez_theme.dart (2026-07-13): el azul-pizarra
+/// "Ejecutivo" se retira y cada constante queda igualada al token ezDark
+/// equivalente, sin tocar a los consumidores (analytics/dashboard ejecutivo).
+/// `violeta` es color de serie de gráfico sin rol semántico en Ez — se deja.
 abstract final class PortalColores {
-  // Bases
-  static const Color fondo = Color(0xFF0B1220);
-  static const Color superficie = Color(0xFF131C2E);
-  static const Color bordeCard = Color(0x14FFFFFF);
+  // Bases (= ezDark canvas/surface/hairline)
+  static const Color fondo = Color(0xFF0E1611);
+  static const Color superficie = Color(0xFF16211B);
+  static const Color bordeCard = Color(0xFF26332B);
 
-  // Texto
-  static const Color textoPrimario = Color(0xFFE8EDF6);
-  static const Color textoSecundario = Color(0xFF8A94A6);
+  // Texto (= ezDark ink/inkSecondary)
+  static const Color textoPrimario = Color(0xFFE8F0E8);
+  static const Color textoSecundario = Color(0xFFA7B5AC);
 
-  // Acentos
-  static const Color lima = Color(0xFF8FD11B); // verde de marca (login)
-  static const Color cian = Color(0xFF38BDF8);
-  static const Color ambar = Color(0xFFF5B941);
-  static const Color coral = Color(0xFFF4715F);
-  static const Color violeta = Color(0xFF9B8AFB);
+  // Acentos (= ezDark accent/info/warning/danger)
+  static const Color lima = Color(0xFFC2F23B);
+  static const Color cian = Color(0xFF7FB0DD);
+  static const Color ambar = Color(0xFFE6B45A);
+  static const Color coral = Color(0xFFE8807C);
+  static const Color violeta = Color(0xFF9B8AFB); // serie de gráfico — se deja
 
   // Utilitarios
   static const Color transparente = Color(0x00000000);
   static const Color sombra = Color(0x66000000);
-  static const Color divisor = Color(0x0FFFFFFF);
-  static const Color tooltipFondo = Color(0xFF1B2740);
+  static const Color divisor = Color(0xFF26332B); // = ezDark.hairline
+  static const Color tooltipFondo = Color(0xFF1E2A23); // = ezDark.surfaceAlt
 }
 
 /// Tipografía del portal basada en Manrope.
@@ -39,7 +45,7 @@ abstract final class PortalTipografia {
     double tamano = 18,
     Color color = PortalColores.textoPrimario,
   }) =>
-      GoogleFonts.manrope(
+      GoogleFonts.plusJakartaSans(
         fontSize: tamano,
         fontWeight: FontWeight.w800,
         color: color,
@@ -52,7 +58,7 @@ abstract final class PortalTipografia {
     double tamano = 30,
     Color color = PortalColores.textoPrimario,
   }) =>
-      GoogleFonts.manrope(
+      GoogleFonts.plusJakartaSans(
         fontSize: tamano,
         fontWeight: FontWeight.w800,
         color: color,
@@ -66,7 +72,7 @@ abstract final class PortalTipografia {
     Color color = PortalColores.textoSecundario,
     FontWeight peso = FontWeight.w500,
   }) =>
-      GoogleFonts.manrope(
+      GoogleFonts.plusJakartaSans(
         fontSize: tamano,
         fontWeight: peso,
         color: color,
@@ -79,7 +85,7 @@ abstract final class PortalTipografia {
     Color color = PortalColores.textoSecundario,
     FontWeight peso = FontWeight.w600,
   }) =>
-      GoogleFonts.manrope(
+      GoogleFonts.plusJakartaSans(
         fontSize: tamano,
         fontWeight: peso,
         color: color,
@@ -88,87 +94,11 @@ abstract final class PortalTipografia {
       );
 }
 
-/// Tema "Ejecutivo Oscuro" aplicado a TODO el Portal Empresa (tabs + detalle
-/// + dashboard) para un look coherente. Construido sobre la paleta
-/// [PortalColores]; se envuelve en los puntos de navegación del portal sin
-/// afectar al resto de la app (que sigue en tema claro).
+/// Tema oscuro del Portal — ahora es el dark global del sistema Ez con la
+/// única desviación permitida (brand → brandExternal). El "Ejecutivo Oscuro"
+/// propio se retiró; ver lib/theme/ez_theme.dart.
 // Construido una sola vez al cargar el módulo (no en cada navegación al portal).
-final portalThemeCached = portalTemaOscuro();
-
-ThemeData portalTemaOscuro() {
-  final base = ThemeData.dark(useMaterial3: true);
-  final scheme = ColorScheme.fromSeed(
-    seedColor: PortalColores.lima,
-    brightness: Brightness.dark,
-  ).copyWith(
-    primary: PortalColores.lima,
-    onPrimary: PortalColores.fondo,
-    secondary: PortalColores.cian,
-    surface: PortalColores.fondo,
-    onSurface: PortalColores.textoPrimario,
-    onSurfaceVariant: PortalColores.textoSecundario,
-    surfaceContainerLowest: PortalColores.fondo,
-    surfaceContainerLow: PortalColores.superficie,
-    surfaceContainer: PortalColores.superficie,
-    surfaceContainerHigh: PortalColores.superficie,
-    surfaceContainerHighest: PortalColores.superficie,
-    outline: PortalColores.bordeCard,
-    error: PortalColores.coral,
-  );
-
-  return base.copyWith(
-    colorScheme: scheme,
-    scaffoldBackgroundColor: PortalColores.fondo,
-    canvasColor: PortalColores.fondo,
-    cardColor: PortalColores.superficie,
-    dividerColor: PortalColores.divisor,
-    cardTheme: const CardThemeData(
-      color: PortalColores.superficie,
-      surfaceTintColor: PortalColores.transparente,
-      elevation: 0,
-    ),
-    appBarTheme: AppBarTheme(
-      backgroundColor: PortalColores.fondo,
-      foregroundColor: PortalColores.textoPrimario,
-      surfaceTintColor: PortalColores.transparente,
-      elevation: 0,
-      titleTextStyle: PortalTipografia.titulo(tamano: 16),
-    ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: PortalColores.superficie,
-      selectedItemColor: PortalColores.lima,
-      unselectedItemColor: PortalColores.textoSecundario,
-      type: BottomNavigationBarType.fixed,
-      elevation: 0,
-    ),
-    dialogTheme: const DialogThemeData(
-      backgroundColor: PortalColores.superficie,
-      surfaceTintColor: PortalColores.transparente,
-    ),
-    bottomSheetTheme: const BottomSheetThemeData(
-      backgroundColor: PortalColores.superficie,
-      surfaceTintColor: PortalColores.transparente,
-    ),
-    popupMenuTheme: const PopupMenuThemeData(
-      color: PortalColores.superficie,
-      surfaceTintColor: PortalColores.transparente,
-    ),
-    listTileTheme: const ListTileThemeData(
-      iconColor: PortalColores.textoSecundario,
-      textColor: PortalColores.textoPrimario,
-    ),
-    snackBarTheme: const SnackBarThemeData(
-      backgroundColor: PortalColores.tooltipFondo,
-      contentTextStyle: TextStyle(color: PortalColores.textoPrimario),
-    ),
-    progressIndicatorTheme:
-        const ProgressIndicatorThemeData(color: PortalColores.lima),
-    inputDecorationTheme: const InputDecorationTheme(
-      filled: true,
-      fillColor: PortalColores.fondo,
-    ),
-  );
-}
+final portalThemeCached = buildEzTheme(ezDark.external);
 
 /// Decoraciones y widgets utilitarios del portal.
 abstract final class PortalDecoraciones {

@@ -10,7 +10,7 @@ import '../services/cotizacion_service.dart';
 import '../services/finanzas_service.dart';
 import '../utils/app_session.dart';
 
-const _kVerde = Color(0xFF5A9A00);
+const _kVerde = Color(0xFF1E9462);
 
 Color _colorEstado(String e) => switch (e) {
       'borrador' => Colors.blueGrey,

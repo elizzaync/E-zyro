@@ -5,7 +5,7 @@ part of '../pantalla_detalle_servicio.dart';
 // Varias solicitudes de la misma etapa se juntan en una sola tarjeta. En la
 // etapa "listo para recibir" una sola firma recibe todas a la vez.
 
-const _kBlueRecepcion = Color(0xFF3B82F6);
+const _kBlueRecepcion = Color(0xFF3E80C0);
 
 class _RecepcionGrupoCard extends StatelessWidget {
   final String bucket; // 'listo' | 'compra' | 'recibido' | 'cerrado'

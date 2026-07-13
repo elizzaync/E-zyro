@@ -386,7 +386,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
             ),
           ]),
           backgroundColor:
-              ok ? const Color(0xFF2D7A00) : const Color(0xFFB3261E),
+              ok ? const Color(0xFF1E9462) : const Color(0xFFD6584F),
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 2),
           shape:
@@ -436,7 +436,7 @@ class _CamaraCampoScreenState extends State<CamaraCampoScreen>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(
             '$subidas foto${subidas == 1 ? '' : 's'} asignada${subidas == 1 ? '' : 's'} a procedimientos'),
-        backgroundColor: const Color(0xFF2D7A00),
+        backgroundColor: const Color(0xFF1E9462),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ));
@@ -627,15 +627,20 @@ class _OverlaySuperior extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.65),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.65),
-          borderRadius: BorderRadius.circular(14),
-        ),
         child: Row(
           children: [
             const Icon(Icons.camera_alt_outlined, color: _kGreen, size: 18),
@@ -690,12 +695,16 @@ class _OverlaySuperior extends StatelessWidget {
                 color: Colors.white54,
                 size: 18,
               ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: onClose,
-              child: const Icon(Icons.close, color: Colors.white70, size: 20),
+            const SizedBox(width: 4),
+            IconButton(
+              tooltip: 'Cerrar',
+              onPressed: onClose,
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close, color: Colors.white70, size: 20),
             ),
           ],
+        ),
+        ),
         ),
       ),
     );
@@ -815,31 +824,30 @@ class _BotonAccion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final habilitado = onTap != null;
-    return GestureDetector(
-      onTap: onTap,
-      child: Opacity(
-        opacity: habilitado ? 1.0 : 0.3,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.15),
-                border: Border.all(
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Opacity(
+          opacity: habilitado ? 1.0 : 0.3,
+          child: IconButton(
+            tooltip: label,
+            onPressed: onTap,
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.white.withValues(alpha: 0.15),
+              fixedSize: const Size(46, 46),
+              shape: CircleBorder(
+                side: BorderSide(
                     color: _kGreen.withValues(alpha: habilitado ? 0.9 : 0.4),
                     width: 1.5),
               ),
-              child: Icon(icon, color: _kGreen, size: 26),
             ),
-            const SizedBox(height: 4),
-            Text(label,
-                style: const TextStyle(color: Colors.white60, fontSize: 10)),
-          ],
+            icon: Icon(icon, color: _kGreen, size: 26),
+          ),
         ),
-      ),
+        const SizedBox(height: 4),
+        Text(label,
+            style: const TextStyle(color: Colors.white60, fontSize: 10)),
+      ],
     );
   }
 }
@@ -854,29 +862,34 @@ class _BtnCaptura extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          Container(
-            width: 72,
-            height: 72,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 72,
+              height: 72,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 3),
+              ),
             ),
-          ),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            width: capturing ? 52 : 58,
-            height: capturing ? 52 : 58,
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white,
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              width: capturing ? 52 : 58,
+              height: capturing ? 52 : 58,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

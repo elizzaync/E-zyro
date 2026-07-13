@@ -3,6 +3,7 @@ import '../../models/finanzas_models.dart';
 import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/ui_insets.dart';
+import '../../theme/ez_theme.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -84,8 +85,8 @@ class _State extends State<PantallaCajaChica> {
     return Card(
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: colorEstado(c.estado).withValues(alpha: 0.15),
-          child: Icon(Icons.savings_outlined, color: colorEstado(c.estado)),
+          backgroundColor: colorEstado(c.estado, context.ez).withValues(alpha: 0.15),
+          child: Icon(Icons.savings_outlined, color: colorEstado(c.estado, context.ez)),
         ),
         title: Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Column(
@@ -104,7 +105,7 @@ class _State extends State<PantallaCajaChica> {
           children: [
             Text(money(c.saldoActual),
                 style: const TextStyle(fontWeight: FontWeight.bold)),
-            chipEstado(c.estado),
+            chipEstado(c.estado, context.ez),
           ],
         ),
         onTap: () async {
@@ -242,7 +243,7 @@ class _DetalleState extends State<PantallaDetalleCaja> {
                   if (!_caja.abierta)
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: Row(children: [chipEstado(_caja.estado)]),
+                      child: Row(children: [chipEstado(_caja.estado, context.ez)]),
                     ),
                   const Padding(
                     padding: EdgeInsets.fromLTRB(16, 12, 16, 4),

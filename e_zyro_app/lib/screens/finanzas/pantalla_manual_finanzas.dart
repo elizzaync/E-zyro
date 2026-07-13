@@ -7,7 +7,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 import '../../utils/ui_insets.dart';
 
-const _kGreen = Color(0xFF5A9A00);
+const _kGreen = Color(0xFF1E9462);
 
 class PantallaManualFinanzas extends StatefulWidget {
   const PantallaManualFinanzas({super.key});

@@ -403,9 +403,9 @@ class _PantallaAuditoriaState extends State<PantallaAuditoria> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return TopoBackground(
-      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+      c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
       count: 14, amp: 8, stroke: 0.35, speed: 0.4,
       child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -570,9 +570,9 @@ class _AuditoriaCardState extends State<_AuditoriaCard> {
   bool _ctxExpanded = false;
 
   static const _green  = Color(0xFF8FD11B);  // crear / éxito
-  static const _amber  = Color(0xFFF59E0B);  // modificar / password
-  static const _blue   = Color(0xFF3B82F6);  // sesión / acceso
-  static const _red    = Color(0xFFEF4444);  // eliminar / fallar / rechazar
+  static const _amber  = Color(0xFFD98A16);  // modificar / password
+  static const _blue   = Color(0xFF3E80C0);  // sesión / acceso
+  static const _red    = Color(0xFFD6584F);  // eliminar / fallar / rechazar
   static const _purple = Color(0xFF8B5CF6);  // flujo de negocio
   static const _teal   = Color(0xFF14B8A6);  // movimiento / transferencia
   static const _gray   = Color(0xFF6B7280);  // logout / consulta
@@ -933,7 +933,7 @@ class _DiffTable extends StatelessWidget {
   final bool isDark;
   const _DiffTable({required this.rows, required this.isDark});
 
-  static const _red   = Color(0xFFEF4444);
+  static const _red   = Color(0xFFD6584F);
   static const _green = Color(0xFF8FD11B);
 
   @override

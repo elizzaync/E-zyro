@@ -4,6 +4,7 @@ import '../../models/finanzas_models.dart';
 import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/app_session.dart';
+import '../../theme/ez_theme.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -115,7 +116,7 @@ class _PantallaActivosFijosState extends State<PantallaActivosFijos> {
         ],
       ),
       isThreeLine: true,
-      trailing: chipEstado(a.estado),
+      trailing: chipEstado(a.estado, context.ez),
       onTap: () async {
         final cambiado = await Navigator.push<bool>(
           context,
@@ -388,7 +389,7 @@ class _PantallaDetalleActivoState extends State<_PantallaDetalleActivo> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(children: [chipEstado(a.estado), const Spacer(),
+                      Row(children: [chipEstado(a.estado, context.ez), const Spacer(),
                           Text(a.metodoDepreciacion.replaceAll('_', ' '),
                               style: const TextStyle(fontSize: 12, color: Colors.grey))]),
                       const SizedBox(height: 12),

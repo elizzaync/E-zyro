@@ -4,6 +4,7 @@ import '../../models/finanzas_models.dart';
 import '../../services/finanzas_service.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/app_session.dart';
+import '../../theme/ez_theme.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -347,7 +348,7 @@ class _PantallaDetalleCentroState extends State<_PantallaDetalleCentro> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(children: [chipEstado(c.activo ? 'activo' : 'inactivo'), const Spacer(),
+                    Row(children: [chipEstado(c.activo ? 'activo' : 'inactivo', context.ez), const Spacer(),
                         Text(c.tipoReferencia, style: const TextStyle(fontSize: 12, color: Colors.grey))]),
                     const SizedBox(height: 12),
                     Text('${c.codigo} — ${c.nombre}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),

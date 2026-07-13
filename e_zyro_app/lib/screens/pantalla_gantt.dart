@@ -234,7 +234,7 @@ class _GanttScreenState extends State<GanttScreen> {
 
     return Scaffold(
       backgroundColor:
-          isDark ? const Color(0xFF0F1A08) : const Color(0xFFF3F8EE),
+          isDark ? const Color(0xFF0E1611) : const Color(0xFFF3F1E6),
       appBar: _buildAppBar(context),
       body: _isLoading
           ? const Center(
@@ -323,7 +323,7 @@ class _GanttScreenState extends State<GanttScreen> {
     final surface = Theme.of(context).colorScheme.surface;
     final pct = (p.progreso * 100).round();
     final pctColor =
-        pct >= 100 ? const Color(0xFF8FD11B) : const Color(0xFFF59E0B);
+        pct >= 100 ? const Color(0xFF8FD11B) : const Color(0xFFD98A16);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -805,9 +805,9 @@ class _GanttScreenState extends State<GanttScreen> {
             _LegendItem(
                 color: Color(0xFF8FD11B), label: 'Proyecto / Completado'),
             SizedBox(width: 14),
-            _LegendItem(color: Color(0xFFF59E0B), label: 'Pendiente'),
+            _LegendItem(color: Color(0xFFD98A16), label: 'Pendiente'),
             SizedBox(width: 14),
-            _LegendItem(color: Color(0xFF3B82F6), label: 'En Proceso'),
+            _LegendItem(color: Color(0xFF3E80C0), label: 'En Proceso'),
             SizedBox(width: 14),
             _LegendItem(color: Colors.red, label: 'Hoy', isLine: true),
           ],
@@ -927,9 +927,9 @@ class _LegendItem extends StatelessWidget {
 
 Color _colorForEstado(String estado) => switch (estado.toLowerCase()) {
       'completado' || 'completed' => const Color(0xFF8FD11B),
-      'en_proceso' || 'en proceso' => const Color(0xFF3B82F6),
+      'en_proceso' || 'en proceso' => const Color(0xFF3E80C0),
       'cancelado' || 'canceled' => Colors.red,
-      _ => const Color(0xFFF59E0B),
+      _ => const Color(0xFFD98A16),
     };
 
 DateTime? _parseDate(String? s) {

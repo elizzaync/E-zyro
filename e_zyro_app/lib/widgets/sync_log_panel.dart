@@ -391,7 +391,7 @@ class _SyncLogPanelState extends State<SyncLogPanel> {
                               'Reintentar',
                               style: TextStyle(
                                 fontSize: 10,
-                                color: Color(0xFF5E8C12),
+                                color: Color(0xFF1E9462),
                                 fontWeight: FontWeight.w700,
                               ),
                             ),

@@ -345,7 +345,7 @@ class _EquiposIntervenidosTabState extends State<_EquiposIntervenidosTab> {
       };
 
   static Color _estadoIntervencionColor(String e) => switch (e) {
-        'en_proceso' => const Color(0xFF3B82F6),
+        'en_proceso' => const Color(0xFF3E80C0),
         'completado' => _green,
         _ => Colors.grey,
       };

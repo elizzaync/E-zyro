@@ -25,7 +25,6 @@ class LogisticsScreen extends StatefulWidget {
 }
 
 class _LogisticsScreenState extends State<LogisticsScreen> {
-  static const _green = Color(0xFF8FD11B);
   static const _pageSize = 30;
 
   RequerimientoService? _service;
@@ -194,9 +193,9 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
         : Colors.grey.shade200;
 
     return TopoBackground(
-      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+      c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
       count: 18,
       amp: 10,
       stroke: 0.40,
@@ -224,50 +223,23 @@ class _LogisticsScreenState extends State<LogisticsScreen> {
                           const Spacer(),
                           // Acceso al panel del encargado (solo logística/admin)
                           if (_puedeGestionar)
-                            GestureDetector(
-                              onTap: () => Navigator.push(
+                            FilledButton.icon(
+                              onPressed: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
                                       const PantallaInventarioPanel(),
                                 ),
                               ),
-                              child: Container(
+                              style: FilledButton.styleFrom(
+                                minimumSize: const Size(0, 40),
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: _green,
-                                  borderRadius: BorderRadius.circular(12),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: _green.withValues(alpha: 0.35),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 3),
-                                    ),
-                                  ],
-                                ),
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      Icons.dashboard_customize_outlined,
-                                      color: Colors.white,
-                                      size: 16,
-                                    ),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Panel',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                    horizontal: 14),
                               ),
+                              icon: const Icon(
+                                  Icons.dashboard_customize_outlined,
+                                  size: 16),
+                              label: const Text('Panel'),
                             ),
                         ],
                       ),

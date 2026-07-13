@@ -19,7 +19,7 @@ class PantallaIndicadores extends StatefulWidget {
 class _PantallaIndicadoresState extends State<PantallaIndicadores> {
   static const _medal = [Color(0xFFE8B53A), Color(0xFFB9C2CC), Color(0xFFCD8E52)];
   static const _avatarPalette = [
-    Color(0xFF3E9A4E), Color(0xFF3E80C0), Color(0xFFC58A1C),
+    Color(0xFF3E9A4E), Color(0xFF3E80C0), Color(0xFFD98A16),
     Color(0xFF7E57C2), Color(0xFFD6584F), Color(0xFF2BA89F),
   ];
 
@@ -80,7 +80,7 @@ class _PantallaIndicadoresState extends State<PantallaIndicadores> {
   Widget build(BuildContext context) {
     final v = VerdantColors.of(context);
     return Scaffold(
-      backgroundColor: v.dark ? const Color(0xFF091310) : const Color(0xFFF4F6EF),
+      backgroundColor: v.dark ? const Color(0xFF0E1611) : const Color(0xFFF3F1E6),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : _error != null

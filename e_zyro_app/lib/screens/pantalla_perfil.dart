@@ -42,9 +42,9 @@ class _PersonalScreenState extends State<PersonalScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final surface = Theme.of(context).colorScheme.surface;
     return TopoBackground(
-      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+      c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
       count: 18,
       amp: 10,
       stroke: 0.40,
@@ -311,7 +311,7 @@ class _ProfileTabState extends State<_ProfileTab> {
                   height: 84,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF8FD11B), Color(0xFF3E7E00)],
+                      colors: [Color(0xFF8FD11B), Color(0xFF1E9462)],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),

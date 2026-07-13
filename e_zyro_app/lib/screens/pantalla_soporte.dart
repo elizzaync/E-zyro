@@ -10,9 +10,9 @@ import '../widgets/topo_background.dart';
 
 const _kIndigo = Color(0xFF6366F1);
 const _kGreen = Color(0xFF8FD11B);
-const _kRed = Color(0xFFEF4444);
-const _kAmber = Color(0xFFF59E0B);
-const _kBlue = Color(0xFF3B82F6);
+const _kRed = Color(0xFFD6584F);
+const _kAmber = Color(0xFFD98A16);
+const _kBlue = Color(0xFF3E80C0);
 const _kGray = Color(0xFF6B7280);
 
 /// Soporte TI — el colaborador reporta problemáticas (errores de la app, del

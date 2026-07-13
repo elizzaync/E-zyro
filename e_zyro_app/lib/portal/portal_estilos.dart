@@ -5,10 +5,13 @@ library;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
-const Color kPortalVerde = Color(0xFF16A34A); // completado / operativo
-const Color kPortalAmbar = Color(0xFFF59E0B); // en proceso
-const Color kPortalRojo = Color(0xFFEF4444); // cancelado / inoperativo
-const Color kPortalGris = Color(0xFF6B7280); // pendiente / sin dato
+// MERGE "por valor" con lib/theme/ez_theme.dart (2026-07-13): el verde queda
+// en brandExternal (#16A34A, única desviación permitida del Portal); ámbar/
+// rojo/gris se igualan a warning/danger/inkMuted del sistema.
+const Color kPortalVerde = Color(0xFF16A34A); // = ez brandExternal
+const Color kPortalAmbar = Color(0xFFD98A16); // = ezLight.warning
+const Color kPortalRojo = Color(0xFFD6584F); // = ezLight.danger
+const Color kPortalGris = Color(0xFF8B968B); // = ezLight.inkMuted
 
 /// Color sobrio por estado: completado=verde, en proceso=ámbar,
 /// cancelado=rojo, pendiente (y desconocidos)=gris.
@@ -88,13 +91,9 @@ Widget chipEstado(String? estado) {
   );
 }
 
-/// Card sobria estándar del portal (bordes redondeados, sin sombra fuerte).
+/// Card estándar del portal — delega al CardTheme del sistema Ez (radio 20,
+/// superficie y sombra/borde según tema), solo conserva el margen compacto.
 Widget cardPortal({required Widget child, EdgeInsetsGeometry? margin}) => Card(
       margin: margin ?? const EdgeInsets.only(bottom: 8),
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(color: Colors.grey.withValues(alpha: 0.25)),
-      ),
       child: child,
     );

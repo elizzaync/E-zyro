@@ -361,7 +361,7 @@ class _PantallaPlanosState extends State<PantallaPlanos> {
                             decoration: BoxDecoration(color: _green.withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(10)),
                             child: const Text('Activa',
-                                style: TextStyle(fontSize: 10, color: Color(0xFF5A9A00), fontWeight: FontWeight.w700)),
+                                style: TextStyle(fontSize: 10, color: Color(0xFF1E9462), fontWeight: FontWeight.w700)),
                           ),
                         ],
                       ]),
@@ -392,9 +392,9 @@ class _PantallaPlanosState extends State<PantallaPlanos> {
         if (!didPop) _volver();
       },
       child: TopoBackground(
-        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+        c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
         count: 16, amp: 9, stroke: 0.36, speed: 0.4,
         child: Scaffold(
         backgroundColor: Colors.transparent,
@@ -503,7 +503,7 @@ class _PantallaPlanosState extends State<PantallaPlanos> {
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(color: surface, borderRadius: BorderRadius.circular(12)),
       child: ListTile(
-        leading: const Icon(Icons.folder_rounded, color: Color(0xFFFBBF24), size: 30),
+        leading: const Icon(Icons.folder_rounded, color: Color(0xFFFFC107), size: 30),
         title: Text(c.nombre, style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text('${c.totalElementos} elemento(s)',
             style: const TextStyle(fontSize: 12, color: Colors.grey)),

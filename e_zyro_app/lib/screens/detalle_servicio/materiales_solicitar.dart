@@ -34,7 +34,7 @@ class _MaterialCard extends StatelessWidget {
 
   Color _estadoColor() => switch (item.estadoReq) {
         'entregado' => _green,
-        'aprobado' => const Color(0xFF3B82F6),
+        'aprobado' => const Color(0xFF3E80C0),
         'rechazado' => _danger,
         _ => _amber,
       };

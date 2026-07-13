@@ -67,7 +67,7 @@ class _PantallaControlAsistenciasState
   }
 
   static const _avatarPalette = [
-    Color(0xFF3E9A4E), Color(0xFF3E80C0), Color(0xFFC58A1C),
+    Color(0xFF3E9A4E), Color(0xFF3E80C0), Color(0xFFD98A16),
     Color(0xFF7E57C2), Color(0xFFD6584F), Color(0xFF2BA89F),
   ];
 
@@ -75,7 +75,7 @@ class _PantallaControlAsistenciasState
   Widget build(BuildContext context) {
     final v = VerdantColors.of(context);
     return Scaffold(
-      backgroundColor: v.dark ? const Color(0xFF091310) : const Color(0xFFF4F6EF),
+      backgroundColor: v.dark ? const Color(0xFF0E1611) : const Color(0xFFF3F1E6),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
           : RefreshIndicator(
@@ -807,7 +807,7 @@ class _SheetDescarga extends StatefulWidget {
 
 class _SheetDescargaState extends State<_SheetDescarga> {
   static const _green = Color(0xFF8FD11B);
-  static const _danger = Color(0xFFE53935);
+  static const _danger = Color(0xFFD6584F);
 
   String _periodo = 'dia'; // dia | semana | mes
   String _formato = 'xlsx'; // xlsx | csv

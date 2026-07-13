@@ -35,9 +35,9 @@ class TopoBackground extends StatefulWidget {
 
   const TopoBackground({
     super.key,
-    this.c1 = const Color(0xFF5A9A00),
+    this.c1 = const Color(0xFF1E9462),
     this.c2 = const Color(0xFF8FD11B),
-    this.base = const Color(0xFFF5FAF0),
+    this.base = const Color(0xFFF3F1E6),
     this.count = 26,
     this.amp = 14,
     this.stroke = 0.55,
@@ -223,13 +223,13 @@ class TopoGlassCard extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: isDark
-              ? const Color(0xFF1A2B0E).withValues(alpha:0.84)
+              ? const Color(0xFF16211B).withValues(alpha:0.84)
               : const Color(0xFFFFFCF5).withValues(alpha:0.84),
           borderRadius: BorderRadius.circular(radius),
           border: Border.all(
             color: isDark
                 ? const Color(0xFF8FD11B).withValues(alpha:0.22)
-                : const Color(0xFF5A9A00).withValues(alpha:0.14),
+                : const Color(0xFF1E9462).withValues(alpha:0.14),
           ),
           boxShadow: [
             BoxShadow(

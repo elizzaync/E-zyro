@@ -25,8 +25,8 @@ class PantallaCrearServicio extends StatefulWidget {
 }
 
 const _green = Color(0xFF8FD11B);
-const _danger = Color(0xFFE53935);
-const _amber = Color(0xFFF59E0B);
+const _danger = Color(0xFFD6584F);
+const _amber = Color(0xFFD98A16);
 
 class _PantallaCrearServicioState extends State<PantallaCrearServicio> {
   final _nombre = TextEditingController();

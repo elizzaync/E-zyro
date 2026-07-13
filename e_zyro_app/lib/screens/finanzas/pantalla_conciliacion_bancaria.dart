@@ -6,6 +6,7 @@ import '../../models/finanzas_models.dart';
 import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
 import '../../utils/ui_insets.dart';
+import '../../theme/ez_theme.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -413,7 +414,7 @@ class _DetalleState extends State<PantallaDetalleConciliacion> {
           children: [
             Text('${esAbono ? '+' : '−'} ${money(m.monto)}',
                 style: TextStyle(fontWeight: FontWeight.bold, color: color)),
-            chipEstado(m.estado),
+            chipEstado(m.estado, context.ez),
           ],
         ),
         onTap: () => _accionMov(m),

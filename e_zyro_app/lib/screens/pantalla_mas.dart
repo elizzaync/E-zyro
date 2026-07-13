@@ -152,9 +152,9 @@ class _MoreScreenState extends State<MoreScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return TopoBackground(
-      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+      c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
       count: 18,
       amp: 10,
       stroke: 0.40,
@@ -275,7 +275,7 @@ class _MoreScreenState extends State<MoreScreen> {
                     _MenuItem(
                       icon: Icons.admin_panel_settings_outlined,
                       label: 'Privilegios',
-                      iconColor: const Color(0xFFFFB300),
+                      iconColor: const Color(0xFFD98A16),
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -573,7 +573,7 @@ class _MoreScreenState extends State<MoreScreen> {
           gradient: LinearGradient(
             colors: isDark
                 ? [const Color(0xFF2D5A00), const Color(0xFF4E8A00)]
-                : [const Color(0xFF5A9A00), const Color(0xFF8FD11B)],
+                : [const Color(0xFF1E9462), const Color(0xFF8FD11B)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),

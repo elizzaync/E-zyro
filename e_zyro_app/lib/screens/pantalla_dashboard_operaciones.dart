@@ -4,8 +4,8 @@ import '../services/intervencion_service.dart';
 import '../utils/api_provider.dart';
 
 const _green = Color(0xFF8FD11B);
-const _amber = Color(0xFFF59E0B);
-const _danger = Color(0xFFEF4444);
+const _amber = Color(0xFFD98A16);
+const _danger = Color(0xFFD6584F);
 
 /// Dashboard de Operaciones del técnico. Réplica de las tarjetas KPI del
 /// frontend Angular (`operaciones-cards`) consumiendo GET /operaciones/dashboard:

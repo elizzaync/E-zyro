@@ -55,8 +55,8 @@ part 'detalle_servicio/retorno_sheet.dart';
 part 'detalle_servicio/shared.dart';
 
 const _green = Color(0xFF8FD11B);
-const _amber = Color(0xFFF59E0B);
-const _danger = Color(0xFFEF4444);
+const _amber = Color(0xFFD98A16);
+const _danger = Color(0xFFD6584F);
 
 /// Vista de SOLO LECTURA para usuarios NO designados en el servicio: muestra la
 /// cabecera básica (nombre, estado, fechas, tareas y equipo designado) sin
@@ -68,7 +68,7 @@ class _VistaServicioBasica extends StatelessWidget {
 
   Color get _statusColor => switch (detalle.estado) {
         'Completado' => _green,
-        'En_Proceso' => const Color(0xFF3B82F6),
+        'En_Proceso' => const Color(0xFF3E80C0),
         'Cancelado' => _danger,
         _ => _amber,
       };
@@ -80,7 +80,7 @@ class _VistaServicioBasica extends StatelessWidget {
 
   Color _tareaColor(String estado) => switch (estado) {
         'completado' => _green,
-        'en_proceso' => const Color(0xFF3B82F6),
+        'en_proceso' => const Color(0xFF3E80C0),
         'bloqueado' => _danger,
         _ => _amber,
       };
@@ -130,7 +130,7 @@ class _VistaServicioBasica extends StatelessWidget {
           children: [
             _chip(_estadoLabel, _statusColor),
             if (d.inspeccionEquiposActiva)
-              _chip('Mantenimiento vinculado', const Color(0xFF3B82F6)),
+              _chip('Mantenimiento vinculado', const Color(0xFF3E80C0)),
           ],
         ),
         const SizedBox(height: 16),
@@ -359,7 +359,7 @@ class _DetalleServicioScreenState extends State<DetalleServicioScreen>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: const Text('¡Servicio finalizado! Debes registrar la devolución de materiales.',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        backgroundColor: const Color(0xFF3B82F6),
+        backgroundColor: const Color(0xFF3E80C0),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ));

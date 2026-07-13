@@ -313,7 +313,7 @@ class _SelectorTecnicoState extends State<_SelectorTecnico> {
                             backgroundColor: _kGreen.withValues(alpha: 0.18),
                             child: Text(t.iniciales,
                                 style: const TextStyle(
-                                    color: Color(0xFF5A9A00),
+                                    color: Color(0xFF1E9462),
                                     fontWeight: FontWeight.bold,
                                     fontSize: 13)),
                           ),

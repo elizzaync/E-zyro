@@ -9,7 +9,7 @@ import '../utils/ui_insets.dart';
 import '../widgets/topo_background.dart';
 
 // Paleta
-const _kRed = Color(0xFFE53935);
+const _kRed = Color(0xFFD6584F);
 const _kGreen = Color(0xFF8FD11B);
 
 class ComunicadosScreen extends StatefulWidget {

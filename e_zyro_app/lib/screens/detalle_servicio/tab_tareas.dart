@@ -48,7 +48,7 @@ class _TareaCard extends StatelessWidget {
 
   Color get _color => switch (tarea.estado) {
         'completado' => _green,
-        'en_proceso' => const Color(0xFF3B82F6),
+        'en_proceso' => const Color(0xFF3E80C0),
         'bloqueado' => _danger,
         _ => _amber,
       };

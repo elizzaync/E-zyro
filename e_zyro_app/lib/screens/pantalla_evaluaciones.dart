@@ -5,7 +5,7 @@ import '../models/evaluacion_models.dart';
 import '../models/personal_models.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
-import '../widgets/verdant_theme.dart';
+import '../theme/ez_theme.dart';
 import 'pantalla_plantillas_evaluacion.dart';
 
 /// Evaluaciones de desempeño (Punto 3.2): lista, creación con puntuación de
@@ -94,9 +94,9 @@ class _EvaluacionesTabBodyState extends State<_EvaluacionesTabBody> {
   }
 
   Color _color(String e) => switch (e) {
-    'completada' => Colors.green,
-    'enviada' => Colors.blue,
-    _ => Colors.orange,
+    'completada' => context.ez.success,
+    'enviada' => context.ez.info,
+    _ => context.ez.warning,
   };
 
   @override
@@ -235,7 +235,7 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(m),
-        backgroundColor: error ? Colors.red.shade700 : null,
+        backgroundColor: error ? context.ez.danger : null,
       ),
     );
   }
@@ -324,11 +324,11 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 if (_criterios.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     child: Text(
                       'No hay criterios definidos para la empresa.',
-                      style: TextStyle(color: Colors.black54),
+                      style: TextStyle(color: context.ez.inkMuted),
                     ),
                   )
                 else
@@ -373,7 +373,7 @@ class _CrearEvaluacionScreenState extends State<CrearEvaluacionScreen> {
               ),
               Text(
                 'peso ${c.peso.toStringAsFixed(1)}',
-                style: const TextStyle(fontSize: 11, color: Colors.black45),
+                style: TextStyle(fontSize: 11, color: context.ez.inkMuted),
               ),
               const SizedBox(width: 8),
               Container(
@@ -448,7 +448,7 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(m),
-        backgroundColor: error ? Colors.red.shade700 : null,
+        backgroundColor: error ? context.ez.danger : null,
       ),
     );
   }
@@ -480,7 +480,7 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            style: FilledButton.styleFrom(backgroundColor: ctx.ez.danger),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Eliminar'),
           ),
@@ -554,9 +554,9 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
             ),
             Text(
               e.promedio?.toStringAsFixed(2) ?? '—',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 18,
-                color: Colors.green,
+                color: context.ez.success,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -599,7 +599,7 @@ class _DetalleEvaluacionScreenState extends State<DetalleEvaluacionScreen> {
         Expanded(
           child: FilledButton.icon(
             style: FilledButton.styleFrom(
-              backgroundColor: Colors.green.shade700,
+              backgroundColor: context.ez.success,
             ),
             onPressed: () => _transicion('completada'),
             icon: const Icon(Icons.check_circle_outline),
@@ -664,13 +664,13 @@ class _CriteriosTabState extends State<CriteriosTab> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(m),
-        backgroundColor: error ? Colors.red.shade700 : null,
+        backgroundColor: error ? context.ez.danger : null,
       ),
     );
   }
 
   Future<void> _nuevo([CriterioEvaluacion? existing]) async {
-    final v = VerdantColors.of(context);
+    final v = context.ez;
     final nombre = TextEditingController(text: existing?.nombre ?? '');
     final desc = TextEditingController(text: existing?.descripcion ?? '');
     final pregunta = TextEditingController(text: existing?.pregunta ?? '');
@@ -681,7 +681,7 @@ class _CriteriosTabState extends State<CriteriosTab> {
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: v.card,
+      backgroundColor: v.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -696,7 +696,7 @@ class _CriteriosTabState extends State<CriteriosTab> {
               Center(
                 child: Container(
                   width: 42, height: 5,
-                  decoration: BoxDecoration(color: v.track, borderRadius: BorderRadius.circular(3)),
+                  decoration: BoxDecoration(color: v.hairline, borderRadius: BorderRadius.circular(3)),
                 ),
               ),
               const SizedBox(height: 18),
@@ -744,12 +744,12 @@ class _CriteriosTabState extends State<CriteriosTab> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                           decoration: BoxDecoration(
-                            border: Border.all(color: v.bd),
+                            border: Border.all(color: v.hairline),
                             borderRadius: BorderRadius.circular(14),
-                            color: v.cardAlt,
+                            color: v.surfaceAlt,
                           ),
                           child: Text('Escala 1 – 10',
-                              style: TextStyle(fontSize: 13, color: v.sub)),
+                              style: TextStyle(fontSize: 13, color: v.inkSecondary)),
                         ),
                       ],
                     ),
@@ -770,10 +770,10 @@ class _CriteriosTabState extends State<CriteriosTab> {
                       onPressed: () => Navigator.pop(ctx, false),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        side: BorderSide(color: v.bd),
+                        side: BorderSide(color: v.hairline),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                       ),
-                      child: Text('Cancelar', style: TextStyle(color: v.sub, fontWeight: FontWeight.w700)),
+                      child: Text('Cancelar', style: TextStyle(color: v.inkSecondary, fontWeight: FontWeight.w700)),
                     ),
                   ),
                   const SizedBox(width: 13),
@@ -782,8 +782,8 @@ class _CriteriosTabState extends State<CriteriosTab> {
                     child: FilledButton(
                       onPressed: () => Navigator.pop(ctx, true),
                       style: FilledButton.styleFrom(
-                        backgroundColor: v.lime,
-                        foregroundColor: v.limeInk,
+                        backgroundColor: v.accent,
+                        foregroundColor: v.onAccent,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
                       ),
@@ -843,7 +843,7 @@ class _CriteriosTabState extends State<CriteriosTab> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            style: FilledButton.styleFrom(backgroundColor: ctx.ez.danger),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Eliminar'),
           ),
@@ -857,38 +857,38 @@ class _CriteriosTabState extends State<CriteriosTab> {
     r.ok ? _cargar() : _snack(r.errorMessage, error: true);
   }
 
-  Widget _campo(VerdantColors v, String label) => Padding(
+  Widget _campo(EzColors v, String label) => Padding(
         padding: const EdgeInsets.only(bottom: 7),
         child: Text(label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: v.ink)),
       );
 
-  InputDecoration _decoracion(VerdantColors v, String hint) => InputDecoration(
+  InputDecoration _decoracion(EzColors v, String hint) => InputDecoration(
         hintText: hint,
-        hintStyle: TextStyle(fontSize: 13, color: v.mut),
+        hintStyle: TextStyle(fontSize: 13, color: v.inkMuted),
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         filled: true,
-        fillColor: v.cardAlt,
+        fillColor: v.surfaceAlt,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: v.bd),
+          borderSide: BorderSide(color: v.hairline),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: v.bd),
+          borderSide: BorderSide(color: v.hairline),
         ),
       );
 
   @override
   Widget build(BuildContext context) {
-    final v = VerdantColors.of(context);
+    final v = context.ez;
     return Scaffold(
       backgroundColor: Colors.transparent,
       floatingActionButton: AppSession.i.canCrearEvaluacion
           ? FloatingActionButton.extended(
               onPressed: () => _nuevo(),
-              backgroundColor: v.lime,
-              foregroundColor: v.limeInk,
+              backgroundColor: v.accent,
+              foregroundColor: v.onAccent,
               icon: const Icon(Icons.add),
               label: const Text('Criterio', style: TextStyle(fontWeight: FontWeight.w800)),
             )
@@ -900,7 +900,7 @@ class _CriteriosTabState extends State<CriteriosTab> {
           : _items.isEmpty
           ? Center(
               child: Text('Sin criterios. Crea el primero con el botón +.',
-                  style: TextStyle(color: v.mut)),
+                  style: TextStyle(color: v.inkMuted)),
             )
           : RefreshIndicator(
               onRefresh: _cargar,
@@ -914,21 +914,21 @@ class _CriteriosTabState extends State<CriteriosTab> {
     );
   }
 
-  Widget _tarjetaCriterio(VerdantColors v, CriterioEvaluacion c) {
+  Widget _tarjetaCriterio(EzColors v, CriterioEvaluacion c) {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: v.card,
+        color: v.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: v.bd),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: v.dark ? 0.30 : 0.05), blurRadius: 10, offset: const Offset(0, 3))],
+        border: Border.all(color: v.hairline),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: v.isDark ? 0.30 : 0.05), blurRadius: 10, offset: const Offset(0, 3))],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 3),
-            child: Icon(Icons.drag_indicator, size: 18, color: v.mut),
+            child: Icon(Icons.drag_indicator, size: 18, color: v.inkMuted),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -938,11 +938,11 @@ class _CriteriosTabState extends State<CriteriosTab> {
                 Text(c.nombre, style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: v.ink)),
                 if (c.pregunta != null && c.pregunta!.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(c.pregunta!, style: TextStyle(fontSize: 12.5, color: v.sub)),
+                  Text(c.pregunta!, style: TextStyle(fontSize: 12.5, color: v.inkSecondary)),
                 ],
                 if (c.descripcion != null && c.descripcion!.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(c.descripcion!, style: TextStyle(fontSize: 11.5, color: v.mut)),
+                  Text(c.descripcion!, style: TextStyle(fontSize: 11.5, color: v.inkMuted)),
                 ],
               ],
             ),
@@ -952,22 +952,22 @@ class _CriteriosTabState extends State<CriteriosTab> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(color: v.cardAlt, borderRadius: BorderRadius.circular(11)),
+                decoration: BoxDecoration(color: v.surfaceAlt, borderRadius: BorderRadius.circular(11)),
                 child: Text('×${c.peso.toStringAsFixed(1)}',
-                    style: GoogleFonts.spaceGrotesk(fontSize: 12, fontWeight: FontWeight.w700, color: v.linkc)),
+                    style: GoogleFonts.spaceGrotesk(fontSize: 12, fontWeight: FontWeight.w700, color: v.brand)),
               ),
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (AppSession.i.canEditarEvaluacion)
                     IconButton(
-                      icon: Icon(Icons.edit_outlined, size: 17, color: v.mut),
+                      icon: Icon(Icons.edit_outlined, size: 17, color: v.inkMuted),
                       onPressed: () => _nuevo(c),
                       visualDensity: VisualDensity.compact,
                     ),
                   if (AppSession.i.canEliminarEvaluacion)
                     IconButton(
-                      icon: Icon(Icons.delete_outline, size: 18, color: v.red),
+                      icon: Icon(Icons.delete_outline, size: 18, color: v.danger),
                       onPressed: () => _eliminar(c),
                       visualDensity: VisualDensity.compact,
                     ),
@@ -990,17 +990,17 @@ class ConfigEvaluacionesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final v = VerdantColors.of(context);
+    final v = context.ez;
     return DefaultTabController(
       length: TipoEvaluacion.todos.length,
       child: Scaffold(
-        backgroundColor: v.dark ? const Color(0xFF091310) : const Color(0xFFF4F6EF),
+        backgroundColor: v.isDark ? const Color(0xFF0E1611) : const Color(0xFFF3F1E6),
         body: Column(
           children: [
             Container(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
               decoration: BoxDecoration(
-                gradient: v.heroGradient,
+                gradient: v.brandGradient,
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
               ),
               child: SafeArea(
@@ -1012,12 +1012,12 @@ class ConfigEvaluacionesScreen extends StatelessWidget {
                       children: [
                         IconButton(
                           onPressed: () => Navigator.maybePop(context),
-                          icon: Icon(Icons.arrow_back, color: v.onHero),
+                          icon: Icon(Icons.arrow_back, color: Colors.white),
                         ),
                         Expanded(
                           child: Text('Config. Evaluaciones',
                               style: GoogleFonts.spaceGrotesk(
-                                  fontSize: 19, fontWeight: FontWeight.w700, color: v.onHero)),
+                                  fontSize: 19, fontWeight: FontWeight.w700, color: Colors.white)),
                         ),
                       ],
                     ),
@@ -1025,18 +1025,18 @@ class ConfigEvaluacionesScreen extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
                       child: Text(
                         'Define los criterios que forman el formulario de evaluación.',
-                        style: TextStyle(fontSize: 12.5, color: v.onHeroSub, height: 1.4),
+                        style: TextStyle(fontSize: 12.5, color: Colors.white70, height: 1.4),
                       ),
                     ),
                     SizedBox(
                       height: 40,
                       child: TabBar(
                         isScrollable: true,
-                        indicator: BoxDecoration(color: v.lime, borderRadius: BorderRadius.circular(20)),
+                        indicator: BoxDecoration(color: v.accent, borderRadius: BorderRadius.circular(20)),
                         indicatorSize: TabBarIndicatorSize.tab,
                         dividerColor: Colors.transparent,
-                        labelColor: v.limeInk,
-                        unselectedLabelColor: v.onHeroSub,
+                        labelColor: v.onAccent,
+                        unselectedLabelColor: Colors.white70,
                         labelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
                         unselectedLabelStyle: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
                         padding: EdgeInsets.zero,

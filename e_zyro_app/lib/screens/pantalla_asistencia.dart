@@ -1643,7 +1643,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                       style: GoogleFonts.plusJakartaSans(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFF5E9A1C),
+                        color: const Color(0xFF1E9462),
                       ),
                     ),
                   ),
@@ -1671,7 +1671,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               child: _buildStatTile(
                 icon: Icons.calendar_month_outlined,
                 iconBg: green.withValues(alpha: 0.12),
-                iconColor: const Color(0xFF5E9A1C),
+                iconColor: const Color(0xFF1E9462),
                 value: '${r?.diasTrabajados ?? 0}',
                 label: 'Días trabajados',
               ),
@@ -1691,7 +1691,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
               child: _buildStatTile(
                 icon: Icons.task_alt_outlined,
                 iconBg: green.withValues(alpha: 0.12),
-                iconColor: const Color(0xFF5E9A1C),
+                iconColor: const Color(0xFF1E9462),
                 value: r?.puntualidadPct != null
                     ? '${r!.puntualidadPct}%'
                     : '—',
@@ -1735,7 +1735,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 10.5,
                     fontWeight: FontWeight.w700,
-                    color: d.esHoy ? const Color(0xFF5E9A1C) : Colors.grey,
+                    color: d.esHoy ? const Color(0xFF1E9462) : Colors.grey,
                   ),
                 ),
                 const SizedBox(height: 5),
@@ -1765,7 +1765,7 @@ class _AsistenciaScreenState extends State<AsistenciaScreen> {
                   style: GoogleFonts.plusJakartaSans(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: d.esHoy ? const Color(0xFF5E9A1C) : Colors.grey,
+                    color: d.esHoy ? const Color(0xFF1E9462) : Colors.grey,
                   ),
                 ),
               ],
@@ -2185,7 +2185,7 @@ class _DiaHistorialCard extends StatefulWidget {
 }
 
 class _DiaHistorialCardState extends State<_DiaHistorialCard> {
-  static const _green = Color(0xFF5E9A1C);
+  static const _green = Color(0xFF1E9462);
   static const _greenBg = Color(0xFFE9F3DA);
   static const _blue = Color(0xFF4A90C2);
   static const _salmon = Color(0xFFA9897A);

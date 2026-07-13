@@ -23,7 +23,7 @@ class PantallaCrearProyecto extends StatefulWidget {
 }
 
 const _green = Color(0xFF8FD11B);
-const _danger = Color(0xFFE53935);
+const _danger = Color(0xFFD6584F);
 
 class _PantallaCrearProyectoState extends State<PantallaCrearProyecto> {
   final _nombre = TextEditingController();

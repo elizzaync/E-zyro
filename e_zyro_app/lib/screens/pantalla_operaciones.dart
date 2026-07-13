@@ -110,9 +110,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return TopoBackground(
-      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+      c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+      base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
       count: 18,
       amp: 10,
       stroke: 0.40,
@@ -209,7 +209,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
                           label: 'Servicios\nPendientes',
                           value: '${kpis.serviciosPendientes}',
                           icon: Icons.schedule_outlined,
-                          iconColor: const Color(0xFFF59E0B),
+                          iconColor: const Color(0xFFD98A16),
                           bgColor: const Color(0xFFFFF8E1),
                         ),
                       ),
@@ -420,10 +420,10 @@ class _ProyectoCard extends StatelessWidget {
   const _ProyectoCard({required this.proyecto, required this.onTap});
 
   Color get _statusColor => switch (proyecto.estado) {
-        'En Proceso' => const Color(0xFF3B82F6),
+        'En Proceso' => const Color(0xFF3E80C0),
         'Completado' => const Color(0xFF8FD11B),
         'Cancelado' => Colors.red,
-        _ => const Color(0xFFF59E0B),
+        _ => const Color(0xFFD98A16),
       };
 
   Color get _statusBg => switch (proyecto.estado) {
@@ -560,7 +560,7 @@ class _ProyectoCard extends StatelessWidget {
                   style: TextStyle(
                     color: proyecto.progreso >= 1
                         ? green
-                        : const Color(0xFFF59E0B),
+                        : const Color(0xFFD98A16),
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -576,7 +576,7 @@ class _ProyectoCard extends StatelessWidget {
                     ? Colors.grey.shade800
                     : Colors.grey.shade200,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  proyecto.progreso >= 1 ? green : const Color(0xFFF59E0B),
+                  proyecto.progreso >= 1 ? green : const Color(0xFFD98A16),
                 ),
                 minHeight: 5,
               ),

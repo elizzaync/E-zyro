@@ -32,7 +32,7 @@ class _ChecklistScreenState extends State<ChecklistScreen> {
   String get _progressKey => 'checklist_${widget.equipo.id}';
 
   static const _green = Color(0xFF8FD11B);
-  static const _amber = Color(0xFFF59E0B);
+  static const _amber = Color(0xFFD98A16);
 
   @override
   void initState() {
@@ -387,7 +387,7 @@ class _ProgressHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const green = Color(0xFF8FD11B);
-    const amber = Color(0xFFF59E0B);
+    const amber = Color(0xFFD98A16);
     final color = progress >= 1.0 ? green : amber;
 
     return Container(
@@ -485,7 +485,7 @@ class _PasoCard extends StatelessWidget {
   });
 
   static const _green = Color(0xFF8FD11B);
-  static const _amber = Color(0xFFF59E0B);
+  static const _amber = Color(0xFFD98A16);
 
   @override
   Widget build(BuildContext context) {
@@ -626,7 +626,7 @@ class _FotoButton extends StatelessWidget {
   });
 
   static const _green = Color(0xFF8FD11B);
-  static const _amber = Color(0xFFF59E0B);
+  static const _amber = Color(0xFFD98A16);
 
   @override
   Widget build(BuildContext context) {

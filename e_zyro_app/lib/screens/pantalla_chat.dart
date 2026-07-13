@@ -273,7 +273,7 @@ class _ConnectionBar extends StatelessWidget {
   const _ConnectionBar({required this.isConnected, required this.onReconnect});
 
   static const _green = Color(0xFF8FD11B);
-  static const _amber = Color(0xFFF59E0B);
+  static const _amber = Color(0xFFD98A16);
 
   @override
   Widget build(BuildContext context) {
@@ -508,11 +508,11 @@ class _MessageBubble extends StatelessWidget {
 
   Color _avatarColor(String name) {
     const palette = [
-      Color(0xFF3B82F6), // blue
+      Color(0xFF3E80C0), // blue
       Color(0xFF8B5CF6), // purple
-      Color(0xFFF59E0B), // amber
+      Color(0xFFD98A16), // amber
       Color(0xFF10B981), // emerald
-      Color(0xFFEF4444), // red
+      Color(0xFFD6584F), // red
       Color(0xFF06B6D4), // cyan
       Color(0xFFF97316), // orange
       Color(0xFFEC4899), // pink
@@ -530,11 +530,11 @@ class _Avatar extends StatelessWidget {
 
   Color get _color {
     const palette = [
-      Color(0xFF3B82F6),
+      Color(0xFF3E80C0),
       Color(0xFF8B5CF6),
-      Color(0xFFF59E0B),
+      Color(0xFFD98A16),
       Color(0xFF10B981),
-      Color(0xFFEF4444),
+      Color(0xFFD6584F),
       Color(0xFF06B6D4),
       Color(0xFFF97316),
       Color(0xFFEC4899),

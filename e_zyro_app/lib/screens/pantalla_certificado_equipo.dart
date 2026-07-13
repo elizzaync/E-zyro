@@ -8,7 +8,7 @@ import '../pdf/pdf_preview_screen.dart';
 import '../services/intervencion_service.dart';
 
 const _green = Color(0xFF8FD11B);
-const _danger = Color(0xFFEF4444);
+const _danger = Color(0xFFD6584F);
 
 /// Certificado de un equipo intervenido. Réplica del componente Angular
 /// `certificado`: Protocolo de Pozo a Tierra (tipo 'pozo') o Certificado de

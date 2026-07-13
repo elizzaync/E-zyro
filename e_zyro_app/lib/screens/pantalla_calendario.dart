@@ -42,8 +42,8 @@ class CalendarioScreen extends StatefulWidget {
 
 class _CalendarioScreenState extends State<CalendarioScreen> {
   static const _green  = Color(0xFF8FD11B);
-  static const _orange = Color(0xFFF59E0B);
-  static const _blue   = Color(0xFF3B82F6);
+  static const _orange = Color(0xFFD98A16);
+  static const _blue   = Color(0xFF3E80C0);
   static const _violet = Color(0xFF8B5CF6);
 
   DateTime _focusedDay = DateTime.now();
@@ -685,7 +685,7 @@ class _EventoChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFF59E0B);
+    const orange = Color(0xFFD98A16);
     const green  = Color(0xFF8FD11B);
     final color  = evento.activo ? green : orange;
 
@@ -821,14 +821,14 @@ class _ProyectoCard extends StatelessWidget {
 
   Color get _estadoColor => switch (detalle.estado) {
     'Completado' => const Color(0xFF8FD11B),
-    'En Proceso' => const Color(0xFF3B82F6),
+    'En Proceso' => const Color(0xFF3E80C0),
     'Cancelado'  => Colors.red,
-    _            => const Color(0xFFF59E0B),
+    _            => const Color(0xFFD98A16),
   };
 
   @override
   Widget build(BuildContext context) {
-    const orange = Color(0xFFF59E0B);
+    const orange = Color(0xFFD98A16);
     final statusColor = _estadoColor;
 
     return Container(

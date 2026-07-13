@@ -97,7 +97,7 @@ class OfflineBanner extends StatelessWidget {
       builder: (context, isOnline, child) {
         if (isOnline) return const SizedBox.shrink();
         return Material(
-          color: const Color(0xFFF59E0B), // ámbar
+          color: const Color(0xFFD98A16), // ámbar
           child: SafeArea(
             bottom: false,
             child: Padding(

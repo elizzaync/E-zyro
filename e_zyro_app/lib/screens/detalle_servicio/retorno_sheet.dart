@@ -108,7 +108,7 @@ class _DeclararRetornoSheetState extends State<_DeclararRetornoSheet> {
       return;
     }
     if (res.error?.kind == ApiErrorKind.conflict) {
-      _snack('La devolución ya fue registrada por otro técnico del equipo.', const Color(0xFF3B82F6));
+      _snack('La devolución ya fue registrada por otro técnico del equipo.', const Color(0xFF3E80C0));
       Navigator.pop(context, true);
       return;
     }
@@ -307,14 +307,14 @@ class _ItemRetornoTileState extends State<_ItemRetornoTile> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: (it.esObligatorio ? _danger : const Color(0xFF91D337)).withValues(alpha: .12),
+                  color: (it.esObligatorio ? _danger : const Color(0xFF8FD11B)).withValues(alpha: .12),
                   borderRadius: BorderRadius.circular(5),
                 ),
                 child: Text(_tipoLabel,
                     style: TextStyle(
                         fontSize: 10.5,
                         fontWeight: FontWeight.w700,
-                        color: it.esObligatorio ? _danger : const Color(0xFF5B8A0F))),
+                        color: it.esObligatorio ? _danger : const Color(0xFF1E9462))),
               ),
               if (it.esObligatorio)
                 Container(

@@ -9,9 +9,9 @@ import '../pdf/pdf_service.dart';
 import '../pdf/pdf_preview_screen.dart';
 
 const _kGreen = Color(0xFF8FD11B);
-const _kRed = Color(0xFFEF4444);
-const _kBlue = Color(0xFF3B82F6);
-const _kAmber = Color(0xFFF59E0B);
+const _kRed = Color(0xFFD6584F);
+const _kBlue = Color(0xFF3E80C0);
+const _kAmber = Color(0xFFD98A16);
 
 /// Fase 3 — Movimientos de inventario: historial + registrar ajuste de stock.
 class PantallaMovimientosLogistica extends StatefulWidget {
@@ -117,9 +117,9 @@ class _PantallaMovimientosLogisticaState
             style: TextStyle(fontWeight: FontWeight.w600)),
       ),
       body: TopoBackground(
-        c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-        c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-        base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+        c1: isDark ? const Color(0xFF1E9462) : const Color(0xFF1E9462),
+        c2: isDark ? const Color(0xFF1E9462) : const Color(0xFF8FD11B),
+        base: isDark ? const Color(0xFF0E1611) : const Color(0xFFF5FAF0),
         count: 16,
         amp: 9,
         stroke: 0.38,
@@ -832,7 +832,7 @@ class _ReposicionSheet extends StatelessWidget {
                   return ListTile(
                     dense: true,
                     leading: const CircleAvatar(
-                      backgroundColor: Color(0x1AF59E0B),
+                      backgroundColor: Color(0x1AD98A16),
                       child: Icon(Icons.inventory_2_outlined,
                           color: _kAmber, size: 20),
                     ),

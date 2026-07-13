@@ -22,14 +22,14 @@ import 'pantalla_legajo_lista.dart';
 
 // ─── Design tokens (Ficha Colaborador) ────────────────────────────────────────
 const _kBg = Color(0xFFF4F4EC);
-const _kGreen = Color(0xFF5E9A1C);
+const _kGreen = Color(0xFF1E9462);
 const _kGreenBg = Color(0xFFE9F3DA);
 const _kDark = Color(0xFF2A2E2A);
 const _kLabel = Color(0xFFA8AD9F);
 const _kSub = Color(0xFF9AA093);
-const _kOrange = Color(0xFFE0992C);
+const _kOrange = Color(0xFFD98A16);
 const _kOrangeBg = Color(0xFFFCEFD9);
-const _kRed = Color(0xFFD85C52);
+const _kRed = Color(0xFFD6584F);
 const _kRedBg = Color(0xFFFBEBEA);
 const _kBlue = Color(0xFF4A90C2);
 const _kBlueBg = Color(0xFFE3EEF5);

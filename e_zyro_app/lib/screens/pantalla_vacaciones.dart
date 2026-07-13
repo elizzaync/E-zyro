@@ -185,7 +185,7 @@ class _PantallaVacacionesState extends State<PantallaVacaciones> {
   }
 
   static const _avatarPalette = [
-    Color(0xFF3E9A4E), Color(0xFF3E80C0), Color(0xFFC58A1C),
+    Color(0xFF3E9A4E), Color(0xFF3E80C0), Color(0xFFD98A16),
     Color(0xFF7E57C2), Color(0xFFD6584F), Color(0xFF2BA89F),
   ];
 
@@ -204,7 +204,7 @@ class _PantallaVacacionesState extends State<PantallaVacaciones> {
     return DefaultTabController(
       length: 2,
       child: Scaffold(
-        backgroundColor: v.dark ? const Color(0xFF091310) : const Color(0xFFF4F6EF),
+        backgroundColor: v.dark ? const Color(0xFF0E1611) : const Color(0xFFF3F1E6),
         body: Column(
           children: [
             _hero(v),

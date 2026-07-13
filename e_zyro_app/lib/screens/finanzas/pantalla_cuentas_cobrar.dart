@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/finanzas_models.dart';
 import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
+import '../../theme/ez_theme.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -37,7 +38,7 @@ Future<void> mostrarDetalleCpe(BuildContext context, Factura f,
                     style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w700)),
               ),
-              chipEstado(f.cpeEstado ?? '—'),
+              chipEstado(f.cpeEstado ?? '—', context.ez),
             ]),
             const SizedBox(height: 10),
             if ((f.cpeMensaje ?? '').isNotEmpty)
@@ -416,7 +417,7 @@ class _TabComprobantes extends StatelessWidget {
                     children: [
                       Text(money(f.total, f.moneda),
                           style: const TextStyle(fontWeight: FontWeight.bold)),
-                      chipEstado(f.estado),
+                      chipEstado(f.estado, context.ez),
                     ],
                   ),
                   if (canAnular && f.estado == 'pendiente')

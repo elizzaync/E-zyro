@@ -3,7 +3,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import '../utils/ui_insets.dart';
 
-const _kGreen = Color(0xFF5A9A00);
+const _kGreen = Color(0xFF1E9462);
 
 class PantallaManualUsuario extends StatefulWidget {
   const PantallaManualUsuario({

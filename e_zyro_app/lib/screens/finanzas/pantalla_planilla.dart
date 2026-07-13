@@ -6,6 +6,7 @@ import '../../utils/api_provider.dart';
 import '../../widgets/verdant_theme.dart';
 import '../../pdf/pdf_service.dart';
 import '../../pdf/pdf_preview_screen.dart';
+import '../../theme/ez_theme.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -1176,7 +1177,7 @@ class _State extends State<PantallaPlanilla> with SingleTickerProviderStateMixin
                       const SizedBox(width: 8),
                       Expanded(child: Text('Proceso ${p.fechaProceso}',
                           style: const TextStyle(fontWeight: FontWeight.bold))),
-                      chipEstado(p.estado),
+                      chipEstado(p.estado, context.ez),
                       const Icon(Icons.chevron_right, color: Colors.grey),
                     ],
                   ),
@@ -1463,7 +1464,7 @@ class _PantallaDetallePlanillaState extends State<_PantallaDetallePlanilla> {
                         children: [
                           Row(
                             children: [
-                              chipEstado(p.estado),
+                              chipEstado(p.estado, context.ez),
                               const Spacer(),
                               Text('Neto total', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
                             ],

@@ -89,7 +89,7 @@ class _PantallaFinanzasState extends State<PantallaFinanzas> {
     final secciones = finanzasSecciones(s);
 
     return Scaffold(
-      backgroundColor: v.dark ? const Color(0xFF0B120D) : const Color(0xFFF6F8F3),
+      backgroundColor: v.dark ? const Color(0xFF0E1611) : const Color(0xFFF3F1E6),
       appBar: AppBar(
         title: const Text('Finanzas',
             style: TextStyle(fontWeight: FontWeight.bold)),

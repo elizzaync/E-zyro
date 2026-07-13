@@ -265,9 +265,9 @@ class _HistorialCard extends StatelessWidget {
 
   Color get _estadoColor => switch (item.estado.toLowerCase()) {
         'completado' => _green,
-        'en_proceso' => const Color(0xFF3B82F6),
+        'en_proceso' => const Color(0xFF3E80C0),
         'cancelado' => Colors.red,
-        _ => const Color(0xFFF59E0B),
+        _ => const Color(0xFFD98A16),
       };
 
   @override
@@ -418,10 +418,10 @@ class _HistorialCard extends StatelessWidget {
                           style: TextStyle(fontSize: 12),
                         ),
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: const Color(0xFF3B82F6),
+                          foregroundColor: const Color(0xFF3E80C0),
                           side: BorderSide(
                               color:
-                                  const Color(0xFF3B82F6).withValues(alpha: 0.5)),
+                                  const Color(0xFF3E80C0).withValues(alpha: 0.5)),
                           padding: const EdgeInsets.symmetric(vertical: 8),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(10),

@@ -8,41 +8,46 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 /// Color tokens.
+/// MERGE "por valor" con lib/theme/ez_theme.dart (ezLight, 2026-07-10): cada
+/// constante de estado/superficie/texto quedó igualada al hex del token Ez
+/// equivalente para que Almacén comparta paleta con el resto de la app sin
+/// tocar es_widgets.dart ni los 8 consumidores. `equip`/`compra` (y sus *Bg,
+/// y `matBg`) son colores de CATEGORÍA sin rol semántico en Ez — se dejan.
 class ESC {
   // surfaces
-  static const bg         = Color(0xFFEEF4E4);
-  static const surface    = Color(0xFFFFFFFF);
+  static const bg         = Color(0xFFF3F1E6); // = ezLight.canvas
+  static const surface    = Color(0xFFFFFFFF); // = ezLight.surface (ya coincidía)
   static const surfaceAlt = Color(0xFFF7FAEF);
   static const line       = Color(0x141A2912); // ink @ ~8%
   static const lineStrong = Color(0x241A2912); // ink @ ~14%
 
   // brand (verde de marca de la app)
-  static const brand     = Color(0xFF8FD11B);
-  static const brandDeep = Color(0xFF5E8C0E);
+  static const brand     = Color(0xFF8FD11B); // = ezLight.accent (ya coincidía)
+  static const brandDeep = Color(0xFF5E8C0E); // = ezLight.accentStrong (ya coincidía)
   static const lime      = Color(0xFF8FD11B);
-  static const limeGlow  = Color(0xFFA3E635);
+  static const limeGlow  = Color(0xFF8FD11B);
 
   // type families — el código visual central
-  static const mat       = Color(0xFF8FD11B); // Material (se consume) — verde marca
-  static const matBg     = Color(0xFFE6F4CD);
-  static const equip     = Color(0xFF5145CD); // Equipo (se devuelve) — índigo
-  static const equipBg   = Color(0xFFE2E0FB);
-  static const compra    = Color(0xFFC2620C); // Compra (procurement) — ámbar
-  static const compraBg  = Color(0xFFF7E3CD);
+  static const mat       = Color(0xFF8FD11B); // Material (se consume) — = ezLight.accent
+  static const matBg     = Color(0xFFE6F4CD); // categoría, sin *Soft equivalente en Ez — se deja
+  static const equip     = Color(0xFF5145CD); // Equipo (se devuelve) — índigo, categoría sin rol semántico — se deja
+  static const equipBg   = Color(0xFFE2E0FB); // categoría — se deja
+  static const compra    = Color(0xFFC2620C); // Compra (procurement) — ámbar, categoría sin rol semántico — se deja
+  static const compraBg  = Color(0xFFF7E3CD); // categoría — se deja
 
-  // status
-  static const pend      = Color(0xFFB45309); static const pendBg     = Color(0xFFFDECCC);
-  static const aprob     = Color(0xFF1D4ED8); static const aprobBg    = Color(0xFFDBE7FE);
-  static const entreg    = Color(0xFF15803D); static const entregBg   = Color(0xFFD7F0DB);
-  static const devuelto  = Color(0xFF475569); static const devueltoBg = Color(0xFFE6EAF0);
-  static const vencido   = Color(0xFFDC2626); static const vencidoBg  = Color(0xFFFDE0E0);
-  static const stock     = Color(0xFF0E7490); static const stockBg    = Color(0xFFCDEEF3);
-  static const nostock   = Color(0xFFD9620A); static const nostockBg  = Color(0xFFFCE3CF);
+  // status (= pares estado/*Soft de ezLight)
+  static const pend      = Color(0xFFD98A16); static const pendBg     = Color(0xFFF8ECD2); // = ezLight.warning/warningSoft
+  static const aprob     = Color(0xFF3E80C0); static const aprobBg    = Color(0xFFE0EAF4); // = ezLight.info/infoSoft
+  static const entreg    = Color(0xFF2F9E52); static const entregBg   = Color(0xFFE1F1E4); // = ezLight.success/successSoft
+  static const devuelto  = Color(0xFF566B5E); static const devueltoBg = Color(0xFFECEADB); // = ezLight.inkSecondary / canvasSunken (sin inkSecondarySoft en Ez)
+  static const vencido   = Color(0xFFD6584F); static const vencidoBg  = Color(0xFFF7E1DF); // = ezLight.danger/dangerSoft
+  static const stock     = Color(0xFF3E80C0); static const stockBg    = Color(0xFFE0EAF4); // = ezLight.info/infoSoft
+  static const nostock   = Color(0xFFD98A16); static const nostockBg  = Color(0xFFF8ECD2); // = ezLight.warning/warningSoft
 
-  // text
-  static const ink       = Color(0xFF1A2912);
-  static const inkSub    = Color(0xFF5D6E4C);
-  static const inkFaint  = Color(0xFF8C9B7A);
+  // text (= ezLight.ink/inkSecondary/inkMuted)
+  static const ink       = Color(0xFF15241A);
+  static const inkSub    = Color(0xFF566B5E);
+  static const inkFaint  = Color(0xFF8B968B);
 
   static const radius    = 24.0;
 }

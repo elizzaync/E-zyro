@@ -12,6 +12,7 @@ import '../utils/app_notifiers.dart';
 import '../utils/app_session.dart';
 import '../widgets/e_system_painters.dart';
 import '../widgets/topo_background.dart';
+import '../theme/ez_theme.dart';
 import 'pantalla_recuperacion_password.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -177,11 +178,13 @@ class _LoginScreenState extends State<LoginScreen>
         Navigator.pushReplacementNamed(context, AppSession.i.rutaHome);
       } else {
         // Token realmente expirado — necesita conexión para renovarlo
+        final warning = context.ez.warning;
         await _authService!.logout();
+        if (!mounted) return;
         setState(() { _hasSession = false; _showPasswordForm = true; });
         _showSnack(
           'Sesión expirada. Conéctate a internet para renovarla.',
-          Colors.orange,
+          warning,
         );
       }
     }
@@ -198,13 +201,13 @@ class _LoginScreenState extends State<LoginScreen>
     if (_authService == null || _isLoading) return;
     if (_isLockedOut) {
       final secs = _lockoutUntil!.difference(DateTime.now()).inSeconds;
-      _showSnack('Demasiados intentos. Espera $secs segundos.', Colors.red);
+      _showSnack('Demasiados intentos. Espera $secs segundos.', context.ez.danger);
       return;
     }
     final username = _usernameController.text.trim();
     final password = _passwordController.text;
     if (username.isEmpty || password.isEmpty) {
-      _showSnack('Completa usuario y contraseña', Colors.orange);
+      _showSnack('Completa usuario y contraseña', context.ez.warning);
       return;
     }
     setState(() => _isLoading = true);
@@ -229,9 +232,9 @@ class _LoginScreenState extends State<LoginScreen>
           _lockoutUntil  = DateTime.now().add(_lockoutDuration);
           _loginAttempts = 0;
         });
-        _showSnack('Cuenta bloqueada 60 s por múltiples intentos.', Colors.red);
+        _showSnack('Cuenta bloqueada 60 s por múltiples intentos.', context.ez.danger);
       } else {
-        _showSnack(_sanitize(e.toString()), Colors.red);
+        _showSnack(_sanitize(e.toString()), context.ez.danger);
       }
       setState(() => _isLoading = false);
     }
@@ -327,7 +330,7 @@ class _LoginScreenState extends State<LoginScreen>
                     ambient: const [],
                     originX: _logoCenter.dx,
                     originY: _logoCenter.dy,
-                    color: const Color(0xFFA3E635),
+                    color: const Color(0xFF8FD11B),
                   ),
                 ),
               ),
@@ -523,11 +526,12 @@ class _LoginScreenState extends State<LoginScreen>
   // ── Card blanca del formulario ────────────────────────────────────────────
 
   Widget _buildFormCard() {
+    final ez = context.ez;
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: ez.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
             color: Color(0x28000000),
@@ -824,11 +828,12 @@ class _LoginScreenState extends State<LoginScreen>
   // ── Card biométrico ───────────────────────────────────────────────────────
 
   Widget _buildBioCard() {
+    final ez = context.ez;
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: ez.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         boxShadow: [
           BoxShadow(
             color: Color(0x28000000),
@@ -1097,10 +1102,11 @@ class _BiometricPolicySheetState extends State<_BiometricPolicySheet> {
 
   @override
   Widget build(BuildContext context) {
+    final ez = context.ez;
     return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: ez.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Column(
@@ -1111,7 +1117,7 @@ class _BiometricPolicySheetState extends State<_BiometricPolicySheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-                color: Colors.grey.shade300,
+                color: ez.hairline,
                 borderRadius: BorderRadius.circular(2)),
           ),
           const SizedBox(height: 20),

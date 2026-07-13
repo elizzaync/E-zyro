@@ -4,7 +4,7 @@ import 'pantalla_soporte.dart';
 import 'pantalla_manual_usuario.dart';
 import 'finanzas/pantalla_manual_finanzas.dart';
 
-const _kGreen = Color(0xFF5A9A00);
+const _kGreen = Color(0xFF1E9462);
 
 class PantallaCentroAyuda extends StatefulWidget {
   const PantallaCentroAyuda({super.key});

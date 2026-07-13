@@ -168,7 +168,7 @@ class _ChatConversacionState extends State<ChatConversacion> {
               radius: 32,
               backgroundColor: _green.withValues(alpha: 0.15),
               child: const Icon(Icons.smart_toy_outlined,
-                  size: 34, color: Color(0xFF5E8F0D)),
+                  size: 34, color: Color(0xFF1E9462)),
             ),
             const SizedBox(height: 14),
             const Text('¿En qué te ayudo?',
@@ -286,7 +286,7 @@ class _ChatConversacionState extends State<ChatConversacion> {
           for (final a in navegables)
             ActionChip(
               avatar: const Icon(Icons.open_in_new_rounded,
-                  size: 15, color: Color(0xFF5E8F0D)),
+                  size: 15, color: Color(0xFF1E9462)),
               label: Text('Abrir ${_catalogo[a.pantalla]!.nombre}',
                   style: const TextStyle(fontSize: 12.5)),
               onPressed: () => _ejecutarAccion(a),
@@ -371,7 +371,7 @@ class _ChatConversacionState extends State<ChatConversacion> {
           IconButton(
             onPressed: _esperando ? null : _enviarNuevo,
             icon: const Icon(Icons.send_rounded),
-            color: const Color(0xFF5E8F0D),
+            color: const Color(0xFF1E9462),
           ),
         ]),
       ),

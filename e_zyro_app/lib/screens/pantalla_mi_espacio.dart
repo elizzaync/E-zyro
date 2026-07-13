@@ -15,7 +15,7 @@ import 'pantalla_editar_perfil.dart';
 import 'pantalla_evaluaciones.dart' show DetalleEvaluacionScreen;
 
 // ── Design tokens ────────────────────────────────────────────────────────────
-const _kGreen      = Color(0xFF5E9A1C);
+const _kGreen      = Color(0xFF1E9462);
 const _kGreenLight = Color(0xFF8FC53C);
 const _kBg         = Color(0xFFF4F4EC);
 const _kTextDark   = Color(0xFF2A2E2A);
@@ -24,7 +24,7 @@ const _kTextLabel  = Color(0xFFA8AD9F);
 const _kBorder     = Color(0xFFE6E7DE);
 const _kBlue       = Color(0xFF4A90C2);
 const _kPurple     = Color(0xFF8267C0);
-const _kOrange     = Color(0xFFE0992C);
+const _kOrange     = Color(0xFFD98A16);
 const _kOrangeBg   = Color(0xFFFCEFD9);
 const _kGreenBg    = Color(0xFFE9F3DA);
 

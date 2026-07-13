@@ -230,7 +230,7 @@ class _PantallaBandejaSolicitudesState
                           style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF5E9A1C)))
+                              color: Color(0xFF1E9462)))
                       : null,
                 ),
                 const SizedBox(width: 10),

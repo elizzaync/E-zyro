@@ -438,14 +438,14 @@ class _NotifTile extends StatelessWidget {
   };
 
   static Color _colorForTipo(String tipo) => switch (tipo) {
-    'servicio' => const Color(0xFF3B82F6),
+    'servicio' => const Color(0xFF3E80C0),
     'asignacion_proyecto' => const Color(0xFF8FD11B),
     'asignacion_servicio' => const Color(0xFF8FD11B),
-    'comunicado' => const Color(0xFFF59E0B),
-    'comunicado_proyecto' => const Color(0xFFF59E0B),
+    'comunicado' => const Color(0xFFD98A16),
+    'comunicado_proyecto' => const Color(0xFFD98A16),
     'recordatorio' => const Color(0xFF8B5CF6),
     'aviso_logistica' => const Color(0xFF06B6D4),
-    'warning' => const Color(0xFFEF4444),
+    'warning' => const Color(0xFFD6584F),
     'info' => const Color(0xFF06B6D4),
     _ => const Color(0xFF8FD11B),
   };

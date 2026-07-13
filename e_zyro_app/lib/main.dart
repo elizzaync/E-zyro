@@ -32,7 +32,7 @@ import 'services/fcm_flutter_service.dart';
 import 'screens/pantalla_historial_equipo.dart';
 import 'screens/pantalla_auditoria.dart';
 import 'portal/pantalla_portal_shell.dart';
-import 'portal/portal_design.dart';
+import 'theme/ez_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -79,178 +79,12 @@ void main() async {
   });
 }
 
-// ── Paleta de marca "E-System" ────────────────────────────────────────────
-const Color _kLime = Color(0xFF8FD11B); // verde lima (acento neón)
-const Color _kForest = Color(0xFF5A9A00); // verde bosque (acento profundo)
-
-// Temas pre-construidos una sola vez al cargar el módulo. Evita reconstruir
-// ColorScheme.fromSeed + sub-temas en cada toggle del modo oscuro.
-final _lightTheme = _buildTheme(Brightness.light);
-final _darkTheme  = _buildTheme(Brightness.dark);
-
-ThemeData _buildTheme(Brightness brightness) {
-  final isDark = brightness == Brightness.dark;
-
-  var scheme = ColorScheme.fromSeed(
-    seedColor: _kLime,
-    brightness: brightness,
-  );
-
-  // ── Estilo artístico de modo oscuro (estilo logística, app-wide) ─────────
-  // Recolorea las superficies M3 hacia un verde-bosque profundo en vez del
-  // gris-violáceo por defecto. Se propaga a TODA la app porque las pantallas
-  // ya leen scheme.surface / scaffoldBackgroundColor.
-  if (isDark) {
-    scheme = scheme.copyWith(
-      primary: _kLime,
-      onPrimary: const Color(0xFF0C1506),
-      onSurface: const Color(0xFFE7F2D8),
-      onSurfaceVariant: const Color(0xFF9FB58B),
-      outline: _kLime.withValues(alpha: 0.28),
-      outlineVariant: _kLime.withValues(alpha: 0.14),
-      surface: const Color(0xFF16240C),
-      surfaceContainerLowest: const Color(0xFF0B1305),
-      surfaceContainerLow: const Color(0xFF0F1A08),
-      surfaceContainer: const Color(0xFF16240C),
-      surfaceContainerHigh: const Color(0xFF1D2F11),
-      surfaceContainerHighest: const Color(0xFF243A15),
-    );
-  }
-
-  final accentSel = isDark ? _kLime : _kForest;
-
-  return ThemeData(
-    colorScheme: scheme,
-    useMaterial3: true,
-    scaffoldBackgroundColor: scheme.surfaceContainerLow,
-    cardColor: scheme.surface,
-    dividerColor:
-        isDark ? _kLime.withValues(alpha: 0.12) : Colors.black.withValues(alpha: 0.08),
-    // ── Transiciones de página suaves (Material 3 Zoom) ──────────────────
-    pageTransitionsTheme: const PageTransitionsTheme(
-      builders: {
-        TargetPlatform.android: ZoomPageTransitionsBuilder(),
-        TargetPlatform.iOS:     ZoomPageTransitionsBuilder(),
-        TargetPlatform.windows: ZoomPageTransitionsBuilder(),
-      },
-    ),
-    // ── AppBar ────────────────────────────────────────────────────────────
-    appBarTheme: AppBarTheme(
-      backgroundColor: scheme.surfaceContainerLow,
-      foregroundColor: scheme.onSurface,
-      elevation: 0,
-      scrolledUnderElevation: 0,
-      centerTitle: false,
-    ),
-    // ── Tarjetas: bordes neón en oscuro (estilo "cuadro" de logística) ────
-    cardTheme: CardThemeData(
-      color: scheme.surface,
-      elevation: 0,
-      margin: EdgeInsets.zero,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: isDark
-            ? BorderSide(color: _kLime.withValues(alpha: 0.22), width: 1)
-            : BorderSide.none,
-      ),
-    ),
-    // ── Botones ───────────────────────────────────────────────────────────
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: _kLime,
-        foregroundColor: isDark ? const Color(0xFF0C1506) : Colors.white,
-        elevation: isDark ? 0 : 1,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-      ),
-    ),
-    filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(
-        backgroundColor: _kLime,
-        foregroundColor: isDark ? const Color(0xFF0C1506) : Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    ),
-    outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(
-        foregroundColor: accentSel,
-        side: BorderSide(color: _kLime.withValues(alpha: isDark ? 0.55 : 0.8)),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      ),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(foregroundColor: accentSel),
-    ),
-    floatingActionButtonTheme: FloatingActionButtonThemeData(
-      backgroundColor: _kLime,
-      foregroundColor: isDark ? const Color(0xFF0C1506) : Colors.white,
-    ),
-    // ── Diálogos / hojas / snackbars ──────────────────────────────────────
-    dialogTheme: DialogThemeData(
-      backgroundColor: scheme.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-    ),
-    bottomSheetTheme: BottomSheetThemeData(
-      backgroundColor: scheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-    ),
-    snackBarTheme: SnackBarThemeData(
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    ),
-    chipTheme: ChipThemeData(
-      side: BorderSide(
-          color: _kLime.withValues(alpha: isDark ? 0.30 : 0.20)),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-    ),
-    // ── NavigationBar (Material 3) ───────────────────────────────────────
-    navigationBarTheme: NavigationBarThemeData(
-      backgroundColor: scheme.surface,
-      indicatorColor: _kLime.withValues(alpha: isDark ? 0.22 : 0.15),
-      labelTextStyle: WidgetStateProperty.resolveWith((states) {
-        final selected = states.contains(WidgetState.selected);
-        return TextStyle(
-          fontSize: 11,
-          fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-          color: selected ? accentSel : scheme.onSurfaceVariant,
-        );
-      }),
-      iconTheme: WidgetStateProperty.resolveWith((states) {
-        final selected = states.contains(WidgetState.selected);
-        return IconThemeData(
-          color: selected ? accentSel : scheme.onSurfaceVariant,
-          size: 24,
-        );
-      }),
-      elevation: 0,
-      height: 68,
-    ),
-    inputDecorationTheme: InputDecorationTheme(
-      filled: true,
-      fillColor: scheme.surface,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: isDark
-            ? BorderSide(color: _kLime.withValues(alpha: 0.18))
-            : BorderSide.none,
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: _kLime, width: 1.5),
-      ),
-    ),
-  );
-}
+// Temas pre-construidos una sola vez al cargar el módulo — Sistema de Diseño
+// E-Zyro v1.0 (ver lib/theme/ez_theme.dart). Reemplaza los 9 sistemas previos
+// (Verdant, Style E, Paper, Portal claro/oscuro, Ficha Colaborador, Mi
+// Espacio, _C Trámites, Finanzas suelto).
+final _lightTheme = buildEzTheme(ezLight);
+final _darkTheme  = buildEzTheme(ezDark);
 
 class ESystemApp extends StatelessWidget {
   const ESystemApp({super.key});
@@ -263,8 +97,16 @@ class ESystemApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/recovery': (context) => const PasswordRecoveryScreen(),
         '/': (context) => const MainShell(),
-        '/portal': (context) =>
-            Theme(data: portalThemeCached, child: const PortalShell()),
+        // Portal (cliente externo): única desviación permitida del sistema —
+        // brand -> brandExternal (#16A34A) — el resto (accent, estados,
+        // superficie, tipografía) es idéntico al tema interno.
+        '/portal': (context) => Theme(
+              data: buildEzTheme(
+                (Theme.of(context).brightness == Brightness.dark ? ezDark : ezLight)
+                    .external,
+              ),
+              child: const PortalShell(),
+            ),
         '/home': (context) => const MainShell(initialIndex: 0),
         '/operations': (context) => const MainShell(initialIndex: 1),
         '/logistics': (context) => const MainShell(initialIndex: 2),
@@ -608,7 +450,7 @@ class _MainShellState extends State<MainShell>
               ),
             ],
           ),
-          backgroundColor: const Color(0xFFF59E0B),
+          backgroundColor: const Color(0xFFD98A16),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10)),

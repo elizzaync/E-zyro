@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../models/finanzas_models.dart';
 import '../../utils/app_session.dart';
 import '../../utils/api_provider.dart';
+import '../../theme/ez_theme.dart';
 import 'finanzas_comun.dart';
 import 'finanzas_navegacion.dart';
 
@@ -274,7 +275,7 @@ class _TabFacturas extends StatelessWidget {
                     children: [
                       Text(money(f.total, f.moneda),
                           style: const TextStyle(fontWeight: FontWeight.bold)),
-                      chipEstado(f.estado),
+                      chipEstado(f.estado, context.ez),
                     ],
                   ),
                   if (canAnular && f.estado == 'pendiente')

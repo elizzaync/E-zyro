@@ -12,6 +12,7 @@ import '../widgets/stat_card.dart';
 import '../widgets/topo_background.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
+import '../theme/ez_theme.dart';
 import 'pantalla_notificaciones.dart';
 import 'almuerzo/tarjeta_almuerzo.dart';
 import 'pantalla_camara_campo.dart';
@@ -240,12 +241,15 @@ class _HomeScreenState extends State<HomeScreen> {
         _ => Icons.notifications_rounded,
       };
 
-  static Color _colorForTipo(String tipo) => switch (tipo) {
-        'servicio' => const Color(0xFF3B82F6),
-        'comunicado' => const Color(0xFFF59E0B),
-        'recordatorio' => const Color(0xFF8B5CF6),
-        _ => const Color(0xFF8FD11B),
-      };
+  Color _colorForTipo(String tipo) {
+    final ez = context.ez;
+    return switch (tipo) {
+      'servicio' => ez.info,
+      'comunicado' => ez.warning,
+      'recordatorio' => const Color(0xFF8B5CF6), // categórico, sin rol semántico en Ez
+      _ => ez.brand,
+    };
+  }
 
   Widget _buildBanner() {
     final color = _colorForTipo(_bannerTipo);
@@ -308,7 +312,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Text(
                             _bannerBody,
                             style: TextStyle(
-                                color: Colors.grey.shade500, fontSize: 12),
+                                color: context.ez.inkMuted, fontSize: 12),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -323,7 +327,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       setState(() => _bannerVisible = false);
                     },
                     child: Icon(Icons.close_rounded,
-                        color: Colors.grey.shade400, size: 18),
+                        color: context.ez.inkMuted, size: 18),
                   ),
                 ],
               ),
@@ -338,11 +342,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final ez = context.ez;
     return TopoBackground(
-      c1: isDark ? const Color(0xFF3D6E00) : const Color(0xFF5A9A00),
-      c2: isDark ? const Color(0xFF5A9A00) : const Color(0xFF8FD11B),
-      base: isDark ? const Color(0xFF0F1A08) : const Color(0xFFF5FAF0),
+      c1: ez.brandStrong,
+      c2: ez.brand,
+      base: ez.canvas,
       count: 20,
       amp: 12,
       stroke: 0.45,
@@ -352,10 +356,11 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildBody() {
+    final ez = context.ez;
     if (_isLoading) {
-      return const Center(
+      return Center(
         child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF8FD11B)),
+          valueColor: AlwaysStoppedAnimation<Color>(ez.brand),
         ),
       );
     }
@@ -365,25 +370,14 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.wifi_off_rounded, size: 52, color: Colors.grey),
+            Icon(Icons.wifi_off_rounded, size: 52, color: ez.inkMuted),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Error al cargar los datos',
-              style: TextStyle(color: Colors.grey, fontSize: 15),
+              style: TextStyle(color: ez.inkMuted, fontSize: 15),
             ),
             const SizedBox(height: 14),
-            ElevatedButton(
-              onPressed: _loadData,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF8FD11B),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: const Text('Reintentar'),
-            ),
+            EzButton.primary('Reintentar', onPressed: _loadData, expand: false),
           ],
         ),
       );
@@ -393,7 +387,7 @@ class _HomeScreenState extends State<HomeScreen> {
       children: [
         RefreshIndicator(
           onRefresh: _loadData,
-          color: const Color(0xFF8FD11B),
+          color: ez.brand,
           child: SafeArea(
             child: SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -505,7 +499,7 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 3),
               Text(
                 _subtitleDate(),
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
+                style: TextStyle(fontSize: 13, color: context.ez.inkMuted),
               ),
             ],
           ),
@@ -536,8 +530,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       : Icons.notifications_none_rounded,
                   size: 24,
                   color: _unreadCount > 0
-                      ? const Color(0xFF8FD11B)
-                      : Colors.grey,
+                      ? context.ez.brand
+                      : context.ez.inkMuted,
                 ),
               ),
               if (_unreadCount > 0)
@@ -546,8 +540,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   right: -2,
                   child: Container(
                     padding: const EdgeInsets.all(3),
-                    decoration: const BoxDecoration(
-                        color: Colors.red, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                        color: context.ez.danger, shape: BoxShape.circle),
                     constraints:
                         const BoxConstraints(minWidth: 18, minHeight: 18),
                     child: Text(
@@ -581,6 +575,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // ── KPIs ────────────────────────────────────────────────────────────────────
   Widget _buildStatsRow() {
+    final ez = context.ez;
     return Row(
       children: [
         Expanded(
@@ -588,8 +583,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Activos',
             value: '${_resumen.activos}',
             iconData: Icons.access_time,
-            color: const Color(0xFFFFF3CD),
-            iconColor: const Color(0xFFF59E0B),
+            color: ez.warningSoft,
+            iconColor: ez.warning,
           ),
         ),
         const SizedBox(width: 10),
@@ -598,8 +593,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Pendientes',
             value: '${_resumen.pendientes}',
             iconData: Icons.build_outlined,
-            color: const Color(0xFFF3F3F3),
-            iconColor: Colors.grey,
+            color: ez.canvasSunken,
+            iconColor: ez.inkMuted,
           ),
         ),
         const SizedBox(width: 10),
@@ -608,8 +603,8 @@ class _HomeScreenState extends State<HomeScreen> {
             label: 'Completados',
             value: '${_resumen.completados}',
             iconData: Icons.check_circle_outline,
-            color: const Color(0xFFEFFAE0),
-            iconColor: const Color(0xFF8FD11B),
+            color: ez.successSoft,
+            iconColor: ez.success,
             isHighlighted: true,
           ),
         ),
@@ -620,29 +615,22 @@ class _HomeScreenState extends State<HomeScreen> {
   // ── Helper: decoración adaptativa con efecto neon en modo oscuro ───────────
   BoxDecoration _neonDecoration({double radius = 14}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final surface = Theme.of(context).colorScheme.surface;
-    const green = Color(0xFF8FD11B);
+    final ez = context.ez;
     return BoxDecoration(
-      color: surface,
+      color: ez.surface,
       borderRadius: BorderRadius.circular(radius),
       border: isDark
-          ? Border.all(color: green.withValues(alpha: 0.55), width: 1.0)
+          ? Border.all(color: ez.brand.withValues(alpha: 0.55), width: 1.0)
           : null,
       boxShadow: isDark
           ? [
               BoxShadow(
-                color: green.withValues(alpha: 0.14),
+                color: ez.brand.withValues(alpha: 0.14),
                 blurRadius: 12,
                 spreadRadius: 1,
               ),
             ]
-          : [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
+          : EzElevation.sm(ez),
     );
   }
 
@@ -662,11 +650,11 @@ class _HomeScreenState extends State<HomeScreen> {
     final e = _estadoHoy;
     if (e == null) return const SizedBox.shrink();
 
-    const green = Color(0xFF8FD11B);
+    final ez = context.ez;
     final bool fichado = e.tieneEntrada;
     final Color color = e.jornadaCompleta
-        ? green
-        : (fichado ? const Color(0xFFF59E0B) : Colors.grey);
+        ? ez.success
+        : (fichado ? ez.warning : ez.inkMuted);
     final String estadoTxt = e.jornadaCompleta
         ? 'Jornada completa'
         : (e.enAlmuerzo
@@ -726,14 +714,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 6),
                       Text(
                         _asistenciaResumenTxt(e),
-                        style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        style: TextStyle(color: context.ez.inkMuted, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 8),
-                const Icon(Icons.arrow_forward_ios_rounded,
-                    color: Colors.grey, size: 14),
+                Icon(Icons.arrow_forward_ios_rounded,
+                    color: context.ez.inkMuted, size: 14),
               ],
             ),
           ),
@@ -771,7 +759,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 fontSize: 18, fontWeight: FontWeight.bold, color: color),
           ),
           Text(label,
-              style: const TextStyle(fontSize: 10, color: Colors.grey)),
+              style: TextStyle(fontSize: 10, color: context.ez.inkMuted)),
         ],
       ),
     );
@@ -780,7 +768,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildResumenSemanalCard() {
     final r = _resumenSemanal;
     if (r == null) return const SizedBox.shrink();
-    const green = Color(0xFF8FD11B);
+    final ez = context.ez;
+    final green = ez.success;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -812,9 +801,9 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 6),
                       Text(
                         '/ ${r.metaHorasLabel}h',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13,
-                            color: Colors.grey,
+                            color: context.ez.inkMuted,
                             fontWeight: FontWeight.w600),
                       ),
                     ],
@@ -831,7 +820,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: const TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF5E9A1C)),
+                          color: Color(0xFF1E9462)),
                     ),
                   ),
                 ],
@@ -842,8 +831,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: LinearProgressIndicator(
                   value: r.progreso,
                   minHeight: 8,
-                  backgroundColor: Colors.grey.shade200,
-                  valueColor: const AlwaysStoppedAnimation<Color>(green),
+                  backgroundColor: context.ez.canvasSunken,
+                  valueColor: AlwaysStoppedAnimation<Color>(green),
                 ),
               ),
               const SizedBox(height: 14),
@@ -851,7 +840,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   _miniStat('${r.diasTrabajados}', 'Días', null),
                   _miniStat(_horasLabel(r.promedioMinDiario), 'Prom. diario',
-                      const Color(0xFF3B82F6)),
+                      context.ez.info),
                   _miniStat(
                       r.puntualidadPct != null ? '${r.puntualidadPct}%' : '—',
                       'Puntualidad',
@@ -867,10 +856,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // ── 3) Alertas y pendientes ─────────────────────────────────────────────────
-  static Color _colorSeveridad(String s) => switch (s) {
-        'alta' => const Color(0xFFEF4444),
-        'media' => const Color(0xFFF59E0B),
-        _ => const Color(0xFF8FD11B),
+  Color _colorSeveridad(String s) => switch (s) {
+        'alta' => context.ez.danger,
+        'media' => context.ez.warning,
+        _ => context.ez.success,
       };
 
   static IconData _iconAlerta(String tipo) => switch (tipo) {
@@ -909,7 +898,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               for (int i = 0; i < _alertas.items.length; i++) ...[
                 if (i > 0)
-                  Divider(height: 1, color: Colors.grey.shade200, indent: 14, endIndent: 14),
+                  Divider(height: 1, color: context.ez.canvasSunken, indent: 14, endIndent: 14),
                 _buildAlertaTile(_alertas.items[i]),
               ],
             ],
@@ -991,15 +980,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildServicioCard(ProximoServicio s) {
     final bool isActivo = s.estado.toLowerCase() == 'activo';
     final Color estadoColor = isActivo
-        ? const Color(0xFFF59E0B)   // amber — en proceso
+        ? context.ez.warning   // amber — en proceso
         : s.estado.toLowerCase() == 'pendiente'
-            ? Colors.grey
-            : const Color(0xFF8FD11B);
+            ? context.ez.inkMuted
+            : context.ez.success;
     final Color estadoBg = isActivo
         ? const Color(0xFFFFF3CD)
         : s.estado.toLowerCase() == 'pendiente'
             ? const Color(0xFFF3F3F3)
-            : const Color(0xFFEFFAE0);
+            : context.ez.successSoft;
 
     return Container(
       padding: const EdgeInsets.all(14),
@@ -1028,7 +1017,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     Text(
                       s.tipo,
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: context.ez.inkSecondary,
                         fontSize: s.empresa.isNotEmpty ? 12 : 14,
                         fontWeight: s.empresa.isNotEmpty
                             ? FontWeight.w400
@@ -1061,11 +1050,11 @@ class _HomeScreenState extends State<HomeScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Icon(Icons.schedule_outlined, size: 12, color: Colors.grey),
+              Icon(Icons.schedule_outlined, size: 12, color: context.ez.inkMuted),
               const SizedBox(width: 4),
               Text(
                 '${s.fecha}  ·  ${s.hora}',
-                style: const TextStyle(color: Colors.grey, fontSize: 12),
+                style: TextStyle(color: context.ez.inkMuted, fontSize: 12),
               ),
             ],
           ),
@@ -1098,24 +1087,24 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               _buildResumenRow(
                   'Completados', _resumen.completados, total,
-                  const Color(0xFF8FD11B)),
+                  context.ez.success),
               const SizedBox(height: 10),
               _buildResumenRow(
                   'En proceso', _resumen.activos, total,
-                  const Color(0xFFF59E0B)),
+                  context.ez.warning),
               const SizedBox(height: 10),
               _buildResumenRow(
-                  'Pendientes', _resumen.pendientes, total, Colors.grey),
+                  'Pendientes', _resumen.pendientes, total, context.ez.inkMuted),
               const Divider(height: 22),
               Row(
                 children: [
                   _buildResumenStat(
                       '$tasaExito%', 'Tasa éxito',
-                      const Color(0xFF8FD11B)),
+                      context.ez.success),
                   _buildResumenStat('$total', 'Total', null),
                   _buildResumenStat(
                       '${_resumen.asistenciasMes}', 'Asistencias',
-                      const Color(0xFF3B82F6)),
+                      context.ez.info),
                 ],
               ),
             ],
@@ -1134,14 +1123,14 @@ class _HomeScreenState extends State<HomeScreen> {
           width: 90,
           child: Text(label,
               style:
-                  const TextStyle(fontSize: 12, color: Colors.grey)),
+                  TextStyle(fontSize: 12, color: context.ez.inkMuted)),
         ),
         Expanded(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: pct,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: context.ez.canvasSunken,
               valueColor: AlwaysStoppedAnimation<Color>(color),
               minHeight: 6,
             ),
@@ -1179,7 +1168,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(
             label,
             style:
-                const TextStyle(fontSize: 10, color: Colors.grey),
+                TextStyle(fontSize: 10, color: context.ez.inkMuted),
           ),
         ],
       ),
@@ -1193,7 +1182,7 @@ class _HomeScreenState extends State<HomeScreen> {
       decoration: _neonDecoration(),
       child: Text(
         mensaje,
-        style: const TextStyle(color: Colors.grey, fontSize: 13),
+        style: TextStyle(color: context.ez.inkMuted, fontSize: 13),
       ),
     );
   }
@@ -1206,15 +1195,15 @@ class _HomeScreenState extends State<HomeScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF5A9A00), Color(0xFF8FD11B)],
+          gradient: LinearGradient(
+            colors: [context.ez.brandStrong, context.ez.accent],
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
           ),
           borderRadius: BorderRadius.circular(18),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFF8FD11B).withValues(alpha: 0.35),
+              color: context.ez.success.withValues(alpha: 0.35),
               blurRadius: 16,
               offset: const Offset(0, 6),
             ),
@@ -1433,7 +1422,7 @@ class _FigmaQuickActionState extends State<_FigmaQuickAction>
                 : Border.all(
                     color: isDark
                         ? green.withValues(alpha: 0.25)
-                        : Colors.grey.shade200,
+                        : context.ez.canvasSunken,
                     width: 1.2,
                   ),
             boxShadow: widget.isPrimary

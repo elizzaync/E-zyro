@@ -84,7 +84,7 @@ class _PantallaCierreContableState extends State<PantallaCierreContable> {
   Widget build(BuildContext context) {
     final v = VerdantColors.of(context);
     return Scaffold(
-      backgroundColor: v.dark ? const Color(0xFF0B120D) : const Color(0xFFF6F8F3),
+      backgroundColor: v.dark ? const Color(0xFF0E1611) : const Color(0xFFF3F1E6),
       appBar: AppBar(
         title: const Text('Cierre y configuración',
             style: TextStyle(fontWeight: FontWeight.bold)),

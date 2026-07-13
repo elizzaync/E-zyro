@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
+import '../theme/ez_theme.dart';
 
 // ── Paleta de marca "E-System" (consistente con el login) ───────────────────
 const _kAccent = Color(0xFF8FD11B); // verde lima — acentos
 const _kBg1 = Color(0xFF1A4400); // fondo superior (topo c1)
 const _kBg2 = Color(0xFF2D7100); // fondo medio  (topo c2)
 const _kBgBase = Color(0xFF091500); // base más oscura (topo base)
-const _kCardBg = Color(0xFF0F1A08); // superficie de tarjeta oscura
+const _kCardBg = Color(0xFF0E1611); // superficie de tarjeta oscura
 const _kFieldBg = Color(0xFF16240C); // relleno de campos
 const _kOnDark = Color(0xFFE7F2D8); // texto sobre oscuro
 const _kMuted = Color(0xFF9FB58B); // texto secundario
@@ -49,7 +50,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     if (_authService == null || _isLoading) return;
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      _showSnack('Ingresa tu correo electrónico', Colors.orange);
+      _showSnack('Ingresa tu correo electrónico', context.ez.warning);
       return;
     }
     setState(() => _isLoading = true);
@@ -58,10 +59,10 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
       if (!mounted) return;
       _verifiedEmail = email;
       setState(() => _step = 1);
-      _showSnack('Código enviado a $email', Colors.green);
+      _showSnack('Código enviado a $email', context.ez.success);
     } catch (e) {
       if (!mounted) return;
-      _showSnack(e.toString().replaceAll('Exception: ', ''), Colors.red);
+      _showSnack(e.toString().replaceAll('Exception: ', ''), context.ez.danger);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -72,7 +73,7 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     if (_authService == null || _isLoading) return;
     final code = _codeController.text.trim();
     if (code.length != 6) {
-      _showSnack('El código debe tener 6 dígitos', Colors.orange);
+      _showSnack('El código debe tener 6 dígitos', context.ez.warning);
       return;
     }
     setState(() => _isLoading = true);
@@ -83,10 +84,10 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
       );
       if (!mounted) return;
       setState(() => _step = 2);
-      _showSnack('Código verificado', Colors.green);
+      _showSnack('Código verificado', context.ez.success);
     } catch (e) {
       if (!mounted) return;
-      _showSnack(e.toString().replaceAll('Exception: ', ''), Colors.red);
+      _showSnack(e.toString().replaceAll('Exception: ', ''), context.ez.danger);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -98,11 +99,11 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
     final newPass = _newPassController.text;
     final confirmPass = _confirmPassController.text;
     if (newPass.length < 6) {
-      _showSnack('La contraseña debe tener al menos 6 caracteres', Colors.orange);
+      _showSnack('La contraseña debe tener al menos 6 caracteres', context.ez.warning);
       return;
     }
     if (newPass != confirmPass) {
-      _showSnack('Las contraseñas no coinciden', Colors.orange);
+      _showSnack('Las contraseñas no coinciden', context.ez.warning);
       return;
     }
     setState(() => _isLoading = true);
@@ -113,12 +114,12 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
         newPassword: newPass,
       );
       if (!mounted) return;
-      _showSnack('Contraseña actualizada exitosamente', Colors.green);
+      _showSnack('Contraseña actualizada exitosamente', context.ez.success);
       await Future.delayed(const Duration(milliseconds: 1200));
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      _showSnack(e.toString().replaceAll('Exception: ', ''), Colors.red);
+      _showSnack(e.toString().replaceAll('Exception: ', ''), context.ez.danger);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -469,15 +470,6 @@ class _PasswordRecoveryScreenState extends State<PasswordRecoveryScreen> {
       height: 52,
       child: ElevatedButton(
         onPressed: (_isLoading || _authService == null) ? null : action,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _kAccent,
-          foregroundColor: const Color(0xFF0C1506),
-          disabledBackgroundColor: _kAccent.withValues(alpha: 0.5),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
         child: _isLoading
             ? const SizedBox(
                 width: 22,

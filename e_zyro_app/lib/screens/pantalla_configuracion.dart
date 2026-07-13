@@ -42,7 +42,7 @@ class PantallaConfiguracion extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Caché limpiada correctamente'),
-            backgroundColor: Color(0xFF5A9A00)),
+            backgroundColor: Color(0xFF1E9462)),
       );
     }
   }

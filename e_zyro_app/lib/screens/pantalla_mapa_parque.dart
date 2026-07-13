@@ -6,8 +6,8 @@ import 'detalle_equipo_intervenido.dart';
 
 // ─── Colores ──────────────────────────────────────────────────────────────────
 const _kGreen = Color(0xFF8FD11B);
-const _kAmber = Color(0xFFF59E0B);
-const _kRed = Color(0xFFE53935);
+const _kAmber = Color(0xFFD98A16);
+const _kRed = Color(0xFFD6584F);
 const _kBg = Color(0xFF0B1220); // fondo "tecnológico" oscuro
 const _kSinEquipos = Color(0xFF243044);
 
