@@ -2,7 +2,12 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
-# Railway inyecta la variable DATABASE_URL automáticamente
+from dotenv import load_dotenv
+
+# En producción (Railway/Contabo) la variable viene del entorno; en local se
+# lee del .env. Este módulo se importa ANTES que security/config_cloudinary
+# (que también llaman load_dotenv), así que la carga debe vivir aquí.
+load_dotenv()
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not SQLALCHEMY_DATABASE_URL:
