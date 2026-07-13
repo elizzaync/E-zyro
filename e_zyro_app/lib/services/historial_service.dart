@@ -60,4 +60,18 @@ class HistorialService {
     } catch (_) {}
     return null;
   }
+
+  // GET /operaciones/mis-proyectos/historial — HU-45
+  Future<List<ProyectoHistorial>> getMisProyectosHistorial() async {
+    try {
+      final r = await _client.get('/operaciones/mis-proyectos/historial');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List? ?? [];
+        return list
+            .map((e) => ProyectoHistorial.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+    } catch (_) {}
+    return [];
+  }
 }

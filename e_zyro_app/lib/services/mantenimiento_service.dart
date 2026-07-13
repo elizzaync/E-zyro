@@ -33,31 +33,37 @@ class MantenimientoService {
     return null;
   }
 
-  // POST /operaciones/paso/{paso_id}/evidencia  (multipart)
-  Future<bool> uploadEvidencia(
-    String pasoId,
-    FotoTipo tipo,
-    String filePath, {
-    double? lat,
-    double? lng,
-    String? takenAt,
-  }) async {
+  // POST /operaciones/sync/mantenimientos (lote, multipart)
+  // Devuelve el set de ids locales que el servidor confirmo (ok=true), para
+  // que el caller desencole solo esos y reintente el resto.
+  Future<Set<String>> syncMantenimientos(List<EvidenciaPendiente> evs) async {
+    if (evs.isEmpty) return {};
     try {
-      final fields = <String, String>{
-        'tipo': tipo.apiValue,
-        if (lat != null) 'lat': lat.toStringAsFixed(7),
-        if (lng != null) 'lng': lng.toStringAsFixed(7),
-        'taken_at': ?takenAt,
-      };
-      final r = await _client.postMultipart(
-        '/operaciones/paso/$pasoId/evidencia',
-        fields,
-        'foto',
-        filePath,
+      final metadatos = jsonEncode(evs
+          .map((ev) => {
+                'id': ev.id,
+                'paso_id': ev.pasoId,
+                'tipo': ev.tipo.apiValue,
+                if (ev.lat != null) 'lat': ev.lat,
+                if (ev.lng != null) 'lng': ev.lng,
+                'taken_at': ev.createdAt.toIso8601String(),
+              })
+          .toList());
+      final r = await _client.postMultipartMany(
+        '/operaciones/sync/mantenimientos',
+        {'metadatos': metadatos},
+        'fotos',
+        evs.map((ev) => ev.filePath).toList(),
       );
-      return r.statusCode == 200 || r.statusCode == 201;
+      if (r.statusCode != 200 && r.statusCode != 201) return {};
+      final body = jsonDecode(r.body) as Map<String, dynamic>;
+      final resultados = (body['resultados'] as List? ?? []);
+      return resultados
+          .where((x) => x['ok'] == true)
+          .map((x) => x['id'] as String)
+          .toSet();
     } catch (_) {
-      return false;
+      return {};
     }
   }
 

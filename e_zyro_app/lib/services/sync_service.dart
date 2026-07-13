@@ -45,32 +45,28 @@ class SyncService {
     return !results.contains(ConnectivityResult.none) && results.isNotEmpty;
   }
 
-  /// Sube todas las evidencias de mantenimiento pendientes.
+  /// Sube todas las evidencias de mantenimiento pendientes en un solo lote
+  /// (POST /sync/mantenimientos) en vez de una request secuencial por foto.
   Future<int> processQueue(MantenimientoService service) async {
     if (!await isOnline()) return 0;
     final queue = await getQueue();
     if (queue.isEmpty) return 0;
 
-    int uploaded = 0;
+    final vivas = <EvidenciaPendiente>[];
     for (final ev in queue) {
-      if (!File(ev.filePath).existsSync()) {
-        await _removeFromQueue(ev.id);
-        continue;
-      }
-      final ok = await service.uploadEvidencia(
-        ev.pasoId,
-        ev.tipo,
-        ev.filePath,
-        lat: ev.lat,
-        lng: ev.lng,
-        takenAt: ev.createdAt.toIso8601String(),
-      );
-      if (ok) {
-        await _removeFromQueue(ev.id);
-        uploaded++;
+      if (File(ev.filePath).existsSync()) {
+        vivas.add(ev);
+      } else {
+        await _removeFromQueue(ev.id); // archivo local perdido, no reintentar
       }
     }
-    return uploaded;
+    if (vivas.isEmpty) return 0;
+
+    final confirmadas = await service.syncMantenimientos(vivas);
+    for (final id in confirmadas) {
+      await _removeFromQueue(id);
+    }
+    return confirmadas.length;
   }
 
   // ── Cola de asistencias offline (SQLite) ──────────────────────────────────

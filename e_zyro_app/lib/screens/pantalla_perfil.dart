@@ -6,6 +6,7 @@ import '../utils/abrir_enlace.dart';
 import '../utils/app_notifiers.dart';
 import '../utils/api_provider.dart';
 import '../widgets/topo_background.dart';
+import 'pantalla_historial_proyectos.dart';
 
 class PersonalScreen extends StatefulWidget {
   const PersonalScreen({super.key});
@@ -597,6 +598,48 @@ class _ProfileTabState extends State<_ProfileTab> {
                   ],
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          // ── Historial de Proyectos (HU-45) ────────────────────────────
+          Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const PantallaHistorialProyectos(),
+                ),
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: cardDeco(),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF8FD11B).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.history_rounded,
+                          color: Color(0xFF8FD11B), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Historial de Proyectos',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                  ],
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 20),

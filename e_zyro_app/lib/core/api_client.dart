@@ -146,6 +146,35 @@ class ApiClient {
     return http.Response.fromStream(streamed);
   }
 
+  /// POST multipart/form-data con varios archivos bajo un mismo campo
+  /// (`fileField`) + un campo de texto (ej. JSON con metadatos alineados por
+  /// indice a los archivos). Usado para sincronizar en lote evidencias
+  /// tomadas offline en una sola request en vez de una por archivo.
+  Future<http.Response> postMultipartMany(
+    String path,
+    Map<String, String> fields,
+    String fileField,
+    List<String> filePaths,
+  ) async {
+    final token = _token;
+    if (token.isEmpty) {
+      throw Exception('No auth token found. Please login again.');
+    }
+    final uri = Uri.parse('${AppConstants.baseUrl}$path');
+    final request = http.MultipartRequest('POST', uri)
+      ..headers['Authorization'] = 'Bearer $token'
+      ..fields.addAll(fields);
+    for (final path in filePaths) {
+      request.files.add(await http.MultipartFile.fromPath(
+        fileField,
+        path,
+        contentType: _mediaTypeDe(path),
+      ));
+    }
+    final streamed = await _http.send(request).timeout(AppConstants.uploadTimeout);
+    return http.Response.fromStream(streamed);
+  }
+
   /// POST multipart/form-data desde bytes en memoria (ej. un PDF generado en
   /// el cliente, sin pasar por disco).
   Future<http.Response> postMultipartBytes(

@@ -62,3 +62,36 @@ class MantenimientoHistorial {
         evidenciasZipUrl: j['evidencias_zip_url'] as String?,
       );
 }
+
+// HU-45: Historial de Participación — proyectos cerrados donde el empleado
+// logueado fue miembro (perfil > Historial de Proyectos).
+class ProyectoHistorial {
+  final String proyectoId;
+  final String nombreProyecto;
+  final String ordenTrabajo;
+  final String cliente;
+  final String? rolProyecto;
+  final String? fechaInicio;
+  final String? fechaFinReal;
+
+  const ProyectoHistorial({
+    required this.proyectoId,
+    required this.nombreProyecto,
+    required this.ordenTrabajo,
+    required this.cliente,
+    this.rolProyecto,
+    this.fechaInicio,
+    this.fechaFinReal,
+  });
+
+  factory ProyectoHistorial.fromJson(Map<String, dynamic> j) =>
+      ProyectoHistorial(
+        proyectoId: j['proyecto_id'] as String? ?? '',
+        nombreProyecto: j['nombre_proyecto'] as String? ?? '',
+        ordenTrabajo: j['orden_trabajo'] as String? ?? '',
+        cliente: j['cliente'] as String? ?? '',
+        rolProyecto: j['rol_proyecto'] as String?,
+        fechaInicio: j['fecha_inicio'] as String?,
+        fechaFinReal: j['fecha_fin_real'] as String?,
+      );
+}
