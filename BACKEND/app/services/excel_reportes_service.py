@@ -117,6 +117,26 @@ def xlsx_balance_general(data: dict, empresa: str) -> bytes:
     return buf.getvalue()
 
 
+def xlsx_reporte_operativo(filas: list[dict], empresa: str, desde: str, hasta: str) -> bytes:
+    wb = Workbook()
+    total_horas = sum(f["horas_hombre"] for f in filas)
+    total_cant = sum(f["materiales_cantidad"] for f in filas)
+    total_valor = sum(f["materiales_valor"] for f in filas)
+    ws = _hoja(
+        wb, "Reporte operativo",
+        f"{empresa} — del {desde} al {hasta}",
+        ["Proyecto", "Horas hombre", "Materiales (cantidad)", "Materiales (S/.)"],
+        [[f["nombre_proyecto"], f["horas_hombre"], f["materiales_cantidad"], _f(f["materiales_valor"])]
+         for f in filas],
+        ["TOTALES", total_horas, total_cant, _f(total_valor)],
+    )
+    ws.column_dimensions["A"].width = 42  # nombre del proyecto (_hoja asume A=código corto)
+    ws.column_dimensions["B"].width = 16
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
 def subir_xlsx(data: bytes, nombre: str) -> str:
     """Sube el XLSX a Cloudinary (raw) y devuelve la URL pública."""
     from app.services.cloudinary_service import subir_bytes_raw_cloudinary

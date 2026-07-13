@@ -4,6 +4,7 @@ Gestión completa del módulo de Operaciones / Detalle de Servicio.
 """
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
@@ -12,6 +13,7 @@ import unicodedata
 import uuid as _uuid
 import zipfile
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -2440,8 +2442,111 @@ def get_checklist_equipo(
 
 
 # ── POST /operaciones/paso/{paso_id}/evidencia ────────────────────────────────
+# y  POST /operaciones/sync/mantenimientos (lote offline) ────────────────────
 
 _ETAPAS_MANT_VALIDAS = {"antes", "durante", "despues"}
+
+
+def _parse_taken_at(taken_at: str | None) -> datetime:
+    """Fecha en que se tomo la foto en el dispositivo (no la de llegada al
+    servidor) — mismo criterio que ya usa /asistencia para 'timestamp'."""
+    servidor = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+    if not taken_at:
+        return servidor
+    try:
+        ts_raw = datetime.fromisoformat(taken_at.replace("Z", "+00:00"))
+        if ts_raw.tzinfo:
+            return ts_raw.astimezone(ZoneInfo("America/Lima")).replace(tzinfo=None)
+        return ts_raw
+    except (ValueError, AttributeError):
+        return servidor
+
+
+def _guardar_evidencia_mantenimiento(
+    db: Session, empresa_id: str, usuario_id: str,
+    paso: PasoMantenimiento, equipo: Equipo,
+    etapa: str, url: str, fecha_captura: datetime,
+) -> dict:
+    """Persiste una evidencia ya subida a Cloudinary: crea/reusa la
+    OrdenMantenimiento activa del equipo, reemplaza la evidencia previa de la
+    misma etapa y actualiza el estado del paso/equipo. No hace commit (lo hace
+    el caller) para que un item fallido en un lote no arrastre a los demas."""
+    paso_id = str(paso.id)
+
+    # Empleado opcional: si el usuario es admin sin empleado, dejamos None.
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+
+    # Buscar/crear OrdenMantenimiento activa para este equipo
+    orden = (
+        db.query(OrdenMantenimiento)
+        .filter(
+            OrdenMantenimiento.equipo_id  == equipo.id,
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.estado.in_(["pendiente", "en_proceso"]),
+        )
+        .order_by(OrdenMantenimiento.created_at.desc())
+        .first()
+    )
+    if not orden:
+        orden = OrdenMantenimiento(
+            id           = str(_uuid.uuid4()),
+            equipo_id    = equipo.id,
+            empresa_id   = empresa_id,
+            tecnico_id   = empleado.id if empleado else None,
+            tipo         = "preventivo",
+            estado       = "en_proceso",
+            fecha        = date.today(),
+            fecha_inicio = datetime.utcnow(),
+        )
+        db.add(orden)
+        db.flush()
+    elif orden.estado == "pendiente":
+        orden.estado       = "en_proceso"
+        orden.fecha_inicio = orden.fecha_inicio or datetime.utcnow()
+
+    pub_id = _extract_public_id(url)
+
+    # Sobre-escribir evidencia anterior de la misma etapa (si existe) — política simple
+    db.query(EvidenciaMantenimiento).filter(
+        EvidenciaMantenimiento.paso_id    == paso_id,
+        EvidenciaMantenimiento.empresa_id == empresa_id,
+        EvidenciaMantenimiento.etapa      == etapa,
+    ).delete(synchronize_session=False)
+
+    ev = EvidenciaMantenimiento(
+        id                   = str(_uuid.uuid4()),
+        orden_id             = orden.id,
+        empresa_id           = empresa_id,
+        paso_id              = paso_id,
+        etapa                = etapa,
+        url_cloudinary       = url,
+        public_id_cloudinary = pub_id,
+        fecha_captura        = fecha_captura,
+    )
+    db.add(ev)
+
+    # Si el paso ya tiene al menos una evidencia, lo marcamos en_proceso;
+    # cuando tiene las 3 etapas, completado.
+    etapas_existentes = {etapa}
+    etapas_existentes.update({
+        e.etapa for e in db.query(EvidenciaMantenimiento)
+        .filter(EvidenciaMantenimiento.paso_id == paso_id)
+        .all()
+    })
+    if _ETAPAS_MANT_VALIDAS.issubset(etapas_existentes):
+        paso.estado = "completado"
+    elif paso.estado == "pendiente":
+        paso.estado = "en_proceso"
+    paso.updated_at = datetime.utcnow()
+
+    # Estado del equipo
+    if equipo.estado == "operativo":
+        equipo.estado = "en_mantenimiento"
+
+    return {"url": url, "etapa": etapa, "paso_id": paso_id, "paso_estado": paso.estado}
 
 
 @router.post("/paso/{paso_id}/evidencia", status_code=status.HTTP_201_CREATED)
@@ -2479,93 +2584,90 @@ async def subir_evidencia_paso(
     if not equipo:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
-    # Empleado opcional: si el usuario es admin sin empleado, dejamos None.
-    empleado = db.query(Empleado).filter(
-        Empleado.usuario_id == usuario_id,
-        Empleado.empresa_id == empresa_id,
-    ).first()
-
-    # Buscar/crear OrdenMantenimiento activa para este equipo
-    orden = (
-        db.query(OrdenMantenimiento)
-        .filter(
-            OrdenMantenimiento.equipo_id  == equipo.id,
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.estado.in_(["pendiente", "en_proceso"]),
-        )
-        .order_by(OrdenMantenimiento.created_at.desc())
-        .first()
-    )
-    if not orden:
-        orden = OrdenMantenimiento(
-            id           = str(_uuid.uuid4()),
-            equipo_id    = equipo.id,
-            empresa_id   = empresa_id,
-            tecnico_id   = empleado.id if empleado else None,
-            tipo         = "preventivo",
-            estado       = "en_proceso",
-            fecha        = date.today(),
-            fecha_inicio = datetime.utcnow(),
-        )
-        db.add(orden)
-        db.flush()
-    elif orden.estado == "pendiente":
-        orden.estado       = "en_proceso"
-        orden.fecha_inicio = orden.fecha_inicio or datetime.utcnow()
-
-    # Subir a Cloudinary
     folder = f"e_zyro/{empresa_id}/mantenimiento/{equipo.id}"
     try:
         url = await subir_archivo_cloudinary(foto, folder)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error subiendo a Cloudinary: {exc}")
-    pub_id = _extract_public_id(url)
 
-    # Sobre-escribir evidencia anterior de la misma etapa (si existe) — política simple
-    db.query(EvidenciaMantenimiento).filter(
-        EvidenciaMantenimiento.paso_id    == paso_id,
-        EvidenciaMantenimiento.empresa_id == empresa_id,
-        EvidenciaMantenimiento.etapa      == etapa,
-    ).delete(synchronize_session=False)
-
-    ev = EvidenciaMantenimiento(
-        id                   = str(_uuid.uuid4()),
-        orden_id             = orden.id,
-        empresa_id           = empresa_id,
-        paso_id              = paso_id,
-        etapa                = etapa,
-        url_cloudinary       = url,
-        public_id_cloudinary = pub_id,
+    resultado = _guardar_evidencia_mantenimiento(
+        db, empresa_id, usuario_id, paso, equipo, etapa, url,
+        fecha_captura=_parse_taken_at(taken_at),
     )
-    db.add(ev)
-
-    # Si el paso ya tiene al menos una evidencia, lo marcamos en_proceso;
-    # cuando tiene las 3 etapas, completado.
-    etapas_existentes = {etapa}
-    etapas_existentes.update({
-        e.etapa for e in db.query(EvidenciaMantenimiento)
-        .filter(EvidenciaMantenimiento.paso_id == paso_id)
-        .all()
-    })
-    if _ETAPAS_MANT_VALIDAS.issubset(etapas_existentes):
-        paso.estado = "completado"
-    elif paso.estado == "pendiente":
-        paso.estado = "en_proceso"
-    paso.updated_at = datetime.utcnow()
-
-    # Estado del equipo
-    if equipo.estado == "operativo":
-        equipo.estado = "en_mantenimiento"
-
     db.commit()
+    return {"ok": True, **resultado}
 
-    return {
-        "ok": True,
-        "url": url,
-        "etapa": etapa,
-        "paso_id": paso_id,
-        "paso_estado": paso.estado,
-    }
+
+@router.post("/sync/mantenimientos")
+async def sync_mantenimientos(
+    fotos:     List[UploadFile] = File(...),
+    metadatos: str              = Form(...),
+    payload:   dict             = Depends(verificar_token),
+    db:        Session          = Depends(get_db),
+):
+    """Sincroniza en lote evidencias de mantenimiento capturadas offline.
+
+    `metadatos` es un JSON array alineado por indice con `fotos`, cada item:
+    {"id","paso_id","tipo","lat","lng","taken_at"} — "id" es el id local que
+    el cliente usa para saber cual desencolar. Cada item se resuelve
+    independiente (no todo-o-nada): un item invalido no tumba a los demas.
+    Sube todas las fotos a Cloudinary en paralelo (la parte lenta es la red
+    externa); la escritura en BD queda secuencial porque una Session de
+    SQLAlchemy no es segura para usarse concurrentemente."""
+    try:
+        items = json.loads(metadatos)
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=422, detail="metadatos no es JSON valido")
+    if not isinstance(items, list) or len(items) != len(fotos):
+        raise HTTPException(status_code=422, detail="fotos y metadatos deben tener la misma longitud")
+
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    async def _subir(foto: UploadFile, item: dict):
+        client_id = item.get("id")
+        etapa = (item.get("tipo") or "").strip().lower()
+        if etapa not in _ETAPAS_MANT_VALIDAS:
+            return client_id, None, None, f"tipo invalido: {item.get('tipo')}"
+        paso = db.query(PasoMantenimiento).filter(
+            PasoMantenimiento.id         == item.get("paso_id"),
+            PasoMantenimiento.empresa_id == empresa_id,
+        ).first()
+        if not paso:
+            return client_id, None, None, "paso no encontrado"
+        equipo = db.query(Equipo).filter(
+            Equipo.id         == paso.equipo_id,
+            Equipo.empresa_id == empresa_id,
+        ).first()
+        if not equipo:
+            return client_id, None, None, "equipo no encontrado"
+        folder = f"e_zyro/{empresa_id}/mantenimiento/{equipo.id}"
+        try:
+            url = await subir_archivo_cloudinary(foto, folder)
+        except Exception as exc:
+            return client_id, None, None, f"error subiendo a Cloudinary: {exc}"
+        return client_id, paso, equipo, (etapa, url, item.get("taken_at"))
+
+    subidas = await asyncio.gather(*[_subir(f, it) for f, it in zip(fotos, items)])
+
+    resultados = []
+    for client_id, paso, equipo, info in subidas:
+        if paso is None:
+            resultados.append({"id": client_id, "ok": False, "error": info})
+            continue
+        etapa, url, taken_at = info
+        try:
+            r = _guardar_evidencia_mantenimiento(
+                db, empresa_id, usuario_id, paso, equipo, etapa, url,
+                fecha_captura=_parse_taken_at(taken_at),
+            )
+            db.commit()
+            resultados.append({"id": client_id, "ok": True, **r})
+        except Exception as exc:
+            db.rollback()
+            resultados.append({"id": client_id, "ok": False, "error": str(exc)})
+
+    return {"resultados": resultados}
 
 
 # ── PATCH /operaciones/equipo/{id}/mantenimiento ──────────────────────────────
@@ -3353,6 +3455,64 @@ def validar_horario_tecnico(
             "estado":          conflicto.estado,
         },
     }
+
+
+# ── GET /operaciones/mis-proyectos/historial ──────────────────────────────────
+# HU-45: Historial de Participación — proyectos cerrados donde el empleado
+# logueado fue miembro. El "disparador" que audita el cierre ya existe (motor
+# de auditoría global en core/audit_listener.py, que captura cualquier UPDATE
+# de Proyecto.estado automáticamente); acá solo falta exponer la lectura.
+
+@router.get("/mis-proyectos/historial")
+def historial_proyectos_empleado(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Proyectos ya 'Completado' donde el usuario logueado participó
+    (proyecto_miembro), mas reciente primero. Base de la pantalla Historial
+    de Proyectos del perfil del trabajador."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+    if not empleado:
+        return []
+
+    filas = (
+        db.query(ProyectoMiembro, Proyecto)
+        .join(Proyecto, Proyecto.id == ProyectoMiembro.proyecto_id)
+        .filter(
+            ProyectoMiembro.empleado_id == empleado.id,
+            Proyecto.empresa_id         == empresa_id,
+            Proyecto.estado             == "Completado",
+        )
+        .order_by(Proyecto.fecha_fin_real.desc().nullslast(), Proyecto.updated_at.desc())
+        .all()
+    )
+
+    cliente_ids = {p.cliente_id for _, p in filas if p.cliente_id}
+    clientes_map: dict[str, str] = {}
+    if cliente_ids:
+        clientes_map = {
+            str(c.id): c.razon_social
+            for c in db.query(Cliente).filter(Cliente.id.in_(cliente_ids)).all()
+        }
+
+    return [
+        {
+            "proyecto_id": str(p.id),
+            "nombre_proyecto": p.nombre_proyecto,
+            "orden_trabajo": p.orden_trabajo,
+            "cliente": clientes_map.get(str(p.cliente_id), ""),
+            "rol_proyecto": m.rol_proyecto,
+            "fecha_inicio": p.fecha_inicio.isoformat() if p.fecha_inicio else None,
+            "fecha_fin_real": p.fecha_fin_real.isoformat() if p.fecha_fin_real else None,
+        }
+        for m, p in filas
+    ]
 
 
 # ── GET /operaciones/proyecto/{proyecto_id} ───────────────────────────────────

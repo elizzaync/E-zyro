@@ -1,4 +1,5 @@
 from app.core.config_cloudinary import cloudinary_uploader
+import asyncio
 import cloudinary.uploader
 import logging
 import re
@@ -179,7 +180,12 @@ async def subir_archivo_cloudinary(archivo, folder: str) -> str:
         if len(contenido) > _MAX_EVIDENCE_BYTES:
             raise HTTPException(status_code=413, detail="El archivo supera el límite de 20 MB")
 
-        upload_result = cloudinary.uploader.upload(
+        # ponytail: cloudinary.uploader.upload es sincrono/bloqueante (SDK sin
+        # soporte asyncio); correrlo en un thread evita que una subida trabe
+        # el event loop entero — necesario para que /sync/mantenimientos suba
+        # varias fotos en paralelo de verdad.
+        upload_result = await asyncio.to_thread(
+            cloudinary.uploader.upload,
             io.BytesIO(contenido),
             folder=folder,
             resource_type="auto",

@@ -1,3 +1,10 @@
+import sys
+if sys.platform == "win32":
+    # ponytail: consola Windows usa cp1252 por defecto y no puede imprimir emojis (ej. scheduler_service);
+    # forzar utf-8 evita UnicodeEncodeError al arrancar uvicorn local sin PYTHONUTF8 seteado a mano.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -67,6 +74,7 @@ from app.routers import tributario          as tributario_router
 from app.routers import activos_fijos        as activos_fijos_router
 from app.routers import planilla             as planilla_router
 from app.routers import reportes_financieros as reportes_financieros_router
+from app.routers import reportes_operativos  as reportes_operativos_router
 from app.routers import eventos_contables    as eventos_contables_router
 from app.routers import caja_chica           as caja_chica_router
 from app.routers import conciliacion_bancaria as conciliacion_bancaria_router
@@ -2383,6 +2391,7 @@ app.include_router(tributario_router.router)
 app.include_router(activos_fijos_router.router)
 app.include_router(planilla_router.router)
 app.include_router(reportes_financieros_router.router)
+app.include_router(reportes_operativos_router.router)
 app.include_router(eventos_contables_router.router)
 app.include_router(caja_chica_router.router)
 app.include_router(conciliacion_bancaria_router.router)
