@@ -14,11 +14,19 @@ ENV/
 .env
 .env.*
 !.env.example
+firebase-credentials.json
+*.pem
+*.key
 
 # Caches de herramientas
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+
+# Dependencias y artefactos de build (NUNCA deben versionarse)
+node_modules/
+.angular/
+dist/
 
 # IDE / OS
 .vscode/

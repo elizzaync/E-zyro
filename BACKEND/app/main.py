@@ -2137,13 +2137,39 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="API E-zyro", lifespan=lifespan)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],          # permite cualquier origen (desarrollo + producción)
-    allow_credentials=False,      # tokens JWT en header, no cookies → False
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ── CORS: allowlist en vez de wildcard ───────────────────────────────────────
+# Prioridad 1: variable de entorno CORS_ORIGINS (lista separada por comas) con
+#   los orígenes EXACTOS de producción — la forma más estricta.
+# Prioridad 2 (fallback): regex que acepta los dominios de Railway (front +
+#   previews) y localhost/dev + webviews móviles (capacitor/ionic). Evita el
+#   "*" sin obligar a hardcodear el subdominio exacto del deploy.
+import os as _os
+
+_cors_env = [o.strip() for o in _os.getenv("CORS_ORIGINS", "").split(",") if o.strip()]
+if _cors_env:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_env,
+        allow_credentials=False,   # JWT en header, no cookies
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-API-Key"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=(
+            r"^(https://([a-z0-9-]+\.)*railway\.app"
+            r"|https://([a-z0-9-]+\.)*up\.railway\.app"
+            r"|http://localhost(:\d+)?"
+            r"|http://127\.0\.0\.1(:\d+)?"
+            r"|capacitor://localhost"
+            r"|ionic://localhost)$"
+        ),
+        allow_credentials=False,   # JWT en header, no cookies
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type", "X-API-Key"],
+    )
+
 app.add_middleware(AuditContextMiddleware)
 # Captura centralizada de eventos para audit_log (403 → PERMISSION_DENIED,
 # descargas/exportaciones → DOWNLOAD/EXPORT). Best-effort: nunca rompe nada.
@@ -2190,6 +2216,27 @@ class IpBlockMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 app.add_middleware(IpBlockMiddleware)
+
+
+# ── Security headers ──────────────────────────────────────────────────────────
+# Defensa en profundidad: clickjacking, sniffing de MIME, downgrade a HTTP y
+# fuga de Referrer. La CSP es conservadora (esta app es una API JSON; el HTML
+# que sirve es /docs). `frame-ancestors 'none'` refuerza X-Frame-Options.
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: StarletteRequest, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; frame-ancestors 'none'; "
+            "base-uri 'self'; form-action 'self'; object-src 'none'"
+        )
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 def _registrar_log_sistema(request: Request, *, nivel: str, mensaje: str,
@@ -2240,6 +2287,9 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     import traceback as _tb
     stack = "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))[-8000:]
+    # El tipo y el mensaje de la excepción (que pueden filtrar estructura de BD,
+    # rutas o SQL) se guardan SOLO en el log server-side; al cliente le llega un
+    # mensaje genérico. Nunca exponer detalles internos en la respuesta.
     _registrar_log_sistema(
         request,
         nivel="error",
@@ -2249,8 +2299,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
     return JSONResponse(
         status_code=500,
-        content={"detail": f"{type(exc).__name__}: {exc}"},
-        headers={"Access-Control-Allow-Origin": "*"},
+        content={"detail": "Error interno del servidor. El incidente fue registrado."},
     )
 
 

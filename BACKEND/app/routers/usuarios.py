@@ -20,11 +20,17 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from datetime import datetime
+
 from ..core.permisos import exigir_permiso
 from ..core.security import verificar_token
-from ..core.session_cache import invalidar_activo
+from ..core.session_cache import invalidar, invalidar_activo
+from ..core.session_events import manager as session_manager
+from ..core.tz import LIMA
 from ..db.database import get_db
+from ..models.sesion_usuario import SesionUsuario
 from ..models.usuario import Usuario
+from ..services.audit_service import registrar_evento
 from ..services.fcm_service import enviar_push_a_usuario
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
@@ -95,6 +101,10 @@ class CambiarActivoIn(BaseModel):
 
 class ResetPasswordIn(BaseModel):
     password: str
+
+
+class ForceLogoutIn(BaseModel):
+    motivo: Optional[str] = None
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
@@ -259,6 +269,94 @@ def cambiar_activo(usuario_id: str, body: CambiarActivoIn,
     if not body.activo:
         invalidar_activo(usuario_id)
     return _get_one(db, usuario_id, empresa_id)
+
+
+@router.post("/{usuario_id}/force-logout")
+def forzar_cierre_sesion(usuario_id: str, body: ForceLogoutIn,
+                         payload: dict = Depends(verificar_token), db: Session = Depends(get_db)):
+    """Cierre de sesión forzado por un administrador (permiso usuarios:gestionar).
+
+    Revoca TODAS las sesiones activas del usuario objetivo de forma real:
+      1) marca sus SesionUsuario como inactivas en BD,
+      2) invalida cada token en la caché → verificar_token lo rechaza al instante,
+      3) empuja "cierre_forzado" por WebSocket → sus equipos muestran el modal y
+         se deslogean sin esperar recarga,
+      4) push FCM best-effort para la app móvil,
+      5) deja registro de auditoría (quién, a quién, cuándo y motivo opcional).
+    """
+    _guard(db, payload)
+    empresa_id = payload["empresa_id"]
+
+    # No permitir auto-cierre (evita que el admin se bloquee a sí mismo).
+    if usuario_id == str(payload.get("id")):
+        raise HTTPException(status_code=400, detail="No puedes cerrar tu propia sesión desde aquí.")
+
+    objetivo = (
+        db.query(Usuario)
+        .filter(Usuario.id == usuario_id, Usuario.empresa_id == empresa_id)
+        .first()
+    )
+    if not objetivo or _es_portal(db, usuario_id):
+        raise HTTPException(status_code=404, detail="Usuario no encontrado")
+
+    # 1) Recolectar y cerrar todas las sesiones activas del objetivo.
+    sesiones = db.query(SesionUsuario).filter(
+        SesionUsuario.usuario_id == usuario_id,
+        SesionUsuario.activa == True,  # noqa: E712
+    ).all()
+    hashes = [s.token_hash for s in sesiones]
+    ahora = datetime.now(LIMA)
+    for s in sesiones:
+        s.activa = False
+        s.fecha_cierre = ahora
+    db.commit()
+
+    motivo = (body.motivo or "").strip() or None
+
+    # 2) Revocación real en caché (independiente del WS).
+    for th in hashes:
+        invalidar(th)
+
+    # 3) Aviso instantáneo por WebSocket (capa de UX; no rompe si nadie escucha).
+    try:
+        session_manager.notificar_cierre_forzado(usuario_id, motivo)
+    except Exception:
+        pass
+
+    # 4) Push FCM para la app móvil (best-effort).
+    try:
+        enviar_push_a_usuario(
+            usuario_id=usuario_id,
+            titulo="Sesión finalizada",
+            mensaje=(f"Un administrador cerró tu sesión. Motivo: {motivo}" if motivo
+                     else "Un administrador cerró tu sesión por motivos de gestión."),
+            db=db,
+            tipo="warning",
+            categoria="sesion",
+        )
+    except Exception:
+        pass
+
+    # 5) Auditoría.
+    registrar_evento(
+        accion="CIERRE_FORZADO",
+        usuario_id=str(payload.get("id")),
+        rol=payload.get("rol"),
+        empresa_id=empresa_id,
+        entidad="usuario",
+        entidad_id=usuario_id,
+        metodo_http="POST",
+        ruta=f"/usuarios/{usuario_id}/force-logout",
+        detalle={
+            "objetivo_id": usuario_id,
+            "objetivo_nombre": f"{objetivo.nombre} {objetivo.apellido}".strip(),
+            "sesiones_cerradas": len(hashes),
+            "motivo": motivo,
+        },
+        db=db,
+    )
+
+    return {"status": "success", "sesiones_cerradas": len(hashes)}
 
 
 @router.post("/{usuario_id}/reset-password")

@@ -60,7 +60,6 @@ def _requires_client(
     payload["empresa_id"] = row[0]
     payload["cliente_id"] = row[1]
 
-    print(f"[portal] uid={usuario_id} empresa_id={row[0]} cliente_id={row[1]}")
     return payload
 
 
@@ -519,7 +518,6 @@ def portal_kpis(
     db: Session   = Depends(get_db),
 ) -> dict[str, Any]:
     empresa_id, cliente_id = _ctx(payload)
-    print(f"[portal_kpis] empresa_id={empresa_id} cliente_id={cliente_id}")
 
     params = {"eid": empresa_id, "cid": cliente_id}
 
@@ -540,8 +538,6 @@ def portal_kpis(
           AND ei.proximo_mantenimiento BETWEEN CURRENT_DATE
                                           AND CURRENT_DATE + INTERVAL '30 days'
     """), params).scalar() or 0
-
-    print(f"[portal_kpis] total={total} completados={completados} en_proceso={en_proceso} proximos={proximos}")
 
     return {
         "total_equipos":              int(total),
@@ -760,10 +756,13 @@ def portal_equipos_historial(
             ei.frecuencia_meses,
             p.nombre_proyecto,
             ps.nombre           AS servicio_nombre,
-            ps.estado           AS servicio_estado
+            ps.estado           AS servicio_estado,
+            u.nombre            AS sede,
+            u.region            AS region
         FROM equipo_intervenido ei
         LEFT JOIN proyecto_servicio ps ON ps.id = ei.proyecto_servicio_id
         LEFT JOIN proyecto p ON p.id = COALESCE(ps.proyecto_id, ei.proyecto_id)
+        LEFT JOIN ubicacion u ON u.id = ei.ubicacion_id
         WHERE ei.empresa_id::text = :eid AND ei.activo = true
           AND (
             ei.cliente_id::text = :cid
@@ -771,8 +770,6 @@ def portal_equipos_historial(
           )
         ORDER BY ei.created_at DESC
     """), {"eid": empresa_id, "cid": cliente_id}).fetchall()
-
-    print(f"[portal_historial] empresa={empresa_id[:8]} cliente={cliente_id[:8]} rows={len(rows)}")
 
     return [
         {
@@ -790,6 +787,8 @@ def portal_equipos_historial(
             "proyecto":              r[11],
             "servicio":              r[12],
             "servicio_estado":       r[13],
+            "sede":                  r[14],
+            "region":                r[15],
         }
         for r in rows
     ]
@@ -854,8 +853,6 @@ def portal_mantenimiento_detalles(
         ei_id_str = ei_row[0]
         ps_id_str = ei_row[1]
         hm_estado = ei_row[2]
-
-    print(f"[portal_detalle] id={hm_id[:8]} ei={ei_id_str[:8]} ps={ps_id_str[:8] if ps_id_str else None}")
 
     # ── Paso 2: equipo + servicio histórico + proyecto ────────────────────────
     row = db.execute(text("""
@@ -1405,3 +1402,84 @@ def portal_pdf_cotizacion(
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="{c.numero}.pdf"'},
     )
+
+
+# ── 13. Soporte técnico: tickets del cliente externo ─────────────────────────
+# Reusa el sistema ticket_soporte de Gestión TIC: mismo modelo, mismo código
+# TI-xxxx, mismas notificaciones (websocket + push) al equipo de TI. El
+# cliente externo solo ve SUS tickets; la gestión sigue siendo exclusiva de TI
+# desde /tickets (a la que ClienteExterno no tiene acceso).
+
+class PortalTicketBody(BaseModel):
+    titulo:      str
+    descripcion: str
+    categoria:   str = "otro"       # app_movil | sistema_web | acceso | datos | otro
+    prioridad:   str = "media"      # baja | media | alta | urgente
+
+
+@router.get("/tickets")
+def portal_tickets(
+    payload: dict = Depends(_requires_client),
+    db: Session   = Depends(get_db),
+) -> list[dict[str, Any]]:
+    from app.models.ticket_soporte import TicketSoporte
+
+    usuario_id = str(payload["id"])
+    empresa_id, _ = _ctx(payload)
+
+    rows = (
+        db.query(TicketSoporte)
+        .filter(
+            TicketSoporte.empresa_id == empresa_id,
+            TicketSoporte.reportado_por == usuario_id,
+        )
+        .order_by(TicketSoporte.created_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id":           str(t.id),
+            "codigo":       t.codigo,
+            "titulo":       t.titulo,
+            "descripcion":  t.descripcion,
+            "categoria":    t.categoria,
+            "prioridad":    t.prioridad,
+            "estado":       t.estado,
+            "respuesta_ti": t.respuesta_ti,
+            "creado_en":    t.created_at.isoformat() if t.created_at else None,
+            "actualizado_en": t.updated_at.isoformat() if t.updated_at else None,
+        }
+        for t in rows
+    ]
+
+
+@router.post("/tickets", status_code=201)
+def portal_crear_ticket(
+    body:    PortalTicketBody,
+    payload: dict = Depends(_requires_client),
+    db: Session   = Depends(get_db),
+) -> dict[str, Any]:
+    # Delegar en el flujo estándar de Gestión TIC (validaciones, código
+    # TI-xxxx, websocket y push a los usuarios con permiso de soporte).
+    from app.routers.soporte import CrearTicketBody, crear_ticket
+
+    out = crear_ticket(
+        CrearTicketBody(
+            titulo      = body.titulo,
+            descripcion = body.descripcion,
+            categoria   = body.categoria,
+            prioridad   = body.prioridad,
+            pantalla    = "Portal Cliente",
+        ),
+        payload,
+        db,
+    )
+    return {
+        "id":        out.id,
+        "codigo":    out.codigo,
+        "titulo":    out.titulo,
+        "estado":    out.estado,
+        "categoria": out.categoria,
+        "prioridad": out.prioridad,
+        "creado_en": out.creado_en,
+    }

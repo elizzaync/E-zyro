@@ -13,9 +13,12 @@ _cloud_name  = getenv("CLOUD_NAME_CLOUDINARY", "")
 _api_key     = getenv("API_KEY_CLOUDINARY", "")
 _api_secret  = getenv("API_SECRET_CLOUDINARY", "")
 
-logging.warning(
-    f"[Cloudinary] cloud={_cloud_name!r}  key={_api_key[:6]}...  "
-    f"secret={_api_secret[:4]}...{_api_secret[-4:] if len(_api_secret) > 8 else '(vacío)'}"
+# No loguear NUNCA fragmentos del api_key/secret. Solo confirmar que la config
+# quedó presente, sin exponer ningún caracter del material secreto.
+logging.info(
+    "[Cloudinary] configurado: cloud=%s  credenciales=%s",
+    _cloud_name or "(sin cloud_name)",
+    "OK" if (_api_key and _api_secret) else "FALTAN",
 )
 
 cloudinary.config(
