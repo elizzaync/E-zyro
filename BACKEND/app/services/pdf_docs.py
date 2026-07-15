@@ -15,6 +15,7 @@ from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image
 
 from .pdf_informe_servicio import _img_flowable
+from .pdf_certificados import _img_bytes
 
 _AZUL = colors.HexColor("#0d47a1")
 
@@ -292,6 +293,180 @@ def generar_informe_itse(data: dict) -> bytes:
     if data.get("observaciones"):
         e.append(Paragraph("Conclusiones", st["h2"]))
         e.append(Paragraph(data["observaciones"], st["n"]))
+
+    doc.build(e)
+    return buf.getvalue()
+
+
+# ── Directorio de circuitos de tablero ───────────────────────────────────────
+def generar_directorio_tablero(data: dict) -> bytes:
+    buf = io.BytesIO()
+    doc = _doc(buf, "Directorio de Tablero")
+    st = _styles()
+    e = [Paragraph("DIRECTORIO DE TABLERO", st["h1"]),
+         Paragraph(data.get("empresa", "") or "", st["sub"]), Spacer(1, 6)]
+    e.append(_kv_table([
+        ("Tablero",   data.get("equipo_nombre", "") or "-"),
+        ("Ubicación", data.get("ubicacion",     "") or "-"),
+    ], st))
+
+    circuitos = data.get("circuitos", []) or []
+    e.append(Paragraph(f"Circuitos ({len(circuitos)})", st["h2"]))
+    if circuitos:
+        # Circuito: 60mm | Tipo: 20mm | Capacidad ITM: 30mm | Descripción: 68mm → 178mm
+        filas = [["Circuito", "Tipo", "Capacidad ITM", "Descripción"]]
+        for c in circuitos:
+            filas.append([
+                c.get("circuito",      "") or "",
+                c.get("tipo_circuito", "") or "",
+                c.get("capacidad_itm", "") or "-",
+                c.get("descripcion",   "") or "-",
+            ])
+        e.append(_data_table(filas, [60 * mm, 20 * mm, 30 * mm, _PAGE_W - 110 * mm], st))
+    else:
+        e.append(Paragraph("Sin circuitos registrados.", st["n"]))
+
+    doc.build(e)
+    return buf.getvalue()
+
+
+def _img_from_source(source: Optional[str], width=_PAGE_W / 2 - 4 * mm) -> Optional[Image]:
+    """Imagen desde URL Cloudinary o base64 (data-URI o crudo). None si falla."""
+    raw = _img_bytes(source)
+    if not raw:
+        return None
+    try:
+        bio = io.BytesIO(raw)
+        img = Image(bio)
+        ratio = (img.imageHeight / img.imageWidth) if img.imageWidth else 0.6
+        img.drawWidth = width
+        img.drawHeight = width * ratio
+        return img
+    except Exception:
+        return None
+
+
+# ── Protocolo de Medición de Resistencia (pozo a tierra) ─────────────────────
+def generar_protocolo_resistencia(data: dict) -> bytes:
+    buf = io.BytesIO()
+    doc = _doc(buf, "Protocolo de Medición de Resistencia")
+    st = _styles()
+    e = [Paragraph("PROTOCOLO DE MEDICIÓN DE RESISTENCIA", st["h1"]),
+         Paragraph(data.get("empresa", "") or "", st["sub"]), Spacer(1, 6)]
+
+    e.append(_kv_table([
+        ("Pozo",              data.get("numero_pozo",       "") or "-"),
+        ("Ubicación",         data.get("ubicacion",          "") or "-"),
+        ("Plano referencia",  data.get("plano_referencia",   "") or "-"),
+        ("Fecha",             data.get("fecha",              "") or "-"),
+    ], st))
+
+    e.append(Paragraph("Instrumento de medición", st["h2"]))
+    e.append(_kv_table([
+        ("Marca",                      data.get("marca",                  "") or "-"),
+        ("Modelo",                     data.get("modelo",                 "") or "-"),
+        ("N° de serie",                data.get("numero_serie",           "") or "-"),
+        ("Certificado de calibración", data.get("certificado_calibracion", "") or "-"),
+        ("Rango de medición",          data.get("rango_medicion",         "") or "-"),
+    ], st))
+
+    e.append(Paragraph("Características del pozo", st["h2"]))
+    e.append(_kv_table([
+        ("Dimensión del pozo", data.get("dimension_pozo", "") or "-"),
+        ("Tipo de varilla",    data.get("tipo_varilla",    "") or "-"),
+        ("Tipo de tierra",     data.get("tipo_tierra",     "") or "-"),
+    ], st))
+
+    e.append(Paragraph("Medición", st["h2"]))
+    e.append(_kv_table([
+        ("Hora de medición",  data.get("hora_medicion",    "") or "-"),
+        ("Medición inicial",  data.get("medicion_inicial", "") or "-"),
+        ("Medición final",    data.get("medicion_final",   "") or "-"),
+    ], st))
+
+    # ── Evidencia gráfica (2 fotos) ───────────────────────────────────────────
+    fotos = [
+        _img_from_source(data.get("evidencia_grafica")),
+        _img_from_source(data.get("evidencia_grafica_2")),
+    ]
+    fotos = [f for f in fotos if f is not None]
+    if fotos:
+        e.append(Paragraph("Evidencia gráfica", st["h2"]))
+        fila = fotos + ([""] * (2 - len(fotos)))
+        tf = Table([fila], colWidths=[_PAGE_W / 2, _PAGE_W / 2])
+        tf.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        e.append(tf)
+
+    if data.get("observaciones"):
+        e.append(Paragraph("Observaciones", st["h2"]))
+        e.append(Paragraph(data["observaciones"], st["n"]))
+    if data.get("conclusion"):
+        e.append(Paragraph("Conclusión", st["h2"]))
+        e.append(Paragraph(data["conclusion"], st["n"]))
+
+    # ── Firmas (ejecución, supervisor, especialista) ──────────────────────────
+    firmas = [
+        ("Ejecución",    data.get("firma_ejecucion")),
+        ("Supervisor",   data.get("firma_supervisor")),
+        ("Especialista", data.get("firma_especialista")),
+    ]
+    imgs = [_img_from_source(src, width=_PAGE_W / 3 - 4 * mm) for _, src in firmas]
+    if any(imgs):
+        e.append(Spacer(1, 14))
+        fila_img  = [img if img is not None else "" for img in imgs]
+        fila_lbl  = [Paragraph(f"({lbl})", st["cell"]) for lbl, _ in firmas]
+        tf = Table([fila_img, fila_lbl], colWidths=[_PAGE_W / 3] * 3)
+        tf.setStyle(TableStyle([
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("ALIGN",  (0, 0), (-1, -1), "CENTER"),
+        ]))
+        e.append(tf)
+
+    doc.build(e)
+    return buf.getvalue()
+
+
+# ── Informe Termográfico (multi-ítem) ────────────────────────────────────────
+def generar_informe_termografico(data: dict) -> bytes:
+    buf = io.BytesIO()
+    doc = _doc(buf, "Informe Termográfico")
+    st = _styles()
+    e = [Paragraph("INFORME TERMOGRÁFICO", st["h1"]),
+         Paragraph(data.get("empresa", "") or "", st["sub"]), Spacer(1, 6)]
+    e.append(_kv_table([
+        ("Área",    data.get("area",    "") or "-"),
+        ("Tablero", data.get("nombre_tablero", "") or "-"),
+        ("Cámara",  data.get("equipo",  "") or "-"),
+    ], st))
+
+    items = data.get("items", []) or []
+    e.append(Paragraph(f"Hallazgos ({len(items)})", st["h2"]))
+    for i, it in enumerate(items, start=1):
+        e.append(Paragraph(f"Hallazgo {i} — {it.get('elemento', '') or ''}", st["h2"]))
+        e.append(_kv_table([
+            ("Actividad",         it.get("actividad",          "") or "-"),
+            ("Fecha",             it.get("fecha",               "") or "-"),
+            ("Temp. objeto",      it.get("temp_obj",            "") or "-"),
+            ("Temp. reflejada",   it.get("tem_reflejada",       "") or "-"),
+            ("Temp. ambiente",    it.get("temp_aire",           "") or "-"),
+            ("Escala",            it.get("escala_temperatura",  "") or "-"),
+            ("Cielo",             it.get("cielo",                "") or "-"),
+            ("Velocidad viento",  it.get("vel_viento",          "") or "-"),
+            ("Distancia",         it.get("distancia",           "") or "-"),
+            ("% de carga",        it.get("pct_carga",           "") or "-"),
+        ], st))
+
+        img_term  = _img_from_source(it.get("img_termografica"))
+        img_tab   = _img_from_source(it.get("img_tablero"))
+        fila = [img_term or "", img_tab or ""]
+        if img_term or img_tab:
+            tf = Table([fila], colWidths=[_PAGE_W / 2, _PAGE_W / 2])
+            tf.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            e.append(tf)
+        e.append(Spacer(1, 8))
+
+    if not items:
+        e.append(Paragraph("Sin hallazgos registrados.", st["n"]))
 
     doc.build(e)
     return buf.getvalue()

@@ -7,11 +7,14 @@ Escrituras: permiso 'equipo_intervenido:crear' / 'editar' / 'eliminar'.
 from __future__ import annotations
 
 import calendar
+import io
+import logging
 import uuid
 from datetime import date, datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -19,6 +22,7 @@ from ..core.security import verificar_token
 from ..core.permisos import exigir_permiso
 from ..db.database import get_db
 from ..models.equipo_intervenido import EquipoIntervenido, EquipoIntervenidoMantenimiento
+from ..models.tablero_circuito import TableroCircuito
 from ..models.proyecto import Proyecto
 from ..models.proyecto_servicio import ProyectoServicio
 from ..models.cliente import Cliente
@@ -36,6 +40,9 @@ from ..schemas.equipo_intervenido import (
     MantenimientoEquipoOut,
 )
 from ..schemas.operaciones import ProcedimientoOut, EvidenciaOut
+from ..schemas.tablero_circuito import CircuitoIn, CircuitoOut
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/equipos-intervenidos", tags=["equipos-intervenidos"])
 
@@ -472,3 +479,177 @@ def eliminar(
         raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
     db.delete(e)
     db.commit()
+
+
+# ── Directorio de circuitos de tablero ────────────────────────────────────────
+
+def _circuito_out(c: TableroCircuito) -> CircuitoOut:
+    return CircuitoOut(
+        id=str(c.id), equipo_intervenido_id=str(c.equipo_intervenido_id),
+        circuito=c.circuito, tipo_circuito=c.tipo_circuito,
+        capacidad_itm=c.capacidad_itm, descripcion=c.descripcion,
+        orden=c.orden, created_at=c.created_at,
+    )
+
+
+@router.get("/{equipo_id}/circuitos", response_model=List[CircuitoOut])
+def listar_circuitos(
+    equipo_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session   = Depends(get_db),
+):
+    empresa_id = payload["empresa_id"]
+    rows = (
+        db.query(TableroCircuito)
+        .filter(TableroCircuito.empresa_id == empresa_id,
+                TableroCircuito.equipo_intervenido_id == equipo_id)
+        .order_by(TableroCircuito.orden.asc())
+        .all()
+    )
+    return [_circuito_out(c) for c in rows]
+
+
+@router.post("/{equipo_id}/circuitos", response_model=CircuitoOut, status_code=201)
+def crear_circuito(
+    equipo_id: str,
+    body: CircuitoIn,
+    payload: dict = Depends(verificar_token),
+    db: Session   = Depends(get_db),
+):
+    exigir_permiso(db, payload, "equipo_intervenido", "editar")
+    empresa_id = payload["empresa_id"]
+    e = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id == equipo_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    if body.tipo_circuito and body.tipo_circuito not in {"IG", "ID", "ITM"}:
+        raise HTTPException(status_code=422, detail="tipo_circuito invalido. Usar: IG, ID, ITM")
+
+    orden = body.orden
+    if orden is None:
+        maxo = (
+            db.query(func.max(TableroCircuito.orden))
+            .filter(TableroCircuito.equipo_intervenido_id == equipo_id)
+            .scalar()
+        )
+        orden = (maxo or 0) + 1
+
+    c = TableroCircuito(
+        id=str(uuid.uuid4()), empresa_id=empresa_id, equipo_intervenido_id=equipo_id,
+        circuito=body.circuito, tipo_circuito=body.tipo_circuito or "ITM",
+        capacidad_itm=body.capacidad_itm, descripcion=body.descripcion, orden=orden,
+    )
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    return _circuito_out(c)
+
+
+@router.patch("/circuitos/{circuito_id}", response_model=CircuitoOut)
+def actualizar_circuito(
+    circuito_id: str,
+    body: CircuitoIn,
+    payload: dict = Depends(verificar_token),
+    db: Session   = Depends(get_db),
+):
+    exigir_permiso(db, payload, "equipo_intervenido", "editar")
+    empresa_id = payload["empresa_id"]
+    c = db.query(TableroCircuito).filter(
+        TableroCircuito.id == circuito_id,
+        TableroCircuito.empresa_id == empresa_id,
+    ).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Circuito no encontrado")
+
+    if body.tipo_circuito and body.tipo_circuito not in {"IG", "ID", "ITM"}:
+        raise HTTPException(status_code=422, detail="tipo_circuito invalido. Usar: IG, ID, ITM")
+
+    for campo, valor in body.model_dump(exclude_unset=True).items():
+        setattr(c, campo, valor)
+    c.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(c)
+    return _circuito_out(c)
+
+
+@router.delete("/circuitos/{circuito_id}", status_code=204)
+def eliminar_circuito(
+    circuito_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session   = Depends(get_db),
+):
+    exigir_permiso(db, payload, "equipo_intervenido", "eliminar")
+    empresa_id = payload["empresa_id"]
+    c = db.query(TableroCircuito).filter(
+        TableroCircuito.id == circuito_id,
+        TableroCircuito.empresa_id == empresa_id,
+    ).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Circuito no encontrado")
+    db.delete(c)
+    db.commit()
+
+
+@router.post("/{equipo_id}/circuitos/pdf")
+def generar_pdf_directorio(
+    equipo_id: str,
+    payload: dict = Depends(verificar_token),
+    db: Session   = Depends(get_db),
+):
+    """Genera el PDF del Directorio de Tablero e indexa el documento en la
+    Galería Global (entidad_tipo='directorio_tablero') para 'Ver Antecedente'."""
+    from ..services.pdf_docs import generar_directorio_tablero
+    from ..services.cloudinary_service import subir_pdf_bytes_cloudinary, registrar_recurso
+    from ..models.empresa import Empresa
+
+    empresa_id = payload["empresa_id"]
+    e = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id == equipo_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    circuitos = (
+        db.query(TableroCircuito)
+        .filter(TableroCircuito.equipo_intervenido_id == equipo_id)
+        .order_by(TableroCircuito.orden.asc())
+        .all()
+    )
+    razon_social = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+
+    pdf_bytes = generar_directorio_tablero({
+        "empresa": razon_social,
+        "equipo_nombre": e.nombre,
+        "ubicacion": e.ubicacion_referencia,
+        "circuitos": [
+            {
+                "circuito": c.circuito, "tipo_circuito": c.tipo_circuito,
+                "capacidad_itm": c.capacidad_itm, "descripcion": c.descripcion,
+            }
+            for c in circuitos
+        ],
+    })
+
+    try:
+        pid = f"e-zyro/{empresa_id}/directorio-tablero/{equipo_id}/{uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/directorio-tablero", recurso_tipo="pdf",
+            entidad_tipo="directorio_tablero", entidad_id=equipo_id,
+            descripcion=f"Directorio de Tablero — {e.nombre}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[directorio-tablero] No se pudo indexar en la galería: %s", exc_idx)
+
+    filename = f"DIRECTORIO_{''.join(ch for ch in e.nombre.upper() if ch.isalnum() or ch == '_') or 'TABLERO'}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )

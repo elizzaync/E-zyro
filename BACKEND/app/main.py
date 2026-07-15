@@ -463,6 +463,24 @@ def _pre_create_migrations():
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ei_mant_eq ON equipo_intervenido_mantenimiento (empresa_id, equipo_intervenido_id, fecha)"))
 
+        # ── Directorio de circuitos de tablero (equipo_intervenido). FK uuid → aquí ─
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS tablero_circuito (
+                id                    uuid PRIMARY KEY,
+                empresa_id            uuid NOT NULL REFERENCES empresa(id),
+                equipo_intervenido_id uuid NOT NULL REFERENCES equipo_intervenido(id) ON DELETE CASCADE,
+                circuito              VARCHAR(200) NOT NULL,
+                tipo_circuito         VARCHAR(10) NOT NULL DEFAULT 'ITM',
+                capacidad_itm         VARCHAR(50),
+                descripcion           VARCHAR(300),
+                orden                 INTEGER NOT NULL DEFAULT 1,
+                created_at            TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at            TIMESTAMP,
+                CONSTRAINT chk_tablero_circuito_tipo CHECK (tipo_circuito IN ('IG','ID','ITM'))
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tablero_circuito_eq ON tablero_circuito (empresa_id, equipo_intervenido_id, orden)"))
+
         # ── RR.HH. · Vacaciones por ley (Punto 3.3). FKs uuid → aquí ─────────
         conn.execute(text("""
             CREATE TABLE IF NOT EXISTS config_vacaciones (

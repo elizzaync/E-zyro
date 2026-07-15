@@ -34,7 +34,7 @@ from ..core.audit_context import set_justificacion
 from ..core.tz import fmt_lima
 from ..db.database import get_db
 import requests as _requests
-from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary, subir_bytes_raw_cloudinary
+from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary, subir_bytes_raw_cloudinary, registrar_recurso
 
 # Modelos ORM
 from ..models.proyecto_servicio import ProyectoServicio
@@ -5784,6 +5784,18 @@ def generar_informe_general(
             garantia_id=(str(gar.id) if gar else None),
         ))
         db.commit()
+        # Indexar en Galería Global por cada equipo, para "Ver Antecedente".
+        for eq_id in ei_ids:
+            try:
+                registrar_recurso(
+                    db, empresa_id=empresa_id, public_id=f"{pid}.docx", secure_url=url,
+                    folder=f"e-zyro/{empresa_id}/informes-internos/{servicio_id}", recurso_tipo="raw",
+                    entidad_tipo="informe_general", entidad_id=eq_id,
+                    descripcion=f"Informe general — {ps.nombre}",
+                    creado_por_id=usuario_id,
+                )
+            except Exception as exc_idx:
+                logger.warning("[informe-general] No se pudo indexar en la galería (equipo %s): %s", eq_id, exc_idx)
     except Exception as exc_db:
         db.rollback()
         logger.warning("[informe-general] No se pudo persistir el informe interno: %s", exc_db)
@@ -5937,6 +5949,18 @@ def generar_carta_garantia(
             url = subir_bytes_raw_cloudinary(docx_bytes, pid, ext="docx")
             registro.documento_pdf_url = url
             db.commit()
+            # Indexar en Galería Global por cada equipo, para "Ver Antecedente".
+            for eq_id in equipo_ids_list:
+                try:
+                    registrar_recurso(
+                        db, empresa_id=empresa_id, public_id=f"{pid}.docx", secure_url=url,
+                        folder=f"e-zyro/{empresa_id}/garantias", recurso_tipo="raw",
+                        entidad_tipo="carta_garantia", entidad_id=eq_id,
+                        descripcion=f"Carta de Garantía — {lugar or razon_social}",
+                        creado_por_id=payload.get("id"),
+                    )
+                except Exception as exc_idx:
+                    logger.warning("[carta-garantia] No se pudo indexar en la galería (equipo %s): %s", eq_id, exc_idx)
         except Exception as exc_up:
             db.rollback()
             logger.warning("[carta-garantia] No se pudo subir el documento: %s", exc_up)
@@ -6026,6 +6050,20 @@ def generar_certificado_pozo(
         logger.exception("[cert-pozo] Error generando PDF: %s", exc)
         raise HTTPException(status_code=500, detail=f"Error generando el certificado: {exc}")
 
+    # Indexar en Galería Global para "Ver Antecedente" del equipo (no bloqueante).
+    try:
+        pid = f"e-zyro/{empresa_id}/certificados/pozo/{ei_id}/{_uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/certificados/pozo", recurso_tipo="pdf",
+            entidad_tipo="certificado_pozo", entidad_id=ei_id,
+            descripcion=f"Protocolo de Pozo a Tierra — {nombre_pozo or numero_pozo}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[cert-pozo] No se pudo indexar el certificado en la galería: %s", exc_idx)
+
     filename = f"PROTOCOLO_POZO_{re.sub(r'[^A-Za-z0-9]', '_', nombre_pozo or numero_pozo or 'XX')}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
@@ -6105,8 +6143,203 @@ def generar_certificado_operatividad(
         logger.exception("[cert-operatividad] Error generando PDF: %s", exc)
         raise HTTPException(status_code=500, detail=f"Error generando el certificado: {exc}")
 
+    # Indexar en Galería Global para "Ver Antecedente" del equipo (no bloqueante).
+    try:
+        pid = f"e-zyro/{empresa_id}/certificados/operatividad/{ei_id}/{_uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/certificados/operatividad", recurso_tipo="pdf",
+            entidad_tipo="certificado_operatividad", entidad_id=ei_id,
+            descripcion=f"Certificado de Operatividad — {nombre_tablero}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[cert-operatividad] No se pudo indexar el certificado en la galería: %s", exc_idx)
+
     safe = re.sub(r"[^A-Za-z0-9]", "_", nombre_tablero or "TABLERO")
     filename = f"CERT_OPERATIVIDAD_{safe}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/certificado/resistencia ───
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/certificado/resistencia")
+def generar_protocolo_resistencia(
+    servicio_id: str,
+    ei_id:       str,
+    body:        dict            = Body(default={}),
+    payload:     dict            = Depends(verificar_token),
+    db:          Session         = Depends(get_db),
+):
+    """
+    Genera el Protocolo de Medición de Resistencia (pozo a tierra), con datos
+    del instrumento de medición y 3 firmas. Requiere inspección completada.
+    """
+    from ..services.pdf_docs import generar_protocolo_resistencia as _gen_resistencia
+
+    empresa_id = payload["empresa_id"]
+    body = body or {}
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail=f"Equipo intervenido no encontrado (ei_id={ei_id})")
+    if ei.estado_intervencion != "completado":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"El protocolo solo puede generarse cuando la inspección esté completada al 100%. "
+                f"Estado actual: '{ei.estado_intervencion}'."
+            ),
+        )
+
+    from ..models.empresa import Empresa
+    empresa_nombre = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+    data = {
+        "empresa":                 empresa_nombre,
+        "numero_pozo":             str(body.get("numero_pozo", ei.nombre or "") or ""),
+        "ubicacion":               str(body.get("ubicacion", ei.ubicacion_referencia or "") or ""),
+        "plano_referencia":        str(body.get("plano_referencia", "") or ""),
+        "fecha":                   str(body.get("fecha", "") or ""),
+        "marca":                   str(body.get("marca", "") or ""),
+        "modelo":                  str(body.get("modelo", "") or ""),
+        "numero_serie":            str(body.get("numero_serie", "") or ""),
+        "certificado_calibracion": str(body.get("certificado_calibracion", "") or ""),
+        "rango_medicion":          str(body.get("rango_medicion", "") or ""),
+        "dimension_pozo":          str(body.get("dimension_pozo", "") or ""),
+        "tipo_varilla":            str(body.get("tipo_varilla", "") or ""),
+        "tipo_tierra":             str(body.get("tipo_tierra", "") or ""),
+        "hora_medicion":           str(body.get("hora_medicion", "") or ""),
+        "medicion_inicial":        str(body.get("medicion_inicial", "") or ""),
+        "medicion_final":          str(body.get("medicion_final", "") or ""),
+        "observaciones":           str(body.get("observaciones", "") or ""),
+        "conclusion":              str(body.get("conclusion", "") or ""),
+        "evidencia_grafica":       body.get("evidencia_grafica"),
+        "evidencia_grafica_2":     body.get("evidencia_grafica_2"),
+        "firma_ejecucion":         body.get("firma_ejecucion"),
+        "firma_supervisor":        body.get("firma_supervisor"),
+        "firma_especialista":      body.get("firma_especialista"),
+    }
+
+    try:
+        pdf_bytes = _gen_resistencia(data)
+    except Exception as exc:
+        logger.exception("[protocolo-resistencia] Error generando PDF: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Error generando el protocolo: {exc}")
+
+    try:
+        pid = f"e-zyro/{empresa_id}/protocolos/resistencia/{ei_id}/{_uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/protocolos/resistencia", recurso_tipo="pdf",
+            entidad_tipo="protocolo_resistencia", entidad_id=ei_id,
+            descripcion=f"Protocolo de Resistencia — {data['numero_pozo']}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[protocolo-resistencia] No se pudo indexar en la galería: %s", exc_idx)
+
+    safe = re.sub(r"[^A-Za-z0-9]", "_", data["numero_pozo"] or "POZO")
+    filename = f"PROTOCOLO_RESISTENCIA_{safe}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/certificado/termografico ──
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/certificado/termografico")
+def generar_informe_termografico(
+    servicio_id: str,
+    ei_id:       str,
+    body:        dict            = Body(default={}),
+    payload:     dict            = Depends(verificar_token),
+    db:          Session         = Depends(get_db),
+):
+    """
+    Genera el Informe Termográfico (multi-ítem: un hallazgo por punto caliente
+    detectado, cada uno con foto normal + foto térmica). Requiere inspección
+    completada.
+    """
+    from ..services.pdf_docs import generar_informe_termografico as _gen_termo
+
+    empresa_id = payload["empresa_id"]
+    body = body or {}
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail=f"Equipo intervenido no encontrado (ei_id={ei_id})")
+    if ei.estado_intervencion != "completado":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"El informe solo puede generarse cuando la inspección esté completada al 100%. "
+                f"Estado actual: '{ei.estado_intervencion}'."
+            ),
+        )
+
+    from ..models.empresa import Empresa
+    empresa_nombre = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+    items = body.get("items", []) or []
+    data = {
+        "empresa":       empresa_nombre,
+        "area":          str(body.get("area", "") or ""),
+        "nombre_tablero": str(body.get("nombre_tablero", ei.nombre or "") or ""),
+        "equipo":        str(body.get("equipo", "") or ""),
+        "items": [
+            {
+                "elemento":         it.get("elemento"),
+                "actividad":        it.get("actividad"),
+                "fecha":            it.get("fecha"),
+                "temp_obj":         it.get("temp_obj"),
+                "tem_reflejada":    it.get("tem_reflejada"),
+                "temp_aire":        it.get("temp_aire"),
+                "escala_temperatura": it.get("escala_temperatura"),
+                "cielo":            it.get("cielo"),
+                "vel_viento":       it.get("vel_viento"),
+                "distancia":        it.get("distancia"),
+                "pct_carga":        it.get("pct_carga"),
+                "img_termografica": it.get("img_termografica"),
+                "img_tablero":      it.get("img_tablero"),
+            }
+            for it in items
+        ],
+    }
+
+    try:
+        pdf_bytes = _gen_termo(data)
+    except Exception as exc:
+        logger.exception("[informe-termografico] Error generando PDF: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Error generando el informe: {exc}")
+
+    try:
+        pid = f"e-zyro/{empresa_id}/informes/termografico/{ei_id}/{_uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/informes/termografico", recurso_tipo="pdf",
+            entidad_tipo="informe_termografico", entidad_id=ei_id,
+            descripcion=f"Informe Termográfico — {data['nombre_tablero']}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[informe-termografico] No se pudo indexar en la galería: %s", exc_idx)
+
+    safe = re.sub(r"[^A-Za-z0-9]", "_", data["nombre_tablero"] or "TABLERO")
+    filename = f"INFORME_TERMOGRAFICO_{safe}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
