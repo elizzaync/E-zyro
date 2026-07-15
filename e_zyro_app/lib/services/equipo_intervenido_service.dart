@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import '../core/api_client.dart';
 import '../core/api_result.dart';
 import '../models/equipo_intervenido_models.dart';
+import '../models/intervencion_models.dart' show AntecedenteProcedimiento;
 
 class EquipoIntervenidoService {
   final ApiClient _client;
@@ -154,6 +155,24 @@ class EquipoIntervenidoService {
     try {
       final r = await _client.delete('/equipos-intervenidos/circuitos/$circuitoId');
       if (r.statusCode == 204 || r.statusCode == 200) return const ApiResult.ok();
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Historial de observación/recomendación de un paso puntual del checklist,
+  /// a través de sesiones de inspección anteriores del mismo equipo.
+  Future<ApiResult<List<AntecedenteProcedimiento>>> antecedenteProcedimiento(
+      String equipoId, int orden) async {
+    try {
+      final r = await _client.get('/equipos-intervenidos/$equipoId/procedimientos/$orden/antecedente');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        return ApiResult.ok(list
+            .map((e) => AntecedenteProcedimiento.fromJson(e as Map<String, dynamic>))
+            .toList());
+      }
       return ApiResult.fail(ApiError.fromResponse(r));
     } catch (_) {
       return const ApiResult.fail(ApiError(ApiErrorKind.network));

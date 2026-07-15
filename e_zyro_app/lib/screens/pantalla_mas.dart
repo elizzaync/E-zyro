@@ -33,6 +33,7 @@ import 'pantalla_privilegios.dart';
 import 'pantalla_pendientes.dart';
 import 'pantalla_cotizaciones.dart';
 import 'logistica/almacen/pantalla_requerimientos_logistica.dart';
+import 'pantalla_cuadrilla_campo.dart';
 
 class MoreScreen extends StatefulWidget {
   const MoreScreen({super.key});
@@ -66,6 +67,9 @@ class _MoreScreenState extends State<MoreScreen> {
   // Vista acotada de Requerimientos para Técnico/Jefe de Operaciones (sin el
   // panel completo de Logística, que sigue exclusivo de Logística/Admin).
   bool _canVerRequerimientos = false;
+  // HU-54: asignar cuadrilla de campo — cualquiera menos Técnico (mismo
+  // criterio que el backend: exigir_no_tecnico).
+  bool _puedeAsignarCuadrilla = false;
 
   @override
   void initState() {
@@ -101,6 +105,7 @@ class _MoreScreenState extends State<MoreScreen> {
         _puedeVerControlAsistencias = AppSession.i.canVerControlAsistencias;
         _puedeGestionarUsuarios     = AppSession.i.canGestionarUsuarios;
         _puedeGestionarPrivilegios  = AppSession.i.canGestionarPrivilegios;
+        _puedeAsignarCuadrilla      = !AppSession.i.isTecnico;
         _canCalibracion  = AppSession.i.canVerCalibracion;
         _canCorrectivo   = AppSession.i.canVerCorrectivo;
         _canItse         = AppSession.i.canVerItse;
@@ -264,7 +269,7 @@ class _MoreScreenState extends State<MoreScreen> {
             ),
 
             // ── 3. Administración (según permisos) ──────────────────────
-            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _esAdmin || _puedeVerAuditoria || _esSuperAdmin || _puedeGestionarUsuarios || _puedeGestionarPrivilegios) ...[
+            if (_puedeVerControlAsistencias || _puedeVerPersonal || _puedeVerDashboards || _esAdmin || _puedeVerAuditoria || _esSuperAdmin || _puedeGestionarUsuarios || _puedeGestionarPrivilegios || _puedeAsignarCuadrilla) ...[
               const SizedBox(height: 20),
               _buildSectionTitle('Administración'),
               const SizedBox(height: 10),
@@ -310,6 +315,15 @@ class _MoreScreenState extends State<MoreScreen> {
                       onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(builder: (_) => const PantallaDashboards()),
+                      ),
+                    ),
+                  if (_puedeAsignarCuadrilla)
+                    _MenuItem(
+                      icon: Icons.groups_outlined,
+                      label: 'Cuadrilla de Campo',
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PantallaCuadrillaCampo()),
                       ),
                     ),
                   if (_esAdmin)

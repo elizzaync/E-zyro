@@ -108,6 +108,8 @@ class PasoInspeccion {
   bool completado;
   String? fotoUrl;
   String? fotoPublicId;
+  String? observacion;
+  String? recomendacion;
 
   PasoInspeccion({
     required this.orden,
@@ -116,6 +118,8 @@ class PasoInspeccion {
     this.completado = false,
     this.fotoUrl,
     this.fotoPublicId,
+    this.observacion,
+    this.recomendacion,
   });
 
   factory PasoInspeccion.fromJson(Map<String, dynamic> json) => PasoInspeccion(
@@ -125,6 +129,8 @@ class PasoInspeccion {
         completado: json['completado'] as bool? ?? false,
         fotoUrl: json['foto_url'] as String?,
         fotoPublicId: json['foto_public_id'] as String?,
+        observacion: json['observacion'] as String?,
+        recomendacion: json['recomendacion'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -134,7 +140,36 @@ class PasoInspeccion {
         'completado': completado,
         'foto_url': fotoUrl,
         'foto_public_id': fotoPublicId,
+        'observacion': observacion,
+        'recomendacion': recomendacion,
       };
+}
+
+/// Entrada de historial de observación/recomendación de un paso puntual,
+/// registrada en una sesión de inspección anterior del mismo equipo.
+class AntecedenteProcedimiento {
+  final String inspeccionId;
+  final String? fecha;
+  final String? observacion;
+  final String? recomendacion;
+  final String? fotoUrl;
+
+  const AntecedenteProcedimiento({
+    required this.inspeccionId,
+    this.fecha,
+    this.observacion,
+    this.recomendacion,
+    this.fotoUrl,
+  });
+
+  factory AntecedenteProcedimiento.fromJson(Map<String, dynamic> json) =>
+      AntecedenteProcedimiento(
+        inspeccionId: json['inspeccion_id']?.toString() ?? '',
+        fecha: json['fecha'] as String?,
+        observacion: json['observacion'] as String?,
+        recomendacion: json['recomendacion'] as String?,
+        fotoUrl: json['foto_url'] as String?,
+      );
 }
 
 /// Bloque `equipo` de GET .../inspeccion (datos de cabecera del equipo).

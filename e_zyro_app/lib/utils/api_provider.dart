@@ -38,6 +38,12 @@ import '../services/finanzas_service.dart';
 import '../services/ingreso_directo_service.dart';
 import '../services/chatbot_service.dart';
 import '../services/legajo_service.dart';
+import '../services/programacion_campo_service.dart';
+
+Future<ProgramacionCampoService> getProgramacionCampoService() async {
+  final prefs = await SharedPreferences.getInstance();
+  return ProgramacionCampoService(ApiClient(prefs));
+}
 
 Future<LegajoService> getLegajoService() async {
   final prefs = await SharedPreferences.getInstance();

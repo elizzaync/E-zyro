@@ -215,7 +215,13 @@ class IntervencionService {
       _run(
         () => _client.post('/operaciones/inspeccion/$inspeccionId/guardar', {
           'resultado': [
-            for (final p in pasos) {'orden': p.orden, 'completado': p.completado},
+            for (final p in pasos)
+              {
+                'orden': p.orden,
+                'completado': p.completado,
+                'observacion': p.observacion,
+                'recomendacion': p.recomendacion,
+              },
           ],
           'observaciones':
               (observaciones?.trim().isEmpty ?? true) ? null : observaciones!.trim(),
@@ -235,7 +241,13 @@ class IntervencionService {
       _run(
         () => _client.post('/operaciones/inspeccion/$inspeccionId/finalizar', {
           'resultado': [
-            for (final p in pasos) {'orden': p.orden, 'completado': p.completado},
+            for (final p in pasos)
+              {
+                'orden': p.orden,
+                'completado': p.completado,
+                'observacion': p.observacion,
+                'recomendacion': p.recomendacion,
+              },
           ],
           'observaciones':
               (observaciones?.trim().isEmpty ?? true) ? null : observaciones!.trim(),

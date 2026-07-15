@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 import '../models/intervencion_models.dart';
+import '../services/equipo_intervenido_service.dart';
 import '../services/intervencion_service.dart';
+import '../utils/api_provider.dart';
 import '../utils/procedimientos_locales.dart';
 import 'pantalla_camara_campo.dart';
 import 'pantalla_certificado_equipo.dart';
@@ -39,6 +41,7 @@ class PantallaIntervencionEquipo extends StatefulWidget {
 class _PantallaIntervencionEquipoState
     extends State<PantallaIntervencionEquipo> {
   IntervencionService? _svc;
+  EquipoIntervenidoService? _eiSvc;
   bool _cargando = true;
   bool _error = false;
   bool _guardando = false;
@@ -64,6 +67,7 @@ class _PantallaIntervencionEquipoState
   Future<void> _init() async {
     final prefs = await SharedPreferences.getInstance();
     _svc = IntervencionService(ApiClient(prefs));
+    _eiSvc = await getEquipoIntervenidoService();
     await _cargar();
   }
 

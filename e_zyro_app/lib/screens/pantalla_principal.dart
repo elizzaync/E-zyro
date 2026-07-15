@@ -8,6 +8,8 @@ import '../services/asistencia_service.dart';
 import '../services/fcm_flutter_service.dart';
 import '../models/dashboard_models.dart';
 import '../models/asistencia_models.dart';
+import '../models/programacion_campo_models.dart';
+import '../services/programacion_campo_service.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/topo_background.dart';
 import '../utils/app_notifiers.dart';
@@ -46,6 +48,11 @@ class _HomeScreenState extends State<HomeScreen> {
   EstadoHoy? _estadoHoy;
   ResumenSemanal? _resumenSemanal;
   DashboardAlertas _alertas = const DashboardAlertas();
+
+  // HU-54: asignación de cuadrilla de hoy (separado del fichaje). Carga
+  // aparte y best-effort — si falla, la card simplemente no aparece.
+  ProgramacionCampoService? _programacionService;
+  List<MiProgramacionItem> _cuadrillaHoy = [];
 
   // Banner
   bool _bannerVisible = false;
@@ -93,7 +100,32 @@ class _HomeScreenState extends State<HomeScreen> {
     _dashboardService = await getDashboardService();
     _notificacionService = await getNotificacionService();
     _asistenciaService = await getAsistenciaService();
+    _programacionService = await getProgramacionCampoService();
     await _loadData();
+    _loadCuadrillaHoy();
+  }
+
+  String get _hoyIso {
+    final n = DateTime.now();
+    return '${n.year.toString().padLeft(4, '0')}-${n.month.toString().padLeft(2, '0')}-${n.day.toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _loadCuadrillaHoy() async {
+    if (_programacionService == null) return;
+    try {
+      final todas = await _programacionService!.getMiProgramacion();
+      if (!mounted) return;
+      setState(() {
+        _cuadrillaHoy = todas.where((p) => p.fecha == _hoyIso).toList();
+      });
+    } catch (_) {/* card simplemente no aparece */}
+  }
+
+  Future<void> _confirmarCuadrilla(String programacionEmpleadoId) async {
+    if (_programacionService == null) return;
+    final ok = await _programacionService!.confirmar(programacionEmpleadoId);
+    if (!ok || !mounted) return;
+    _loadCuadrillaHoy();
   }
 
   Future<void> _loadData() async {
@@ -403,6 +435,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _buildAsistenciaHoy(),
+                        _buildCuadrillaHoy(),
                         _buildResumenSemanalCard(),
                         _buildAlertas(),
                         _buildProximosServicios(),
@@ -747,6 +780,68 @@ class _HomeScreenState extends State<HomeScreen> {
     final m = minutos % 60;
     if (h == 0) return '${m}m';
     return m == 0 ? '${h}h' : '${h}h ${m}m';
+  }
+
+  // ── HU-54: cuadrilla de hoy (separado del fichaje) ──────────────────────────
+  Widget _buildCuadrillaHoy() {
+    if (_cuadrillaHoy.isEmpty) return const SizedBox.shrink();
+    final ez = context.ez;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final p in _cuadrillaHoy)
+          Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: ez.surface,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: ez.brand.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: ez.brand.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(Icons.groups_outlined, color: ez.brand, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Hoy trabajas en',
+                          style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      Text(p.nombreProyecto,
+                          style: const TextStyle(
+                              fontSize: 14, fontWeight: FontWeight.w700),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (p.confirmadoMovil)
+                  Icon(Icons.check_circle, color: ez.brand, size: 22)
+                else
+                  FilledButton(
+                    onPressed: () => _confirmarCuadrilla(p.programacionEmpleadoId),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: ez.brand,
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                    child: const Text('Confirmar', style: TextStyle(fontSize: 12)),
+                  ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 4),
+      ],
+    );
   }
 
   Widget _miniStat(String value, String label, Color? color) {
