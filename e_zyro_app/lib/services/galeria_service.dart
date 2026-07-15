@@ -44,22 +44,6 @@ class GaleriaService {
     }
   }
 
-  /// Recursos de una entidad concreta (para galerías contextuales).
-  Future<ApiResult<List<RecursoCloudinary>>> porEntidad(String tipo, String id) async {
-    try {
-      final r = await _client.get('/galeria/entidad/$tipo/$id');
-      if (r.statusCode == 200) {
-        final list = jsonDecode(r.body) as List;
-        return ApiResult.ok(
-          list.map((e) => RecursoCloudinary.fromJson(e as Map<String, dynamic>)).toList(),
-        );
-      }
-      return ApiResult.fail(ApiError.fromResponse(r));
-    } catch (_) {
-      return const ApiResult.fail(ApiError(ApiErrorKind.network));
-    }
-  }
-
   /// Sube una imagen (base64) a la galería. `entidadTipo/entidadId` opcionales.
   Future<ApiResult<RecursoCloudinary>> subir({
     required String imagenBase64,

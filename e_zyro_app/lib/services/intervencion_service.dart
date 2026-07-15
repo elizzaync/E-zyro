@@ -360,6 +360,30 @@ class IntervencionService {
         (r) => r.bodyBytes,
       );
 
+  // POST .../equipos-intervenidos/{eiId}/certificado/resistencia → PDF (bytes)
+  Future<ApiResult<Uint8List>> generarProtocoloResistencia(
+          String servicioId, String eiId, Map<String, dynamic> payload) =>
+      _run(
+        () => _client.post(
+          '/operaciones/servicio/$servicioId/equipos-intervenidos/$eiId/certificado/resistencia',
+          payload,
+          timeout: const Duration(seconds: 120),
+        ),
+        (r) => r.bodyBytes,
+      );
+
+  // POST .../equipos-intervenidos/{eiId}/certificado/termografico → PDF (bytes)
+  Future<ApiResult<Uint8List>> generarInformeTermografico(
+          String servicioId, String eiId, Map<String, dynamic> payload) =>
+      _run(
+        () => _client.post(
+          '/operaciones/servicio/$servicioId/equipos-intervenidos/$eiId/certificado/termografico',
+          payload,
+          timeout: const Duration(seconds: 120),
+        ),
+        (r) => r.bodyBytes,
+      );
+
   // ── Dashboard de Operaciones ────────────────────────────────────────────────
 
   // GET /operaciones/dashboard → métricas + servicios del técnico

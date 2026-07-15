@@ -7,6 +7,8 @@ import '../services/intervencion_service.dart';
 import '../utils/procedimientos_locales.dart';
 import 'pantalla_camara_campo.dart';
 import 'pantalla_certificado_equipo.dart';
+import 'pantalla_informe_termografico.dart';
+import 'pantalla_protocolo_resistencia.dart';
 
 const _green = Color(0xFF8FD11B);
 const _amber = Color(0xFFD98A16);
@@ -498,6 +500,20 @@ class _PantallaIntervencionEquipoState
     );
   }
 
+  void _irAReporteSecundario() {
+    final equipoNombre = _data?.equipo.nombre ?? widget.nombreEquipo;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _tipoCertificado == 'pozo'
+            ? PantallaProtocoloResistencia(
+                servicioId: widget.servicioId, eiId: widget.eiId, equipoNombre: equipoNombre)
+            : PantallaInformeTermografico(
+                servicioId: widget.servicioId, eiId: widget.eiId, equipoNombre: equipoNombre),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final eq = _data?.equipo;
@@ -716,6 +732,28 @@ class _PantallaIntervencionEquipoState
                               style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton.icon(
+                            onPressed: _irAReporteSecundario,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _green,
+                              side: BorderSide(color: _green.withValues(alpha: 0.5)),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 13),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
+                            ),
+                            icon: const Icon(Icons.description_outlined, size: 18),
+                            label: Text(
+                              _tipoCertificado == 'pozo'
+                                  ? 'Protocolo de Resistencia'
+                                  : 'Informe Termográfico',
+                              style: const TextStyle(fontWeight: FontWeight.w700),
                             ),
                           ),
                         ),

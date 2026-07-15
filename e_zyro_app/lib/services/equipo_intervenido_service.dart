@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import '../core/api_client.dart';
 import '../core/api_result.dart';
 import '../models/equipo_intervenido_models.dart';
@@ -98,6 +99,76 @@ class EquipoIntervenidoService {
     try {
       final r = await _client.delete('/equipos-intervenidos/$id');
       if (r.statusCode == 204 || r.statusCode == 200) return const ApiResult.ok();
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  // ── Directorio de circuitos de tablero ──────────────────────────────────────
+
+  Future<ApiResult<List<TableroCircuito>>> listarCircuitos(String equipoId) async {
+    try {
+      final r = await _client.get('/equipos-intervenidos/$equipoId/circuitos');
+      if (r.statusCode == 200) {
+        final list = jsonDecode(r.body) as List;
+        return ApiResult.ok(list
+            .map((e) => TableroCircuito.fromJson(e as Map<String, dynamic>))
+            .toList());
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<TableroCircuito>> crearCircuito(
+      String equipoId, Map<String, dynamic> body) async {
+    try {
+      final r = await _client.post('/equipos-intervenidos/$equipoId/circuitos', body);
+      if (r.statusCode == 201 || r.statusCode == 200) {
+        return ApiResult.ok(
+            TableroCircuito.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<TableroCircuito>> actualizarCircuito(
+      String circuitoId, Map<String, dynamic> body) async {
+    try {
+      final r = await _client.patch('/equipos-intervenidos/circuitos/$circuitoId', body);
+      if (r.statusCode == 200) {
+        return ApiResult.ok(
+            TableroCircuito.fromJson(jsonDecode(r.body) as Map<String, dynamic>));
+      }
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  Future<ApiResult<void>> eliminarCircuito(String circuitoId) async {
+    try {
+      final r = await _client.delete('/equipos-intervenidos/circuitos/$circuitoId');
+      if (r.statusCode == 204 || r.statusCode == 200) return const ApiResult.ok();
+      return ApiResult.fail(ApiError.fromResponse(r));
+    } catch (_) {
+      return const ApiResult.fail(ApiError(ApiErrorKind.network));
+    }
+  }
+
+  /// Genera el PDF del directorio de circuitos (blob binario).
+  Future<ApiResult<Uint8List>> generarDirectorioPdf(String equipoId) async {
+    try {
+      final r = await _client.post(
+        '/equipos-intervenidos/$equipoId/circuitos/pdf',
+        const {},
+        timeout: const Duration(seconds: 60),
+      );
+      if (r.statusCode == 200) return ApiResult.ok(r.bodyBytes);
       return ApiResult.fail(ApiError.fromResponse(r));
     } catch (_) {
       return const ApiResult.fail(ApiError(ApiErrorKind.network));

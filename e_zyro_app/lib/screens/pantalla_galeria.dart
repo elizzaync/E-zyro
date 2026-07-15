@@ -10,8 +10,11 @@ import '../utils/app_session.dart';
 
 /// Galería Global de imágenes/recursos (Fase 1).
 /// - Modo global: lista toda la empresa con búsqueda.
-/// - Modo contextual: pasa [entidadTipo] + [entidadId] para ver solo los de una
-///   entidad (servicio/equipo/EPP/...), p. ej. desde el detalle de un servicio.
+/// - Modo contextual: pasa [entidadId] (+ opcional [entidadTipo]) para ver solo
+///   los recursos de una entidad (servicio/equipo/EPP/...), p. ej. desde el
+///   detalle de un servicio o de un equipo intervenido. Sin [entidadTipo] trae
+///   TODOS los tipos de documento indexados con ese id (p. ej. "Ver Antecedente"
+///   de un equipo: certificados + cartas de garantía + informes).
 class PantallaGaleria extends StatefulWidget {
   final String? entidadTipo;
   final String? entidadId;
@@ -24,7 +27,7 @@ class PantallaGaleria extends StatefulWidget {
     this.titulo = 'Galería',
   });
 
-  bool get esContextual => entidadTipo != null && entidadId != null;
+  bool get esContextual => entidadId != null;
 
   @override
   State<PantallaGaleria> createState() => _PantallaGaleriaState();
@@ -64,7 +67,7 @@ class _PantallaGaleriaState extends State<PantallaGaleria> {
       _error = null;
     });
     final res = widget.esContextual
-        ? await _svc!.porEntidad(widget.entidadTipo!, widget.entidadId!)
+        ? await _svc!.listar(entidadTipo: widget.entidadTipo, entidadId: widget.entidadId)
         : await _svc!.listar(q: _searchCtrl.text);
     if (!mounted) return;
     setState(() {

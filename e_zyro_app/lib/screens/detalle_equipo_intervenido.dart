@@ -4,6 +4,8 @@ import '../models/equipo_intervenido_models.dart';
 import '../services/equipo_intervenido_service.dart';
 import '../utils/api_provider.dart';
 import '../utils/app_session.dart';
+import 'pantalla_directorio_tablero.dart';
+import 'pantalla_galeria.dart';
 import 'pantalla_intervencion_equipo.dart';
 
 /// Detalle de un equipo intervenido: identidad, gauge de próximo
@@ -164,6 +166,19 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                       child: Text('Equipo intervenido',
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     ),
+                    IconButton(
+                      tooltip: 'Ver antecedentes',
+                      icon: const Icon(Icons.folder_copy_outlined, size: 20),
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PantallaGaleria(
+                            entidadId: _equipo.id,
+                            titulo: 'Antecedentes — ${_equipo.nombre}',
+                          ),
+                        ),
+                      ),
+                    ),
                     if (puedeEditar)
                       IconButton(
                         tooltip: 'Editar equipo',
@@ -197,6 +212,32 @@ class _DetalleEquipoIntervenidoState extends State<DetalleEquipoIntervenido> {
                         _tituloSeccion('INSPECCIÓN EN SERVICIO'),
                         const SizedBox(height: 8),
                         _inspeccionCard(isDark, surface),
+                      ],
+                      if ((_equipo.tipoEquipoNombre ?? '').toUpperCase().contains('TABLERO')) ...[
+                        const SizedBox(height: 18),
+                        _tituloSeccion('DIRECTORIO DE TABLERO'),
+                        const SizedBox(height: 8),
+                        _card(
+                          isDark, surface,
+                          child: ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.electrical_services_outlined, color: _green),
+                            title: const Text('Circuitos del tablero',
+                                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                            subtitle: const Text('Ver, editar y exportar el directorio en PDF',
+                                style: TextStyle(fontSize: 11.5)),
+                            trailing: const Icon(Icons.chevron_right),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => PantallaDirectorioTablero(
+                                  equipoId: _equipo.id,
+                                  equipoNombre: _equipo.nombre,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
                       const SizedBox(height: 18),
                       _tituloSeccion('FICHA TÉCNICA'),

@@ -183,3 +183,37 @@ class MantenimientoEquipo {
 
   DateTime? get fechaDate => DateTime.tryParse(fecha);
 }
+
+/// Fila del directorio de circuitos de un tablero eléctrico.
+class TableroCircuito {
+  final String id;
+  final String equipoIntervenidoId;
+  final String circuito;
+  final String tipoCircuito; // IG | ID | ITM
+  final String? capacidadItm;
+  final String? descripcion;
+  final int orden;
+  final String createdAt;
+
+  const TableroCircuito({
+    required this.id,
+    required this.equipoIntervenidoId,
+    required this.circuito,
+    required this.tipoCircuito,
+    this.capacidadItm,
+    this.descripcion,
+    required this.orden,
+    required this.createdAt,
+  });
+
+  factory TableroCircuito.fromJson(Map<String, dynamic> j) => TableroCircuito(
+        id: j['id']?.toString() ?? '',
+        equipoIntervenidoId: j['equipo_intervenido_id']?.toString() ?? '',
+        circuito: j['circuito']?.toString() ?? '',
+        tipoCircuito: j['tipo_circuito']?.toString() ?? 'ITM',
+        capacidadItm: j['capacidad_itm']?.toString(),
+        descripcion: j['descripcion']?.toString(),
+        orden: j['orden'] is int ? j['orden'] as int : int.tryParse('${j['orden']}') ?? 1,
+        createdAt: j['created_at']?.toString() ?? '',
+      );
+}
