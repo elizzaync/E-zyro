@@ -4444,6 +4444,8 @@ def _resultado_inicial(plantilla: list[dict]) -> list[dict]:
             "completado":    False,
             "foto_url":      None,
             "foto_public_id": None,
+            "observacion":   None,
+            "recomendacion": None,
         }
         for item in plantilla
     ]
@@ -4949,6 +4951,7 @@ def get_inspeccion_activa(
                 "orden": item["orden"], "nombre": item["nombre"],
                 "descripcion": item.get("descripcion", ""),
                 "completado": False, "foto_url": None, "foto_public_id": None,
+                "observacion": None, "recomendacion": None,
             })
     resultado.sort(key=lambda x: x["orden"])
 
@@ -5128,6 +5131,10 @@ def guardar_inspeccion(
         if upd:
             paso["completado"] = bool(upd.get("completado", False))
             # No sobreescribir foto_url desde aquí — eso lo hace /foto/{orden}
+            if "observacion" in upd:
+                paso["observacion"] = (upd.get("observacion") or "").strip() or None
+            if "recomendacion" in upd:
+                paso["recomendacion"] = (upd.get("recomendacion") or "").strip() or None
 
     from sqlalchemy import text as _text
     db.execute(
@@ -5174,6 +5181,10 @@ def finalizar_inspeccion(
         upd = nuevo_estado.get(paso["orden"])
         if upd:
             paso["completado"] = bool(upd.get("completado", False))
+            if "observacion" in upd:
+                paso["observacion"] = (upd.get("observacion") or "").strip() or None
+            if "recomendacion" in upd:
+                paso["recomendacion"] = (upd.get("recomendacion") or "").strip() or None
 
     proxima_str = body.get("proxima_fecha_mantenimiento")
     proxima_fecha = None

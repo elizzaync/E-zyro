@@ -33,6 +33,7 @@ from ..models.area import Area
 from ..models.tipo_equipo import TipoEquipo
 from ..models.procedimiento import Procedimiento
 from ..models.evidencia_procedimiento import EvidenciaProcedimiento
+from ..models.historial_inspeccion import HistorialInspeccion
 from ..schemas.equipo_intervenido import (
     EquipoIntervenidoIn,
     EquipoIntervenidoOut,
@@ -479,6 +480,52 @@ def eliminar(
         raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
     db.delete(e)
     db.commit()
+
+
+# ── Antecedente de procedimientos (obs/recomendación por paso, historico) ────
+
+@router.get("/{equipo_id}/procedimientos/{orden}/antecedente")
+def antecedente_procedimiento(
+    equipo_id: str,
+    orden: int,
+    payload: dict = Depends(verificar_token),
+    db: Session   = Depends(get_db),
+):
+    """Historial de observación/recomendación registradas en el paso `orden`
+    del checklist de este equipo, a través de todas sus sesiones de inspección
+    pasadas (cualquier servicio), más reciente primero."""
+    empresa_id = payload["empresa_id"]
+    e = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id == equipo_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not e:
+        raise HTTPException(status_code=404, detail="Equipo intervenido no encontrado")
+
+    rows = (
+        db.query(HistorialInspeccion)
+        .filter(HistorialInspeccion.equipo_intervenido_id == equipo_id,
+                HistorialInspeccion.empresa_id == empresa_id)
+        .order_by(HistorialInspeccion.fecha_inicio.desc())
+        .all()
+    )
+
+    out = []
+    for hi in rows:
+        for p in (hi.resultado or []):
+            if p.get("orden") != orden:
+                continue
+            obs, rec = p.get("observacion"), p.get("recomendacion")
+            if not obs and not rec:
+                continue
+            out.append({
+                "inspeccion_id": str(hi.id),
+                "fecha":         hi.fecha_inicio.isoformat() if hi.fecha_inicio else None,
+                "observacion":   obs,
+                "recomendacion": rec,
+                "foto_url":      p.get("foto_url"),
+            })
+    return out
 
 
 # ── Directorio de circuitos de tablero ────────────────────────────────────────

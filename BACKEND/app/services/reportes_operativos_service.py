@@ -18,6 +18,7 @@ from sqlalchemy import cast, Date, func
 from sqlalchemy.orm import Session
 
 from ..models.movimiento_inventario import MovimientoInventario
+from ..models.programacion_campo import ProgramacionCampo, ProgramacionEmpleado
 from ..models.proyecto import Proyecto
 from ..models.registro_asistencia import RegistroAsistencia
 from ..models.requerimiento import Requerimiento
@@ -51,40 +52,79 @@ def _materiales_por_proyecto(
     }
 
 
-def _horas_hombre_por_proyecto(
-    db: Session, empresa_id: str, desde: date, hasta: date, proyecto_id: str | None,
-) -> dict[str, float]:
+def _minutos_trabajados_por_empleado_dia(
+    db: Session, empresa_id: str, desde: date, hasta: date,
+) -> dict[tuple[str, date], int]:
     """Trae en una sola consulta todos los eventos entrada/salida del rango
-    (con proyecto asignado) y los concilia en un unico paso en Python — evita
+    (de TODOS los empleados) y los concilia en un unico paso en Python — evita
     1 query por empleado/dia. Un check-in sin su salida pareada (turno abierto
-    al cierre del rango) no suma horas; simplificacion aceptable para un
+    al cierre del rango) no suma minutos; simplificacion aceptable para un
     reporte de rango cerrado."""
-    q = db.query(RegistroAsistencia).filter(
-        RegistroAsistencia.empresa_id == empresa_id,
-        RegistroAsistencia.proyecto_id.isnot(None),
-        RegistroAsistencia.tipo.in_(("entrada", "salida")),
-        cast(RegistroAsistencia.fecha_hora, Date) >= desde,
-        cast(RegistroAsistencia.fecha_hora, Date) <= hasta,
+    regs = (
+        db.query(RegistroAsistencia)
+        .filter(
+            RegistroAsistencia.empresa_id == empresa_id,
+            RegistroAsistencia.tipo.in_(("entrada", "salida")),
+            cast(RegistroAsistencia.fecha_hora, Date) >= desde,
+            cast(RegistroAsistencia.fecha_hora, Date) <= hasta,
+        )
+        .order_by(RegistroAsistencia.empleado_id, RegistroAsistencia.fecha_hora)
+        .all()
     )
-    if proyecto_id:
-        q = q.filter(RegistroAsistencia.proyecto_id == proyecto_id)
-    regs = q.order_by(
-        RegistroAsistencia.proyecto_id,
-        RegistroAsistencia.empleado_id,
-        RegistroAsistencia.fecha_hora,
-    ).all()
 
-    minutos: dict[str, int] = defaultdict(int)
-    pendiente: dict[tuple, datetime] = {}
+    minutos: dict[tuple[str, date], int] = defaultdict(int)
+    pendiente: dict[tuple[str, date], datetime] = {}
     for r in regs:
-        clave = (r.proyecto_id, r.empleado_id, r.fecha_hora.date())
+        clave = (str(r.empleado_id), r.fecha_hora.date())
         if r.tipo == "entrada":
             pendiente[clave] = r.fecha_hora
         elif r.tipo == "salida" and clave in pendiente:
             ini = pendiente.pop(clave)
-            minutos[r.proyecto_id] += max(int((r.fecha_hora - ini).total_seconds() // 60), 0)
+            minutos[clave] += max(int((r.fecha_hora - ini).total_seconds() // 60), 0)
+    return minutos
 
-    return {pid: round(m / 60, 1) for pid, m in minutos.items()}
+
+def _horas_hombre_por_proyecto(
+    db: Session, empresa_id: str, desde: date, hasta: date, proyecto_id: str | None,
+) -> dict[str, float]:
+    """Atribuye las horas trabajadas de cada dia al proyecto que Operaciones
+    asigno ese dia (programacion_campo/programacion_empleado) — el fichaje no
+    lleva proyecto a proposito (asistencia = control horario, no asignacion;
+    ver HU-54). Si un empleado quedo asignado a mas de un proyecto el mismo
+    dia, se reparte el total del dia por igual entre ellos."""
+    minutos_dia = _minutos_trabajados_por_empleado_dia(db, empresa_id, desde, hasta)
+    if not minutos_dia:
+        return {}
+
+    q = (
+        db.query(ProgramacionEmpleado.empleado_id, ProgramacionCampo.proyecto_id, ProgramacionCampo.fecha)
+        .join(ProgramacionCampo, ProgramacionCampo.id == ProgramacionEmpleado.programacion_id)
+        .filter(
+            ProgramacionCampo.empresa_id == empresa_id,
+            ProgramacionCampo.fecha >= desde,
+            ProgramacionCampo.fecha <= hasta,
+        )
+    )
+    if proyecto_id:
+        q = q.filter(ProgramacionCampo.proyecto_id == proyecto_id)
+
+    # normalizar a str: columnas UUID nativas en Postgres vuelven como uuid.UUID
+    # via psycopg2 aunque el modelo las declare String(36) (mismo gotcha de
+    # siempre en este proyecto — ver memoria "Postgres con UUID nativos").
+    asignaciones: dict[tuple[str, date], list[str]] = defaultdict(list)
+    for emp_id, pid, fecha in q.all():
+        asignaciones[(str(emp_id), fecha)].append(str(pid))
+
+    minutos_proyecto: dict[str, float] = defaultdict(float)
+    for (emp_id, fecha), proyectos_dia in asignaciones.items():
+        total_min = minutos_dia.get((emp_id, fecha))
+        if not total_min:
+            continue
+        reparto = total_min / len(proyectos_dia)
+        for pid in proyectos_dia:
+            minutos_proyecto[pid] += reparto
+
+    return {pid: round(m / 60, 1) for pid, m in minutos_proyecto.items()}
 
 
 def reporte_operativo_por_proyecto(

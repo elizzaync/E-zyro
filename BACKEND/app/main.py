@@ -75,6 +75,7 @@ from app.routers import activos_fijos        as activos_fijos_router
 from app.routers import planilla             as planilla_router
 from app.routers import reportes_financieros as reportes_financieros_router
 from app.routers import reportes_operativos  as reportes_operativos_router
+from app.routers import programacion_campo   as programacion_campo_router
 from app.routers import eventos_contables    as eventos_contables_router
 from app.routers import caja_chica           as caja_chica_router
 from app.routers import conciliacion_bancaria as conciliacion_bancaria_router
@@ -2410,6 +2411,7 @@ app.include_router(activos_fijos_router.router)
 app.include_router(planilla_router.router)
 app.include_router(reportes_financieros_router.router)
 app.include_router(reportes_operativos_router.router)
+app.include_router(programacion_campo_router.router)
 app.include_router(eventos_contables_router.router)
 app.include_router(caja_chica_router.router)
 app.include_router(conciliacion_bancaria_router.router)
