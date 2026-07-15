@@ -179,6 +179,117 @@ class _PantallaIntervencionEquipoState
     }
   }
 
+  // ── Observación / recomendación por paso (antecedente de procedimientos) ────
+  Future<void> _editarNotas(PasoInspeccion paso) async {
+    final obsCtrl = TextEditingController(text: paso.observacion ?? '');
+    final recCtrl = TextEditingController(text: paso.recomendacion ?? '');
+    final guardar = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Notas — ${paso.orden}. ${paso.nombre}',
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: obsCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Observación', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: recCtrl,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Recomendación', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(backgroundColor: _green, padding: const EdgeInsets.symmetric(vertical: 13)),
+                child: const Text('Guardar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (guardar != true) return;
+    setState(() {
+      paso.observacion = obsCtrl.text.trim().isEmpty ? null : obsCtrl.text.trim();
+      paso.recomendacion = recCtrl.text.trim().isEmpty ? null : recCtrl.text.trim();
+    });
+    await _guardar();
+  }
+
+  Future<void> _verAntecedente(PasoInspeccion paso) async {
+    if (_eiSvc == null) return;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        expand: false,
+        builder: (ctx, scrollCtrl) => FutureBuilder(
+          future: _eiSvc!.antecedenteProcedimiento(widget.eiId, paso.orden),
+          builder: (ctx, snap) {
+            if (snap.connectionState != ConnectionState.done) {
+              return const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(_green)));
+            }
+            final res = snap.data;
+            final items = (res != null && res.ok) ? (res.data ?? []) : <AntecedenteProcedimiento>[];
+            return Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Antecedente — ${paso.orden}. ${paso.nombre}',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: items.isEmpty
+                        ? Center(
+                            child: Text('Sin antecedentes para este paso.',
+                                style: TextStyle(color: Colors.grey.shade500)))
+                        : ListView.separated(
+                            controller: scrollCtrl,
+                            itemCount: items.length,
+                            separatorBuilder: (_, _) => const Divider(),
+                            itemBuilder: (_, i) {
+                              final a = items[i];
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(a.fecha ?? '', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
+                                    if ((a.observacion ?? '').isNotEmpty)
+                                      Text('Observación: ${a.observacion}', style: const TextStyle(fontSize: 12)),
+                                    if ((a.recomendacion ?? '').isNotEmpty)
+                                      Text('Recomendación: ${a.recomendacion}', style: const TextStyle(fontSize: 12)),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   // ── Guardar progreso (sin finalizar) ────────────────────────────────────────
   Future<void> _guardar() async {
     if (_guardando || _data == null) return;
@@ -625,6 +736,8 @@ class _PantallaIntervencionEquipoState
                           onFoto: _estaFinalizado ? null : () => _subirFoto(paso),
                           onQuitarFoto:
                               _estaFinalizado ? null : () => _quitarFoto(paso),
+                          onNotas: _estaFinalizado ? null : () => _editarNotas(paso),
+                          onAntecedente: () => _verAntecedente(paso),
                         ),
                       const SizedBox(height: 12),
                       TextField(
@@ -852,6 +965,8 @@ class _PasoCard extends StatelessWidget {
   final VoidCallback? onToggle;
   final VoidCallback? onFoto;
   final VoidCallback? onQuitarFoto;
+  final VoidCallback? onNotas;
+  final VoidCallback? onAntecedente;
 
   const _PasoCard({
     required this.paso,
@@ -859,6 +974,8 @@ class _PasoCard extends StatelessWidget {
     this.onToggle,
     this.onFoto,
     this.onQuitarFoto,
+    this.onNotas,
+    this.onAntecedente,
   });
 
   @override
@@ -904,10 +1021,55 @@ class _PasoCard extends StatelessWidget {
                     Text(paso.descripcion,
                         style: TextStyle(
                             fontSize: 11, color: Colors.grey.shade600)),
+                  if ((paso.observacion ?? '').isNotEmpty ||
+                      (paso.recomendacion ?? '').isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.sticky_note_2_outlined,
+                              size: 12, color: Colors.amber.shade700),
+                          const SizedBox(width: 3),
+                          Text('Con notas',
+                              style: TextStyle(
+                                  fontSize: 10.5,
+                                  color: Colors.amber.shade700,
+                                  fontWeight: FontWeight.w600)),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 4),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (onNotas != null)
+                  IconButton(
+                    tooltip: 'Observación / recomendación',
+                    icon: Icon(Icons.edit_note,
+                        size: 20,
+                        color: ((paso.observacion ?? '').isNotEmpty ||
+                                (paso.recomendacion ?? '').isNotEmpty)
+                            ? _green
+                            : Colors.grey),
+                    onPressed: onNotas,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                if (onAntecedente != null)
+                  IconButton(
+                    tooltip: 'Ver antecedente',
+                    icon: const Icon(Icons.history, size: 20, color: Colors.grey),
+                    onPressed: onAntecedente,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+              ],
+            ),
+            const SizedBox(width: 4),
             // Foto del paso: miniatura + reemplazar/quitar, o botón de cámara.
             if ((paso.fotoUrl ?? '').isNotEmpty)
               Stack(
