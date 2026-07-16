@@ -163,6 +163,14 @@ export const routes: Routes = [
     canActivate: [authGuard, bloquearRolesGuard(_ROLES_BLOQUEADOS_TECNICO)]
   },
   {
+    // Biblioteca de formatos PDF (versionado inmutable). Ver/descargar es para
+    // todo el personal interno — los técnicos usan ATS/PETAR en campo.
+    path: 'documentos',
+    loadComponent: () => import('./features/documentos/documentos-formatos.component').then(m => m.DocumentosFormatosComponent),
+    title: 'Documentos | e-zyro TIC',
+    canActivate: [authGuard]
+  },
+  {
     path: 'operaciones',
     component: OperacionesComponent,
     title: 'Operaciones | e-zyro TIC',

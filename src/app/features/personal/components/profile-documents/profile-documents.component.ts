@@ -61,6 +61,9 @@ export class ProfileDocumentsComponent implements OnInit {
 
         if (permisos.status === 'success') {
           for (const p of permisos.data) {
+            // Las justificaciones (falta/tardanza) pertenecen a Asistencia,
+            // no son permisos ni documentos del personal.
+            if ((p.tipo || '').startsWith('justificacion')) continue;
             docs.push({ id: p.id, titulo: p.titulo, categoria: 'Permisos', subtipo: p.tipo, estado: p.estado, fecha: p.fecha, url: p.url ?? null });
           }
         }

@@ -1,0 +1,195 @@
+<div class="fmt-layout fade-in">
+
+  <!-- ── Header ── -->
+  <div class="fmt-header">
+    <div>
+      <h2 class="fmt-title">Documentos</h2>
+      <p class="fmt-sub">Biblioteca de formatos oficiales — versiones controladas con trazabilidad</p>
+    </div>
+    @if (puedeGestionar) {
+    <button class="fmt-btn-nuevo" (click)="abrirNuevo()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="16" height="16">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+      Nuevo formato
+    </button>
+    }
+  </div>
+
+  <!-- ── Toolbar ── -->
+  <div class="fmt-toolbar">
+    <div class="fmt-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" [(ngModel)]="busqueda" placeholder="Buscar formato…">
+    </div>
+    <select class="fmt-select" [(ngModel)]="filtroTipo">
+      <option value="">Todas las categorías</option>
+      @for (t of tipos; track t) { <option [value]="t">{{ t }}</option> }
+    </select>
+    <span class="fmt-count">{{ formatosFiltrados.length }} formato{{ formatosFiltrados.length !== 1 ? 's' : '' }}</span>
+  </div>
+
+  <!-- ── Tabla ── -->
+  @if (cargando) {
+    <div class="fmt-estado"><app-spinner [size]="32"></app-spinner><span>Cargando…</span></div>
+  } @else if (formatosFiltrados.length === 0) {
+    <div class="fmt-estado">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="48" height="48">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+      </svg>
+      <p>No hay formatos que coincidan con la búsqueda.</p>
+    </div>
+  } @else {
+    <div class="fmt-table-wrap">
+      <table class="fmt-table">
+        <thead>
+          <tr>
+            <th>Documento</th>
+            <th>Categoría</th>
+            <th class="fmt-th-center">Versión</th>
+            <th>Última actualización</th>
+            <th>Actualizado por</th>
+            <th class="fmt-th-right">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of formatosFiltrados; track f.id) {
+          <tr>
+            <td>
+              <div class="fmt-doc">
+                <span class="fmt-doc-ic">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="17" height="17">
+                    <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                  </svg>
+                </span>
+                <div class="fmt-doc-txt">
+                  <span class="fmt-doc-nombre">{{ f.nombre }}</span>
+                  @if (f.nombre_archivo) { <span class="fmt-doc-file">{{ f.nombre_archivo }}</span> }
+                </div>
+              </div>
+            </td>
+            <td>
+              @if (f.tipo_formato) { <span class="fmt-chip">{{ f.tipo_formato }}</span> }
+              @else { <span class="fmt-muted">—</span> }
+            </td>
+            <td class="fmt-th-center">
+              <span class="fmt-version" [title]="f.total_versiones + ' versión(es) registradas'">v{{ f.version_actual }}</span>
+            </td>
+            <td>{{ fechaCorta(f.updated_at) }}</td>
+            <td>{{ f.actualizado_por_nombre || 'Migración ERP' }}</td>
+            <td>
+              <div class="fmt-acciones">
+                <button class="fmt-accion" title="Ver PDF" (click)="ver(f)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                    <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+                  </svg>
+                  Ver
+                </button>
+                <button class="fmt-accion" title="Historial de versiones" (click)="abrirHistorial(f)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                  </svg>
+                  Historial
+                </button>
+                @if (puedeGestionar) {
+                <button class="fmt-accion fmt-accion-verde" title="Publicar nueva versión" (click)="abrirActualizar(f)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="15" height="15">
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                    <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+                  </svg>
+                  Actualizar
+                </button>
+                }
+              </div>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+<!-- ── Modal: nuevo formato / nueva versión ── -->
+<app-modal [open]="showForm"
+           [title]="formatoEnEdicion ? 'Actualizar formato' : 'Nuevo formato'"
+           [subtitle]="formatoEnEdicion
+              ? 'Se publicará como v' + (formatoEnEdicion.version_actual + (form.archivoBase64 ? 1 : 0)) + ' — las versiones anteriores se conservan'
+              : 'Se registrará como versión 1'"
+           maxWidth="520px"
+           (closeModal)="cerrarForm()">
+  <div class="fmt-form">
+    <label class="fmt-label">Nombre del documento *</label>
+    <input class="fmt-input" type="text" [(ngModel)]="form.nombre" placeholder="p. ej. CHECK LIST ARNES">
+
+    <label class="fmt-label">Categoría</label>
+    <input class="fmt-input" type="text" [(ngModel)]="form.tipo_formato" list="fmt-tipos"
+           placeholder="SST, Operaciones, RRHH…">
+    <datalist id="fmt-tipos">
+      @for (t of tipos; track t) { <option [value]="t"></option> }
+    </datalist>
+
+    <label class="fmt-label">{{ formatoEnEdicion ? 'Nuevo PDF (obligatorio para publicar versión)' : 'Archivo PDF *' }}</label>
+    <label class="fmt-file">
+      <input type="file" accept="application/pdf" (change)="onArchivo($event)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+        <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+      </svg>
+      <span>{{ form.archivoNombre || 'Seleccionar PDF (máx. 20 MB)' }}</span>
+    </label>
+    @if (archivoError) { <p class="fmt-error">{{ archivoError }}</p> }
+
+    <label class="fmt-label">Nota / motivo del cambio</label>
+    <textarea class="fmt-input fmt-textarea" [(ngModel)]="form.nota" rows="2"
+              [placeholder]="formatoEnEdicion ? 'p. ej. Actualización por nueva normativa' : 'Observación opcional'"></textarea>
+
+    <div class="fmt-form-footer">
+      <button class="fmt-btn-sec" (click)="cerrarForm()" [disabled]="guardando">Cancelar</button>
+      <button class="fmt-btn-nuevo" (click)="guardar()" [disabled]="guardando">
+        {{ guardando ? 'Guardando…' : (formatoEnEdicion ? 'Guardar' : 'Registrar formato') }}
+      </button>
+    </div>
+  </div>
+</app-modal>
+
+<!-- ── Modal: historial de versiones ── -->
+<app-modal [open]="showHistorial"
+           [title]="'Historial — ' + (historialDe?.nombre || '')"
+           subtitle="Registro completo de versiones (ninguna se elimina)"
+           maxWidth="600px"
+           (closeModal)="cerrarHistorial()">
+  @if (cargandoVersiones) {
+    <div class="fmt-estado fmt-estado-modal"><app-spinner [size]="26"></app-spinner></div>
+  } @else {
+    <ul class="fmt-hist">
+      @for (v of versiones; track v.id) {
+      <li class="fmt-hist-item" [class.fmt-hist-vigente]="v.es_vigente">
+        <div class="fmt-hist-head">
+          <span class="fmt-version">v{{ v.numero_version }}</span>
+          @if (v.es_vigente) { <span class="fmt-chip fmt-chip-verde">Vigente</span> }
+          @if (v.origen === 'erp_legacy') { <span class="fmt-chip">ERP legado</span> }
+          <span class="fmt-hist-fecha">{{ fechaCorta(v.created_at) }}</span>
+        </div>
+        <div class="fmt-hist-body">
+          <span class="fmt-hist-meta">
+            {{ v.subido_por_nombre || '—' }} · {{ pesoLegible(v.tamano_bytes) }}
+            @if (v.nombre_archivo) { · {{ v.nombre_archivo }} }
+          </span>
+          @if (v.nota) { <p class="fmt-hist-nota">{{ v.nota }}</p> }
+        </div>
+        <button class="fmt-accion" (click)="verVersion(v)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+            <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/>
+          </svg>
+          Ver
+        </button>
+      </li>
+      }
+    </ul>
+  }
+</app-modal>

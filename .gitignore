@@ -19,6 +19,10 @@ yarn-error.log
 *.launch
 .settings/
 *.sublime-workspace
+*.code-workspace
+
+# Serena MCP (indice local del proyecto, no es codigo)
+.serena/
 
 # Visual Studio Code
 .vscode/*

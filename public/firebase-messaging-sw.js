@@ -20,9 +20,16 @@ messaging.onBackgroundMessage((payload) => {
 
   // Extrae de manera segura el título y el cuerpo del mensaje
   const notificationTitle = payload.notification?.title || "Alerta de E-zyro";
+  // tag: si FCM reintenta la entrega del mismo mensaje (red inestable), el
+  // navegador REEMPLAZA la notificación existente con ese tag en vez de
+  // apilar una copia nueva — mismo criterio que el collapse_key de Android.
+  const refTabla = payload.data?.ref_tabla || '';
+  const refId = payload.data?.ref_id || '';
+  const tag = refTabla ? `${refTabla}:${refId}` : (payload.data?.categoria || payload.data?.tipo || undefined);
   const notificationOptions = {
     body: payload.notification?.body || "Tienes una actividad pendiente",
-    icon: '/logo.ico'
+    icon: '/logo.ico',
+    tag,
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);

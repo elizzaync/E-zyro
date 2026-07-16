@@ -42,18 +42,13 @@ export class FcmService {
         const titulo = payload.notification?.title || 'Nueva Alerta';
         const cuerpo = payload.notification?.body || '';
 
+        // Solo el toast in-app: con la pestaña en primer plano ya es visible.
+        // NO se llama también a registration.showNotification() aquí — eso
+        // duplicaba la alerta (toast + notificación nativa del navegador para
+        // el mismo mensaje). La notificación nativa queda exclusivamente a
+        // cargo de firebase-messaging-sw.js (onBackgroundMessage), que solo
+        // se dispara cuando la pestaña NO está en foco.
         this.toastService.mostrar(`${titulo}: ${cuerpo}`, 'info');
-
-        // Chrome bloquea new Notification() cuando hay SW activo;
-        // usamos el SW directamente para mostrar la notificación nativa.
-        if (Notification.permission === 'granted' && 'serviceWorker' in navigator) {
-          navigator.serviceWorker.ready.then(registration => {
-            registration.showNotification(titulo, {
-              body: cuerpo,
-              icon: '/logo.ico'
-            });
-          }).catch(() => {});
-        }
 
         this.dashboardService.refreshWidgets$.next(true);
       });
