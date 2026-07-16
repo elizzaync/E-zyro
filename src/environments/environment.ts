@@ -1,7 +1,7 @@
 // ARCHIVO GENERADO AUTOMATICAMENTE por scripts/set-env.js - no editar a mano.
 export const environment = {
   production: true,
-  apiUrl: 'https://e-zyro-production-7f7d.up.railway.app',
+  apiUrl: 'https://api.esystemtic.com',
   firebaseConfig: {
     apiKey: 'AIzaSyDLbtJuKV71DWz7u6tS-jhHG0eCVM0ExFM',
     authDomain: 'e-system-tic.firebaseapp.com',

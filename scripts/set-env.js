@@ -15,7 +15,7 @@ const path = require('path');
 const env = process.env;
 
 const config = {
-  apiUrl: env.API_URL || 'https://e-zyro-production-7f7d.up.railway.app',
+  apiUrl: env.API_URL || 'https://api.esystemtic.com',
   firebase: {
     apiKey: env.FIREBASE_API_KEY || 'AIzaSyDLbtJuKV71DWz7u6tS-jhHG0eCVM0ExFM',
     authDomain: env.FIREBASE_AUTH_DOMAIN || 'e-system-tic.firebaseapp.com',
