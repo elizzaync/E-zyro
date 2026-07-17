@@ -61,12 +61,20 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     # de abajo no coincide con ningún rol vivo; ver deuda técnica documentada).
     "Logística": [
         "planos:gestionar",
+        "formatos:gestionar",
     ],
     # Nombre REAL del rol de RR.HH. en producción (verificado prod 2026-06-26).
     # Gestiona la ficha de personal sin ser admin: necesita 'personal:gestionar'
     # para acceder a /seguridad/usuarios (ver usuarios, sesiones, firmas).
     "Recursos Humanos": [
         "personal:gestionar",
+        "formatos:gestionar",
+    ],
+    # Monitoreo total del sistema; también administra la biblioteca de formatos.
+    # calibracion:ver → recibe las alertas diarias de vencimiento (semáforo).
+    "Soporte": [
+        "formatos:gestionar",
+        "calibracion:ver",
     ],
     # Nombre REAL del rol técnico en producción ("Técnico", ya NO "Técnico de
     # Campo"). Necesita 'requerimientos:solicitar' para pedir materiales de sus
@@ -116,6 +124,8 @@ MATRIZ_ROL_PERMISO: dict[str, list[str]] = {
     "TI": [
         "dashboard:ver",
         "soporte:ver", "soporte:gestionar",
+        "formatos:gestionar",
+        "calibracion:ver",
     ],
     # Rol contable: conciliación bancaria (Fase 5). El resto de finanzas sigue
     # siendo solo del Administrador. Si la empresa crea un rol con este nombre,

@@ -62,13 +62,24 @@ from sqlalchemy.orm import Session
 def _horas_dia_ancladas(
     regs_dia: list, dia: date,
     turno_hora_entrada: "_time | None", turno_hora_salida: "_time | None",
+    duracion_almuerzo_minutos: int = 0,
 ) -> tuple[float, float]:
     """(horas_regulares, horas_extra_bruto) ancladas al horario PACTADO del
     turno — ver FIX 2026-07-08 en el docstring del módulo. `horas_regulares`
     es el tiempo trabajado DENTRO de [turno_hora_entrada, turno_hora_salida]
     (llegar antes no lo agranda); `horas_extra_bruto` es SOLO el tiempo
     trabajado después de `turno_hora_salida` (llegar antes nunca genera
-    extra, sin importar cuánto se quede después)."""
+    extra, sin importar cuánto se quede después).
+
+    FIX 2026-07-16 (almuerzo OBLIGATORIO, decisión de negocio explícita del
+    usuario): el refrigerio no es opcional — el trabajador SIEMPRE lo toma,
+    marque o no su salida/entrada de almuerzo. Antes, si no marcaba esas dos
+    marcaciones, `horas_regulares` no descontaba nada (asumía que trabajó
+    corrido), inflando sus horas reales/extra exactamente por la duración del
+    almuerzo configurada en el turno. Ahora se descuenta SIEMPRE al menos
+    `duracion_almuerzo_minutos` (lo pactado); si además marcó un almuerzo real
+    MÁS LARGO que eso, se descuenta el real (no se le paga el exceso de
+    descanso sobre lo autorizado)."""
     entrada = next((r.fecha_hora for r in regs_dia if r.tipo == "entrada"),          None)
     salida  = next((r.fecha_hora for r in regs_dia if r.tipo == "salida"),           None)
     ini_alm = next((r.fecha_hora for r in regs_dia if r.tipo == "entrada_almuerzo"), None)
@@ -77,12 +88,16 @@ def _horas_dia_ancladas(
     if not entrada or not salida:
         return 0.0, 0.0
 
+    almuerzo_pactado_h = max(0, duracion_almuerzo_minutos) / 60.0
+
     if turno_hora_entrada is None or turno_hora_salida is None:
         # Sin turno con horario de reloj (cae al default sin turno asignado):
         # no hay ancla contra la cual comparar — se preserva el SPAN total.
         horas = (salida - entrada).total_seconds() / 3600.0
+        almuerzo_real_h = 0.0
         if ini_alm and fin_alm and fin_alm > ini_alm:
-            horas -= (fin_alm - ini_alm).total_seconds() / 3600.0
+            almuerzo_real_h = (fin_alm - ini_alm).total_seconds() / 3600.0
+        horas -= max(almuerzo_pactado_h, almuerzo_real_h)
         return max(0.0, horas), 0.0
 
     turno_entrada_dt = datetime.combine(dia, turno_hora_entrada)
@@ -92,11 +107,13 @@ def _horas_dia_ancladas(
     fin_regular    = min(salida, turno_salida_dt)      # el tramo regular no pasa de la salida pactada
     horas_regulares = max(0.0, (fin_regular - inicio_regular).total_seconds() / 3600.0)
 
+    almuerzo_real_h = 0.0
     if ini_alm and fin_alm and fin_alm > ini_alm:
         alm_ini_ov = max(ini_alm, inicio_regular)
         alm_fin_ov = min(fin_alm, fin_regular)
         if alm_fin_ov > alm_ini_ov:
-            horas_regulares -= (alm_fin_ov - alm_ini_ov).total_seconds() / 3600.0
+            almuerzo_real_h = (alm_fin_ov - alm_ini_ov).total_seconds() / 3600.0
+    horas_regulares -= max(almuerzo_pactado_h, almuerzo_real_h)
     horas_regulares = max(0.0, horas_regulares)
 
     horas_extra_bruto = max(0.0, (salida - turno_salida_dt).total_seconds() / 3600.0)
@@ -212,24 +229,24 @@ def resumen_horas_periodo(
         asigns_por_emp.setdefault(str(te.empleado_id), []).append((te, turno))
 
     def _info_turno_dia(emp_id: str, dia: date):
-        """(horas_req, dias_lab_set, turno_nombre, hora_entrada, hora_salida)
-        para el turno del empleado ese día — hora_entrada/hora_salida son
-        `time` (la hora de RELOJ pactada, no una duración) para que el
-        detalle diario pueda comparar "marcaste a las X" contra "tu turno
-        empieza a las Y". turno_nombre/horas=None cuando cae al defecto (sin
-        turno asignado)."""
+        """(horas_req, dias_lab_set, turno_nombre, hora_entrada, hora_salida,
+        duracion_almuerzo_minutos) para el turno del empleado ese día —
+        hora_entrada/hora_salida son `time` (la hora de RELOJ pactada, no una
+        duración) para que el detalle diario pueda comparar "marcaste a las
+        X" contra "tu turno empieza a las Y". turno_nombre/horas=None cuando
+        cae al defecto (sin turno asignado)."""
         for te, turno in asigns_por_emp.get(str(emp_id), []):
             if te.fecha_desde <= dia and (te.fecha_hasta is None or te.fecha_hasta >= dia):
+                almuerzo_min = turno.duracion_almuerzo_minutos or 0
                 req_min = max(
-                    _min_entre_horas(turno.hora_entrada, turno.hora_salida)
-                    - (turno.duracion_almuerzo_minutos or 0), 0
+                    _min_entre_horas(turno.hora_entrada, turno.hora_salida) - almuerzo_min, 0
                 )
                 return (
                     req_min / 60.0,
                     _parse_dias_lab(getattr(turno, "dias_laborales", None)),
-                    turno.nombre, turno.hora_entrada, turno.hora_salida,
+                    turno.nombre, turno.hora_entrada, turno.hora_salida, almuerzo_min,
                 )
-        return (META_HORAS_DIA, {0, 1, 2, 3, 4}, None, None, None)   # defecto L-V, 8h, sin turno
+        return (META_HORAS_DIA, {0, 1, 2, 3, 4}, None, None, None, 0)   # defecto L-V, 8h, sin turno
 
     regs_por_emp:  dict[str, list] = {}
     for reg in todos_registros:
@@ -325,7 +342,7 @@ def resumen_horas_periodo(
                 h = _horas_dia(regs_dia)
                 horas_feriado += h
             else:
-                req_h, dias_turno, turno_nombre, turno_hora_entrada, turno_hora_salida = _info_turno_dia(emp.id, dia)
+                req_h, dias_turno, turno_nombre, turno_hora_entrada, turno_hora_salida, almuerzo_min = _info_turno_dia(emp.id, dia)
                 if dia.weekday() not in dias_turno:
                     # Día fuera del turno del empleado (ej. sábado si su
                     # turno es L-V) — no cuenta para meta/falta/extra, igual
@@ -347,7 +364,7 @@ def resumen_horas_periodo(
                         # cuenta para nada; el sobretiempo es EXCLUSIVAMENTE
                         # tiempo trabajado después de turno_hora_salida.
                         h, extra_bruto_dia = _horas_dia_ancladas(
-                            regs_dia, dia, turno_hora_entrada, turno_hora_salida)
+                            regs_dia, dia, turno_hora_entrada, turno_hora_salida, almuerzo_min)
                         horas_reales += h
                         if h > 0:
                             dias_laborados += 1
@@ -389,18 +406,12 @@ def resumen_horas_periodo(
                     "alerta":               "marcacion_incompleta" if marcacion_incompleta else None,
                 })
 
-        # Horas extras aprobadas (permanencia_extra)
-        #
-        # NOTA (bug pre-existente, detectado 2026-07-08): `SolicitudLaboral`
-        # NO tiene columna `dias` (confirmado en el modelo Y en el esquema
-        # real de Postgres) — el endpoint que crea solicitudes de
-        # permanencia_extra tampoco la puebla nunca. `getattr(s, "dias", 0)`
-        # evita el AttributeError que esto causaría en cuanto hubiera una
-        # solicitud de permanencia_extra aprobada en el rango; el efecto
-        # práctico es que `horas_extra_aprobadas` siempre sale 0 hasta que se
-        # agregue una columna real de horas y se pueble al crear el trámite.
+        # Horas extras aprobadas (permanencia_extra) — columna real
+        # `horas_solicitadas` (FIX 2026-07-16, ver permisos.py:enviar_solicitud
+        # y el modelo SolicitudLaboral; antes no existía columna alguna y esto
+        # siempre salía en 0 con un getattr defensivo).
         perm_extra_h = float(sum(
-            getattr(s, "dias", 0) or 0 for s in solis if s.tipo == "permanencia_extra"
+            (s.horas_solicitadas or 0) for s in solis if s.tipo == "permanencia_extra"
         ))
         horas_total           = horas_reales + horas_justificadas
         horas_extra_aprobadas = round(min(horas_extra, perm_extra_h), 2)

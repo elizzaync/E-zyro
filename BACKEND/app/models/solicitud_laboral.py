@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, Boolean, DateTime, Date, Text, ForeignKey
+from sqlalchemy import Column, String, Boolean, DateTime, Date, Text, ForeignKey, Numeric
 from app.db.database import Base
 
 def generate_uuid():
@@ -17,6 +17,9 @@ class SolicitudLaboral(Base):
     descripcion      = Column(Text)
     fecha_inicio     = Column(Date)
     fecha_fin        = Column(Date)
+    # Horas pedidas (permanencia_extra/recuperación) — viene de `horas_calculadas`
+    # del formulario (permiso-form.component.ts), capturado en enviar_solicitud.
+    horas_solicitadas = Column(Numeric(6, 2), nullable=True)
     aprobado_por     = Column(String(36), nullable=True)
     fecha_aprobacion = Column(DateTime, nullable=True)
     observacion      = Column(String(500))

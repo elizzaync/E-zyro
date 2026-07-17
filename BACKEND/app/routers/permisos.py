@@ -298,6 +298,7 @@ async def enviar_solicitud(
     motivo:      Optional[str] = Form(None),
     lugar_destino: Optional[str] = Form(None),
     total_dias:  Optional[str] = Form(None),
+    horas_calculadas: Optional[str] = Form(None),
 
     current_user: dict    = Depends(verificar_token),
     db:           Session = Depends(get_db),
@@ -326,6 +327,16 @@ async def enviar_solicitud(
 
         fecha_inicio_dt = parse_date(fecha_inicio)
         fecha_fin_dt    = parse_date(fecha_fin)
+
+        def parse_decimal(s: Optional[str]):
+            if not s:
+                return None
+            try:
+                return round(float(s), 2)
+            except ValueError:
+                return None
+
+        horas_solicitadas_val = parse_decimal(horas_calculadas)
 
         # ── 3. Subir PDF a Cloudinary (resource_type raw)
         content_type = (pdf_file.content_type or "").split(";")[0].strip().lower()
@@ -364,6 +375,7 @@ async def enviar_solicitud(
             descripcion  = descripcion,
             fecha_inicio = fecha_inicio_dt,
             fecha_fin    = fecha_fin_dt,
+            horas_solicitadas = horas_solicitadas_val,
             url_pdf      = pdf_url,
             public_id_pdf= pdf_public_id,
         )

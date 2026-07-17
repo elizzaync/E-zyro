@@ -62,11 +62,17 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# CORS: allowlist por entorno (FACIAL_CORS_ORIGINS, separada por comas) con
+# fallback a localhost para uso local/dev. Se elimina el wildcard "*": este
+# servicio recibe imágenes biométricas y ya exige X-API-Key, por lo que no debe
+# aceptar peticiones cross-origin de cualquier dominio.
+_facial_cors = [o.strip() for o in os.environ.get("FACIAL_CORS_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Restringir en producción
+    allow_origins=_facial_cors or ["http://localhost", "http://127.0.0.1"],
+    allow_credentials=False,
     allow_methods=["POST"],
-    allow_headers=["*"],
+    allow_headers=["X-API-Key", "Content-Type"],
 )
 
 

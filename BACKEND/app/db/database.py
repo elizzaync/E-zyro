@@ -2,7 +2,14 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
-# Railway inyecta la variable DATABASE_URL automáticamente
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Carga explícita del .env desde la raíz de BACKEND (en Railway la variable
+# venía inyectada por el entorno; en local vive en el .env).
+_env_path = Path(__file__).resolve().parents[2] / ".env"
+load_dotenv(dotenv_path=_env_path)
+
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not SQLALCHEMY_DATABASE_URL:

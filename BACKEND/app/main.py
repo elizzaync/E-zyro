@@ -33,6 +33,7 @@ from app.routers import prestamo        as prestamo_router
 from app.routers import catalogos       as catalogos_router
 from app.routers import galeria         as galeria_router
 from app.routers import documentos_sst  as documentos_sst_router
+from app.routers import formatos        as formatos_router
 from app.routers import epp             as epp_router
 from app.routers import calibraciones   as calibraciones_router
 from app.routers import correctivos     as correctivos_router
@@ -188,6 +189,8 @@ from app.models import (  # noqa: F401
     configuracion_contable,
     # Repositorio de documentos de cumplimiento / SST (homologaciones, ATS, PETAR)
     documento_sst,
+    # Biblioteca de Formatos (PDF normados, versionado inmutable)
+    formato_documento,
     # Ciclo comercial: cotización → aceptación → proyecto
     cotizacion as cotizacion_model,
     # Facturación electrónica (CPE) — feature opcional por empresa
@@ -946,6 +949,17 @@ def _pre_create_migrations():
             "ON log_sistema (nivel, fecha)"
         ))
 
+        # ── Horas solicitadas en SolicitudLaboral (2026-07-16) ─────────────────
+        # El frontend YA calcula y envía `horas_calculadas` (permiso-form.
+        # component.ts) para permanencia_extra/recuperación, pero el endpoint
+        # /permisos/enviar-solicitud nunca lo capturaba en una columna
+        # estructurada — el reporte de Horas Extra y el motor de planilla
+        # (planilla_asistencia_service._info_turno_dia... horas_extra_aprobadas)
+        # no tenían de dónde leer la duración real aprobada.
+        conn.execute(text(
+            "ALTER TABLE solicitud_laboral ADD COLUMN IF NOT EXISTS horas_solicitadas NUMERIC(6,2)"
+        ))
+
         conn.commit()
 
 
@@ -987,6 +1001,12 @@ def _run_migrations():
         # ── Soporte interno de TI (tickets) ──────────────────────────────────
         sembrar_permisos(conn, "soporte", ["ver", "gestionar"],
                          descripcion_base="Soporte TI:")
+        # ── Biblioteca de Formatos (PDF normados, versionado inmutable) ──────
+        #   `gestionar` = crear formatos y publicar nuevas versiones. Ver y
+        #   descargar es libre para todo usuario interno (los técnicos usan
+        #   ATS/PETAR en campo); no existe acción eliminar por diseño.
+        sembrar_permisos(conn, "formatos", ["gestionar"],
+                         descripcion_base="Biblioteca de formatos:")
         # ── Asistencia: control diario + configuración de turnos/excepciones ──
         #   `configurar` habilita crear turnos y asignar excepciones de horario.
         sembrar_permisos(conn, "asistencia", ["ver", "validar", "registrar", "configurar"],
@@ -2162,6 +2182,7 @@ else:
             r"|https://([a-z0-9-]+\.)*up\.railway\.app"
             r"|http://localhost(:\d+)?"
             r"|http://127\.0\.0\.1(:\d+)?"
+            r"|https://([a-z0-9-]+\.)*devtunnels\.ms"
             r"|capacitor://localhost"
             r"|ionic://localhost)$"
         ),
@@ -2229,10 +2250,26 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains; preload"
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; frame-ancestors 'none'; "
-            "base-uri 'self'; form-action 'self'; object-src 'none'"
-        )
+        if request.url.path.startswith(("/docs", "/redoc")):
+            # Swagger UI / ReDoc cargan su bundle CSS/JS desde jsdelivr (no se
+            # empaquetan localmente) y el favicon de FastAPI. CSP relajada solo
+            # para estas dos rutas de documentación; el resto de la API mantiene
+            # la política estricta de abajo.
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; frame-ancestors 'none'; base-uri 'self'; "
+                "form-action 'self'; object-src 'none'; "
+                "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net fonts.googleapis.com; "
+                "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+                "img-src 'self' data: fastapi.tiangolo.com cdn.jsdelivr.net; "
+                "font-src 'self' fonts.gstatic.com data:; "
+                "connect-src 'self'"
+            )
+            response.headers["Cache-Control"] = "no-store"
+        else:
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; frame-ancestors 'none'; "
+                "base-uri 'self'; form-action 'self'; object-src 'none'"
+            )
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         return response
 
@@ -2348,6 +2385,7 @@ app.include_router(prestamo_router.router)
 app.include_router(catalogos_router.router)
 app.include_router(galeria_router.router)
 app.include_router(documentos_sst_router.router)
+app.include_router(formatos_router.router)
 app.include_router(epp_router.router)
 app.include_router(calibraciones_router.router)
 app.include_router(calibraciones_router.router_estado)

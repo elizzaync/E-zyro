@@ -1104,7 +1104,11 @@ def _xlsx_stream(titulo: str, encabezados: list[str], filas: list[list]) -> io.B
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = titulo[:31]
+    # Excel prohíbe \ / * ? : [ ] en el nombre de pestaña — los títulos traen
+    # fechas "DD/MM/YYYY", así que se sanitiza SOLO el nombre de pestaña
+    # (el título mostrado dentro de la hoja, más abajo, conserva las barras).
+    nombre_hoja = _re.sub(r'[\\/*?:\[\]]', '-', titulo)[:31]
+    ws.title = nombre_hoja or "Reporte"
 
     # Título
     ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(encabezados))
@@ -2259,7 +2263,9 @@ def reporte_individual(
 
 
 # ── Reporte Horas Extra ───────────────────────────────────────────────────────
-# Basado en solicitudes de permanencia_extra APROBADAS con >= 1 hora (campo dias).
+# Basado en solicitudes de permanencia_extra APROBADAS con >= 1 hora
+# (columna horas_solicitadas, capturada desde `horas_calculadas` del
+# formulario — ver permiso-form.component.ts y permisos.py:enviar_solicitud).
 
 @router.get("/rrhh/asistencia/reportes/horas-extra")
 def reporte_horas_extra(
@@ -2284,7 +2290,8 @@ def reporte_horas_extra(
             SolicitudLaboral.empresa_id    == empresa_id,
             SolicitudLaboral.tipo          == "permanencia_extra",
             SolicitudLaboral.estado        == "aprobada",
-            SolicitudLaboral.dias          >= 1,
+            SolicitudLaboral.horas_solicitadas.isnot(None),
+            SolicitudLaboral.horas_solicitadas >= 1,
             SolicitudLaboral.fecha_inicio  >= inicio,
             SolicitudLaboral.fecha_inicio  <= fin,
         )
@@ -2300,7 +2307,7 @@ def reporte_horas_extra(
             emp.cargo or "",
             emp.area  or "",
             sol.fecha_inicio.strftime("%d/%m/%Y"),
-            sol.dias,
+            float(sol.horas_solicitadas),
             str(sol.id)[:8].upper(),
             sol.estado.capitalize(),
         ]
