@@ -1,3 +1,10 @@
+import sys
+if sys.platform == "win32":
+    # ponytail: consola Windows usa cp1252 por defecto y no puede imprimir emojis (ej. scheduler_service);
+    # forzar utf-8 evita UnicodeEncodeError al arrancar uvicorn local sin PYTHONUTF8 seteado a mano.
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -68,6 +75,8 @@ from app.routers import tributario          as tributario_router
 from app.routers import activos_fijos        as activos_fijos_router
 from app.routers import planilla             as planilla_router
 from app.routers import reportes_financieros as reportes_financieros_router
+from app.routers import reportes_operativos  as reportes_operativos_router
+from app.routers import programacion_campo   as programacion_campo_router
 from app.routers import eventos_contables    as eventos_contables_router
 from app.routers import caja_chica           as caja_chica_router
 from app.routers import conciliacion_bancaria as conciliacion_bancaria_router
@@ -457,6 +466,24 @@ def _pre_create_migrations():
             )
         """))
         conn.execute(text("CREATE INDEX IF NOT EXISTS ix_ei_mant_eq ON equipo_intervenido_mantenimiento (empresa_id, equipo_intervenido_id, fecha)"))
+
+        # ── Directorio de circuitos de tablero (equipo_intervenido). FK uuid → aquí ─
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS tablero_circuito (
+                id                    uuid PRIMARY KEY,
+                empresa_id            uuid NOT NULL REFERENCES empresa(id),
+                equipo_intervenido_id uuid NOT NULL REFERENCES equipo_intervenido(id) ON DELETE CASCADE,
+                circuito              VARCHAR(200) NOT NULL,
+                tipo_circuito         VARCHAR(10) NOT NULL DEFAULT 'ITM',
+                capacidad_itm         VARCHAR(50),
+                descripcion           VARCHAR(300),
+                orden                 INTEGER NOT NULL DEFAULT 1,
+                created_at            TIMESTAMP NOT NULL DEFAULT now(),
+                updated_at            TIMESTAMP,
+                CONSTRAINT chk_tablero_circuito_tipo CHECK (tipo_circuito IN ('IG','ID','ITM'))
+            )
+        """))
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_tablero_circuito_eq ON tablero_circuito (empresa_id, equipo_intervenido_id, orden)"))
 
         # ── RR.HH. · Vacaciones por ley (Punto 3.3). FKs uuid → aquí ─────────
         conn.execute(text("""
@@ -2421,6 +2448,8 @@ app.include_router(tributario_router.router)
 app.include_router(activos_fijos_router.router)
 app.include_router(planilla_router.router)
 app.include_router(reportes_financieros_router.router)
+app.include_router(reportes_operativos_router.router)
+app.include_router(programacion_campo_router.router)
 app.include_router(eventos_contables_router.router)
 app.include_router(caja_chica_router.router)
 app.include_router(conciliacion_bancaria_router.router)

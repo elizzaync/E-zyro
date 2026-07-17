@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import os
+<<<<<<< HEAD
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -10,6 +11,14 @@ from dotenv import load_dotenv
 _env_path = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(dotenv_path=_env_path)
 
+=======
+from dotenv import load_dotenv
+
+# En producción (Railway/Contabo) la variable viene del entorno; en local se
+# lee del .env. Este módulo se importa ANTES que security/config_cloudinary
+# (que también llaman load_dotenv), así que la carga debe vivir aquí.
+load_dotenv()
+>>>>>>> adc3434076814c2f56d61b035346fea81a09fd41
 SQLALCHEMY_DATABASE_URL = os.getenv("DATABASE_URL")
 
 if not SQLALCHEMY_DATABASE_URL:

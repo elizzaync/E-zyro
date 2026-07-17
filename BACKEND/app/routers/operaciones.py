@@ -4,6 +4,7 @@ Gestión completa del módulo de Operaciones / Detalle de Servicio.
 """
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import logging
@@ -12,6 +13,7 @@ import unicodedata
 import uuid as _uuid
 import zipfile
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,7 @@ from ..core.audit_context import set_justificacion
 from ..core.tz import fmt_lima
 from ..db.database import get_db
 import requests as _requests
-from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary, subir_bytes_raw_cloudinary
+from ..services.cloudinary_service import subir_archivo_cloudinary, subir_pdf_bytes_cloudinary, subir_bytes_raw_cloudinary, registrar_recurso
 
 # Modelos ORM
 from ..models.proyecto_servicio import ProyectoServicio
@@ -2440,8 +2442,111 @@ def get_checklist_equipo(
 
 
 # ── POST /operaciones/paso/{paso_id}/evidencia ────────────────────────────────
+# y  POST /operaciones/sync/mantenimientos (lote offline) ────────────────────
 
 _ETAPAS_MANT_VALIDAS = {"antes", "durante", "despues"}
+
+
+def _parse_taken_at(taken_at: str | None) -> datetime:
+    """Fecha en que se tomo la foto en el dispositivo (no la de llegada al
+    servidor) — mismo criterio que ya usa /asistencia para 'timestamp'."""
+    servidor = datetime.now(ZoneInfo("America/Lima")).replace(tzinfo=None)
+    if not taken_at:
+        return servidor
+    try:
+        ts_raw = datetime.fromisoformat(taken_at.replace("Z", "+00:00"))
+        if ts_raw.tzinfo:
+            return ts_raw.astimezone(ZoneInfo("America/Lima")).replace(tzinfo=None)
+        return ts_raw
+    except (ValueError, AttributeError):
+        return servidor
+
+
+def _guardar_evidencia_mantenimiento(
+    db: Session, empresa_id: str, usuario_id: str,
+    paso: PasoMantenimiento, equipo: Equipo,
+    etapa: str, url: str, fecha_captura: datetime,
+) -> dict:
+    """Persiste una evidencia ya subida a Cloudinary: crea/reusa la
+    OrdenMantenimiento activa del equipo, reemplaza la evidencia previa de la
+    misma etapa y actualiza el estado del paso/equipo. No hace commit (lo hace
+    el caller) para que un item fallido en un lote no arrastre a los demas."""
+    paso_id = str(paso.id)
+
+    # Empleado opcional: si el usuario es admin sin empleado, dejamos None.
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+
+    # Buscar/crear OrdenMantenimiento activa para este equipo
+    orden = (
+        db.query(OrdenMantenimiento)
+        .filter(
+            OrdenMantenimiento.equipo_id  == equipo.id,
+            OrdenMantenimiento.empresa_id == empresa_id,
+            OrdenMantenimiento.estado.in_(["pendiente", "en_proceso"]),
+        )
+        .order_by(OrdenMantenimiento.created_at.desc())
+        .first()
+    )
+    if not orden:
+        orden = OrdenMantenimiento(
+            id           = str(_uuid.uuid4()),
+            equipo_id    = equipo.id,
+            empresa_id   = empresa_id,
+            tecnico_id   = empleado.id if empleado else None,
+            tipo         = "preventivo",
+            estado       = "en_proceso",
+            fecha        = date.today(),
+            fecha_inicio = datetime.utcnow(),
+        )
+        db.add(orden)
+        db.flush()
+    elif orden.estado == "pendiente":
+        orden.estado       = "en_proceso"
+        orden.fecha_inicio = orden.fecha_inicio or datetime.utcnow()
+
+    pub_id = _extract_public_id(url)
+
+    # Sobre-escribir evidencia anterior de la misma etapa (si existe) — política simple
+    db.query(EvidenciaMantenimiento).filter(
+        EvidenciaMantenimiento.paso_id    == paso_id,
+        EvidenciaMantenimiento.empresa_id == empresa_id,
+        EvidenciaMantenimiento.etapa      == etapa,
+    ).delete(synchronize_session=False)
+
+    ev = EvidenciaMantenimiento(
+        id                   = str(_uuid.uuid4()),
+        orden_id             = orden.id,
+        empresa_id           = empresa_id,
+        paso_id              = paso_id,
+        etapa                = etapa,
+        url_cloudinary       = url,
+        public_id_cloudinary = pub_id,
+        fecha_captura        = fecha_captura,
+    )
+    db.add(ev)
+
+    # Si el paso ya tiene al menos una evidencia, lo marcamos en_proceso;
+    # cuando tiene las 3 etapas, completado.
+    etapas_existentes = {etapa}
+    etapas_existentes.update({
+        e.etapa for e in db.query(EvidenciaMantenimiento)
+        .filter(EvidenciaMantenimiento.paso_id == paso_id)
+        .all()
+    })
+    if _ETAPAS_MANT_VALIDAS.issubset(etapas_existentes):
+        paso.estado = "completado"
+    elif paso.estado == "pendiente":
+        paso.estado = "en_proceso"
+    paso.updated_at = datetime.utcnow()
+
+    # Estado del equipo
+    if equipo.estado == "operativo":
+        equipo.estado = "en_mantenimiento"
+
+    return {"url": url, "etapa": etapa, "paso_id": paso_id, "paso_estado": paso.estado}
 
 
 @router.post("/paso/{paso_id}/evidencia", status_code=status.HTTP_201_CREATED)
@@ -2479,93 +2584,90 @@ async def subir_evidencia_paso(
     if not equipo:
         raise HTTPException(status_code=404, detail="Equipo no encontrado")
 
-    # Empleado opcional: si el usuario es admin sin empleado, dejamos None.
-    empleado = db.query(Empleado).filter(
-        Empleado.usuario_id == usuario_id,
-        Empleado.empresa_id == empresa_id,
-    ).first()
-
-    # Buscar/crear OrdenMantenimiento activa para este equipo
-    orden = (
-        db.query(OrdenMantenimiento)
-        .filter(
-            OrdenMantenimiento.equipo_id  == equipo.id,
-            OrdenMantenimiento.empresa_id == empresa_id,
-            OrdenMantenimiento.estado.in_(["pendiente", "en_proceso"]),
-        )
-        .order_by(OrdenMantenimiento.created_at.desc())
-        .first()
-    )
-    if not orden:
-        orden = OrdenMantenimiento(
-            id           = str(_uuid.uuid4()),
-            equipo_id    = equipo.id,
-            empresa_id   = empresa_id,
-            tecnico_id   = empleado.id if empleado else None,
-            tipo         = "preventivo",
-            estado       = "en_proceso",
-            fecha        = date.today(),
-            fecha_inicio = datetime.utcnow(),
-        )
-        db.add(orden)
-        db.flush()
-    elif orden.estado == "pendiente":
-        orden.estado       = "en_proceso"
-        orden.fecha_inicio = orden.fecha_inicio or datetime.utcnow()
-
-    # Subir a Cloudinary
     folder = f"e_zyro/{empresa_id}/mantenimiento/{equipo.id}"
     try:
         url = await subir_archivo_cloudinary(foto, folder)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Error subiendo a Cloudinary: {exc}")
-    pub_id = _extract_public_id(url)
 
-    # Sobre-escribir evidencia anterior de la misma etapa (si existe) — política simple
-    db.query(EvidenciaMantenimiento).filter(
-        EvidenciaMantenimiento.paso_id    == paso_id,
-        EvidenciaMantenimiento.empresa_id == empresa_id,
-        EvidenciaMantenimiento.etapa      == etapa,
-    ).delete(synchronize_session=False)
-
-    ev = EvidenciaMantenimiento(
-        id                   = str(_uuid.uuid4()),
-        orden_id             = orden.id,
-        empresa_id           = empresa_id,
-        paso_id              = paso_id,
-        etapa                = etapa,
-        url_cloudinary       = url,
-        public_id_cloudinary = pub_id,
+    resultado = _guardar_evidencia_mantenimiento(
+        db, empresa_id, usuario_id, paso, equipo, etapa, url,
+        fecha_captura=_parse_taken_at(taken_at),
     )
-    db.add(ev)
-
-    # Si el paso ya tiene al menos una evidencia, lo marcamos en_proceso;
-    # cuando tiene las 3 etapas, completado.
-    etapas_existentes = {etapa}
-    etapas_existentes.update({
-        e.etapa for e in db.query(EvidenciaMantenimiento)
-        .filter(EvidenciaMantenimiento.paso_id == paso_id)
-        .all()
-    })
-    if _ETAPAS_MANT_VALIDAS.issubset(etapas_existentes):
-        paso.estado = "completado"
-    elif paso.estado == "pendiente":
-        paso.estado = "en_proceso"
-    paso.updated_at = datetime.utcnow()
-
-    # Estado del equipo
-    if equipo.estado == "operativo":
-        equipo.estado = "en_mantenimiento"
-
     db.commit()
+    return {"ok": True, **resultado}
 
-    return {
-        "ok": True,
-        "url": url,
-        "etapa": etapa,
-        "paso_id": paso_id,
-        "paso_estado": paso.estado,
-    }
+
+@router.post("/sync/mantenimientos")
+async def sync_mantenimientos(
+    fotos:     List[UploadFile] = File(...),
+    metadatos: str              = Form(...),
+    payload:   dict             = Depends(verificar_token),
+    db:        Session          = Depends(get_db),
+):
+    """Sincroniza en lote evidencias de mantenimiento capturadas offline.
+
+    `metadatos` es un JSON array alineado por indice con `fotos`, cada item:
+    {"id","paso_id","tipo","lat","lng","taken_at"} — "id" es el id local que
+    el cliente usa para saber cual desencolar. Cada item se resuelve
+    independiente (no todo-o-nada): un item invalido no tumba a los demas.
+    Sube todas las fotos a Cloudinary en paralelo (la parte lenta es la red
+    externa); la escritura en BD queda secuencial porque una Session de
+    SQLAlchemy no es segura para usarse concurrentemente."""
+    try:
+        items = json.loads(metadatos)
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=422, detail="metadatos no es JSON valido")
+    if not isinstance(items, list) or len(items) != len(fotos):
+        raise HTTPException(status_code=422, detail="fotos y metadatos deben tener la misma longitud")
+
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    async def _subir(foto: UploadFile, item: dict):
+        client_id = item.get("id")
+        etapa = (item.get("tipo") or "").strip().lower()
+        if etapa not in _ETAPAS_MANT_VALIDAS:
+            return client_id, None, None, f"tipo invalido: {item.get('tipo')}"
+        paso = db.query(PasoMantenimiento).filter(
+            PasoMantenimiento.id         == item.get("paso_id"),
+            PasoMantenimiento.empresa_id == empresa_id,
+        ).first()
+        if not paso:
+            return client_id, None, None, "paso no encontrado"
+        equipo = db.query(Equipo).filter(
+            Equipo.id         == paso.equipo_id,
+            Equipo.empresa_id == empresa_id,
+        ).first()
+        if not equipo:
+            return client_id, None, None, "equipo no encontrado"
+        folder = f"e_zyro/{empresa_id}/mantenimiento/{equipo.id}"
+        try:
+            url = await subir_archivo_cloudinary(foto, folder)
+        except Exception as exc:
+            return client_id, None, None, f"error subiendo a Cloudinary: {exc}"
+        return client_id, paso, equipo, (etapa, url, item.get("taken_at"))
+
+    subidas = await asyncio.gather(*[_subir(f, it) for f, it in zip(fotos, items)])
+
+    resultados = []
+    for client_id, paso, equipo, info in subidas:
+        if paso is None:
+            resultados.append({"id": client_id, "ok": False, "error": info})
+            continue
+        etapa, url, taken_at = info
+        try:
+            r = _guardar_evidencia_mantenimiento(
+                db, empresa_id, usuario_id, paso, equipo, etapa, url,
+                fecha_captura=_parse_taken_at(taken_at),
+            )
+            db.commit()
+            resultados.append({"id": client_id, "ok": True, **r})
+        except Exception as exc:
+            db.rollback()
+            resultados.append({"id": client_id, "ok": False, "error": str(exc)})
+
+    return {"resultados": resultados}
 
 
 # ── PATCH /operaciones/equipo/{id}/mantenimiento ──────────────────────────────
@@ -3353,6 +3455,64 @@ def validar_horario_tecnico(
             "estado":          conflicto.estado,
         },
     }
+
+
+# ── GET /operaciones/mis-proyectos/historial ──────────────────────────────────
+# HU-45: Historial de Participación — proyectos cerrados donde el empleado
+# logueado fue miembro. El "disparador" que audita el cierre ya existe (motor
+# de auditoría global en core/audit_listener.py, que captura cualquier UPDATE
+# de Proyecto.estado automáticamente); acá solo falta exponer la lectura.
+
+@router.get("/mis-proyectos/historial")
+def historial_proyectos_empleado(
+    payload: dict    = Depends(verificar_token),
+    db:      Session = Depends(get_db),
+):
+    """Proyectos ya 'Completado' donde el usuario logueado participó
+    (proyecto_miembro), mas reciente primero. Base de la pantalla Historial
+    de Proyectos del perfil del trabajador."""
+    empresa_id = payload["empresa_id"]
+    usuario_id = payload["id"]
+
+    empleado = db.query(Empleado).filter(
+        Empleado.usuario_id == usuario_id,
+        Empleado.empresa_id == empresa_id,
+    ).first()
+    if not empleado:
+        return []
+
+    filas = (
+        db.query(ProyectoMiembro, Proyecto)
+        .join(Proyecto, Proyecto.id == ProyectoMiembro.proyecto_id)
+        .filter(
+            ProyectoMiembro.empleado_id == empleado.id,
+            Proyecto.empresa_id         == empresa_id,
+            Proyecto.estado             == "Completado",
+        )
+        .order_by(Proyecto.fecha_fin_real.desc().nullslast(), Proyecto.updated_at.desc())
+        .all()
+    )
+
+    cliente_ids = {p.cliente_id for _, p in filas if p.cliente_id}
+    clientes_map: dict[str, str] = {}
+    if cliente_ids:
+        clientes_map = {
+            str(c.id): c.razon_social
+            for c in db.query(Cliente).filter(Cliente.id.in_(cliente_ids)).all()
+        }
+
+    return [
+        {
+            "proyecto_id": str(p.id),
+            "nombre_proyecto": p.nombre_proyecto,
+            "orden_trabajo": p.orden_trabajo,
+            "cliente": clientes_map.get(str(p.cliente_id), ""),
+            "rol_proyecto": m.rol_proyecto,
+            "fecha_inicio": p.fecha_inicio.isoformat() if p.fecha_inicio else None,
+            "fecha_fin_real": p.fecha_fin_real.isoformat() if p.fecha_fin_real else None,
+        }
+        for m, p in filas
+    ]
 
 
 # ── GET /operaciones/proyecto/{proyecto_id} ───────────────────────────────────
@@ -4284,6 +4444,8 @@ def _resultado_inicial(plantilla: list[dict]) -> list[dict]:
             "completado":    False,
             "foto_url":      None,
             "foto_public_id": None,
+            "observacion":   None,
+            "recomendacion": None,
         }
         for item in plantilla
     ]
@@ -4789,6 +4951,7 @@ def get_inspeccion_activa(
                 "orden": item["orden"], "nombre": item["nombre"],
                 "descripcion": item.get("descripcion", ""),
                 "completado": False, "foto_url": None, "foto_public_id": None,
+                "observacion": None, "recomendacion": None,
             })
     resultado.sort(key=lambda x: x["orden"])
 
@@ -4968,6 +5131,10 @@ def guardar_inspeccion(
         if upd:
             paso["completado"] = bool(upd.get("completado", False))
             # No sobreescribir foto_url desde aquí — eso lo hace /foto/{orden}
+            if "observacion" in upd:
+                paso["observacion"] = (upd.get("observacion") or "").strip() or None
+            if "recomendacion" in upd:
+                paso["recomendacion"] = (upd.get("recomendacion") or "").strip() or None
 
     from sqlalchemy import text as _text
     db.execute(
@@ -5014,6 +5181,10 @@ def finalizar_inspeccion(
         upd = nuevo_estado.get(paso["orden"])
         if upd:
             paso["completado"] = bool(upd.get("completado", False))
+            if "observacion" in upd:
+                paso["observacion"] = (upd.get("observacion") or "").strip() or None
+            if "recomendacion" in upd:
+                paso["recomendacion"] = (upd.get("recomendacion") or "").strip() or None
 
     proxima_str = body.get("proxima_fecha_mantenimiento")
     proxima_fecha = None
@@ -5624,6 +5795,18 @@ def generar_informe_general(
             garantia_id=(str(gar.id) if gar else None),
         ))
         db.commit()
+        # Indexar en Galería Global por cada equipo, para "Ver Antecedente".
+        for eq_id in ei_ids:
+            try:
+                registrar_recurso(
+                    db, empresa_id=empresa_id, public_id=f"{pid}.docx", secure_url=url,
+                    folder=f"e-zyro/{empresa_id}/informes-internos/{servicio_id}", recurso_tipo="raw",
+                    entidad_tipo="informe_general", entidad_id=eq_id,
+                    descripcion=f"Informe general — {ps.nombre}",
+                    creado_por_id=usuario_id,
+                )
+            except Exception as exc_idx:
+                logger.warning("[informe-general] No se pudo indexar en la galería (equipo %s): %s", eq_id, exc_idx)
     except Exception as exc_db:
         db.rollback()
         logger.warning("[informe-general] No se pudo persistir el informe interno: %s", exc_db)
@@ -5777,6 +5960,18 @@ def generar_carta_garantia(
             url = subir_bytes_raw_cloudinary(docx_bytes, pid, ext="docx")
             registro.documento_pdf_url = url
             db.commit()
+            # Indexar en Galería Global por cada equipo, para "Ver Antecedente".
+            for eq_id in equipo_ids_list:
+                try:
+                    registrar_recurso(
+                        db, empresa_id=empresa_id, public_id=f"{pid}.docx", secure_url=url,
+                        folder=f"e-zyro/{empresa_id}/garantias", recurso_tipo="raw",
+                        entidad_tipo="carta_garantia", entidad_id=eq_id,
+                        descripcion=f"Carta de Garantía — {lugar or razon_social}",
+                        creado_por_id=payload.get("id"),
+                    )
+                except Exception as exc_idx:
+                    logger.warning("[carta-garantia] No se pudo indexar en la galería (equipo %s): %s", eq_id, exc_idx)
         except Exception as exc_up:
             db.rollback()
             logger.warning("[carta-garantia] No se pudo subir el documento: %s", exc_up)
@@ -5866,6 +6061,20 @@ def generar_certificado_pozo(
         logger.exception("[cert-pozo] Error generando PDF: %s", exc)
         raise HTTPException(status_code=500, detail=f"Error generando el certificado: {exc}")
 
+    # Indexar en Galería Global para "Ver Antecedente" del equipo (no bloqueante).
+    try:
+        pid = f"e-zyro/{empresa_id}/certificados/pozo/{ei_id}/{_uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/certificados/pozo", recurso_tipo="pdf",
+            entidad_tipo="certificado_pozo", entidad_id=ei_id,
+            descripcion=f"Protocolo de Pozo a Tierra — {nombre_pozo or numero_pozo}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[cert-pozo] No se pudo indexar el certificado en la galería: %s", exc_idx)
+
     filename = f"PROTOCOLO_POZO_{re.sub(r'[^A-Za-z0-9]', '_', nombre_pozo or numero_pozo or 'XX')}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
@@ -5945,8 +6154,203 @@ def generar_certificado_operatividad(
         logger.exception("[cert-operatividad] Error generando PDF: %s", exc)
         raise HTTPException(status_code=500, detail=f"Error generando el certificado: {exc}")
 
+    # Indexar en Galería Global para "Ver Antecedente" del equipo (no bloqueante).
+    try:
+        pid = f"e-zyro/{empresa_id}/certificados/operatividad/{ei_id}/{_uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/certificados/operatividad", recurso_tipo="pdf",
+            entidad_tipo="certificado_operatividad", entidad_id=ei_id,
+            descripcion=f"Certificado de Operatividad — {nombre_tablero}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[cert-operatividad] No se pudo indexar el certificado en la galería: %s", exc_idx)
+
     safe = re.sub(r"[^A-Za-z0-9]", "_", nombre_tablero or "TABLERO")
     filename = f"CERT_OPERATIVIDAD_{safe}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/certificado/resistencia ───
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/certificado/resistencia")
+def generar_protocolo_resistencia(
+    servicio_id: str,
+    ei_id:       str,
+    body:        dict            = Body(default={}),
+    payload:     dict            = Depends(verificar_token),
+    db:          Session         = Depends(get_db),
+):
+    """
+    Genera el Protocolo de Medición de Resistencia (pozo a tierra), con datos
+    del instrumento de medición y 3 firmas. Requiere inspección completada.
+    """
+    from ..services.pdf_docs import generar_protocolo_resistencia as _gen_resistencia
+
+    empresa_id = payload["empresa_id"]
+    body = body or {}
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail=f"Equipo intervenido no encontrado (ei_id={ei_id})")
+    if ei.estado_intervencion != "completado":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"El protocolo solo puede generarse cuando la inspección esté completada al 100%. "
+                f"Estado actual: '{ei.estado_intervencion}'."
+            ),
+        )
+
+    from ..models.empresa import Empresa
+    empresa_nombre = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+    data = {
+        "empresa":                 empresa_nombre,
+        "numero_pozo":             str(body.get("numero_pozo", ei.nombre or "") or ""),
+        "ubicacion":               str(body.get("ubicacion", ei.ubicacion_referencia or "") or ""),
+        "plano_referencia":        str(body.get("plano_referencia", "") or ""),
+        "fecha":                   str(body.get("fecha", "") or ""),
+        "marca":                   str(body.get("marca", "") or ""),
+        "modelo":                  str(body.get("modelo", "") or ""),
+        "numero_serie":            str(body.get("numero_serie", "") or ""),
+        "certificado_calibracion": str(body.get("certificado_calibracion", "") or ""),
+        "rango_medicion":          str(body.get("rango_medicion", "") or ""),
+        "dimension_pozo":          str(body.get("dimension_pozo", "") or ""),
+        "tipo_varilla":            str(body.get("tipo_varilla", "") or ""),
+        "tipo_tierra":             str(body.get("tipo_tierra", "") or ""),
+        "hora_medicion":           str(body.get("hora_medicion", "") or ""),
+        "medicion_inicial":        str(body.get("medicion_inicial", "") or ""),
+        "medicion_final":          str(body.get("medicion_final", "") or ""),
+        "observaciones":           str(body.get("observaciones", "") or ""),
+        "conclusion":              str(body.get("conclusion", "") or ""),
+        "evidencia_grafica":       body.get("evidencia_grafica"),
+        "evidencia_grafica_2":     body.get("evidencia_grafica_2"),
+        "firma_ejecucion":         body.get("firma_ejecucion"),
+        "firma_supervisor":        body.get("firma_supervisor"),
+        "firma_especialista":      body.get("firma_especialista"),
+    }
+
+    try:
+        pdf_bytes = _gen_resistencia(data)
+    except Exception as exc:
+        logger.exception("[protocolo-resistencia] Error generando PDF: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Error generando el protocolo: {exc}")
+
+    try:
+        pid = f"e-zyro/{empresa_id}/protocolos/resistencia/{ei_id}/{_uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/protocolos/resistencia", recurso_tipo="pdf",
+            entidad_tipo="protocolo_resistencia", entidad_id=ei_id,
+            descripcion=f"Protocolo de Resistencia — {data['numero_pozo']}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[protocolo-resistencia] No se pudo indexar en la galería: %s", exc_idx)
+
+    safe = re.sub(r"[^A-Za-z0-9]", "_", data["numero_pozo"] or "POZO")
+    filename = f"PROTOCOLO_RESISTENCIA_{safe}.pdf"
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
+    )
+
+
+# ── POST /servicio/{id}/equipos-intervenidos/{eiId}/certificado/termografico ──
+
+@router.post("/servicio/{servicio_id}/equipos-intervenidos/{ei_id}/certificado/termografico")
+def generar_informe_termografico(
+    servicio_id: str,
+    ei_id:       str,
+    body:        dict            = Body(default={}),
+    payload:     dict            = Depends(verificar_token),
+    db:          Session         = Depends(get_db),
+):
+    """
+    Genera el Informe Termográfico (multi-ítem: un hallazgo por punto caliente
+    detectado, cada uno con foto normal + foto térmica). Requiere inspección
+    completada.
+    """
+    from ..services.pdf_docs import generar_informe_termografico as _gen_termo
+
+    empresa_id = payload["empresa_id"]
+    body = body or {}
+
+    ei = db.query(EquipoIntervenido).filter(
+        EquipoIntervenido.id         == ei_id,
+        EquipoIntervenido.empresa_id == empresa_id,
+    ).first()
+    if not ei:
+        raise HTTPException(status_code=404, detail=f"Equipo intervenido no encontrado (ei_id={ei_id})")
+    if ei.estado_intervencion != "completado":
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"El informe solo puede generarse cuando la inspección esté completada al 100%. "
+                f"Estado actual: '{ei.estado_intervencion}'."
+            ),
+        )
+
+    from ..models.empresa import Empresa
+    empresa_nombre = db.query(Empresa.razon_social).filter(Empresa.id == empresa_id).scalar() or ""
+    items = body.get("items", []) or []
+    data = {
+        "empresa":       empresa_nombre,
+        "area":          str(body.get("area", "") or ""),
+        "nombre_tablero": str(body.get("nombre_tablero", ei.nombre or "") or ""),
+        "equipo":        str(body.get("equipo", "") or ""),
+        "items": [
+            {
+                "elemento":         it.get("elemento"),
+                "actividad":        it.get("actividad"),
+                "fecha":            it.get("fecha"),
+                "temp_obj":         it.get("temp_obj"),
+                "tem_reflejada":    it.get("tem_reflejada"),
+                "temp_aire":        it.get("temp_aire"),
+                "escala_temperatura": it.get("escala_temperatura"),
+                "cielo":            it.get("cielo"),
+                "vel_viento":       it.get("vel_viento"),
+                "distancia":        it.get("distancia"),
+                "pct_carga":        it.get("pct_carga"),
+                "img_termografica": it.get("img_termografica"),
+                "img_tablero":      it.get("img_tablero"),
+            }
+            for it in items
+        ],
+    }
+
+    try:
+        pdf_bytes = _gen_termo(data)
+    except Exception as exc:
+        logger.exception("[informe-termografico] Error generando PDF: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Error generando el informe: {exc}")
+
+    try:
+        pid = f"e-zyro/{empresa_id}/informes/termografico/{ei_id}/{_uuid.uuid4()}"
+        url = subir_pdf_bytes_cloudinary(pdf_bytes, pid)
+        registrar_recurso(
+            db, empresa_id=empresa_id, public_id=pid + ".pdf", secure_url=url,
+            folder=f"e-zyro/{empresa_id}/informes/termografico", recurso_tipo="pdf",
+            entidad_tipo="informe_termografico", entidad_id=ei_id,
+            descripcion=f"Informe Termográfico — {data['nombre_tablero']}",
+            creado_por_id=payload.get("id"),
+        )
+    except Exception as exc_idx:
+        logger.warning("[informe-termografico] No se pudo indexar en la galería: %s", exc_idx)
+
+    safe = re.sub(r"[^A-Za-z0-9]", "_", data["nombre_tablero"] or "TABLERO")
+    filename = f"INFORME_TERMOGRAFICO_{safe}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
         media_type="application/pdf",
